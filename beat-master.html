@@ -344,7 +344,7 @@ button { touch-action:manipulation; }
 </style>
 </head>
 <body>
-<audio id="song-audio" preload="auto" style="display:none" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
+<audio id="song-audio" preload="auto" style="display:none"></audio>
 <div class="screen" id="screen-home"><div class="home-inner"><div class="logo-box">🎵</div><div class="home-title">BEAT<br>MASTER</div><div class="home-tagline">Hear the tune. Beat the buzzer. Drop the beat.</div><div class="home-sub">Are you a music master?</div><div class="home-actions"><button class="btn-primary" onclick="requireAuth()">▶ &nbsp;Play Now</button><div style="display:flex;gap:8px;"><button class="btn-secondary" style="flex:1;font-size:13px;" id="profile-btn" onclick="handleProfileBtn()">👤 Profile</button><button class="btn-secondary" style="flex:1;font-size:13px;" id="leaderboard-btn" onclick="goto('leaderboard')">🏆 Leaderboard</button></div></div><div class="stats-row"><div class="stat-item"><div class="stat-num" id="stat-played">0</div><div class="stat-lbl">Played</div></div><div class="stat-item"><div class="stat-num" id="stat-wins">0</div><div class="stat-lbl">Wins</div></div><div class="stat-item"><div class="stat-num" id="stat-best">0</div><div class="stat-lbl">Best</div></div></div></div></div>
 <div class="screen hidden" id="screen-modeselect"><div class="page-header"><div class="back-btn" onclick="goto('home')">←</div><div><div class="page-title">Choose Your Game</div><div class="page-sub">How do you want to play?</div></div></div><div class="page-body"><div class="mode-grid" style="grid-template-columns:1fr;gap:14px;"><div class="mode-card" onclick="selectMode('solo')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🎯</div><div><div class="mode-name">Solo Challenge</div><div class="mode-desc">Beat the buzzer. Test your knowledge. No opponents.</div></div></div><div class="mode-card" onclick="selectMode('party')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🏠</div><div><div class="mode-name">Private Party</div><div class="mode-desc">Create your game room. Invite your friends. Challenge each other.</div></div></div><div class="mode-card disabled" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="soon-tag">COMING SOON</div><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🌍</div><div><div class="mode-name">Play Globally</div><div class="mode-desc">Create a public game. Wait for players to join. Challenge the world.</div></div></div></div></div></div>
 <div class="screen hidden" id="screen-genreselect"><div class="page-header"><div class="back-btn" onclick="goto('modeselect')">←</div><div><div class="page-title">Pick Your Genres</div><div class="page-sub">Select one, several, or all.</div></div></div><div class="page-body"><div class="genre-actions-row" id="genre-actions-row"></div><div class="genre-grid" id="genre-grid"></div><div class="genre-selected-summary" id="genre-summary"></div></div><div class="continue-wrap"><button class="btn-primary" id="genre-continue-btn" disabled onclick="goto('settings')">Continue →</button></div></div>
@@ -452,7 +452,7 @@ const state = {
   buzzQueue:[], buzzTimes:{}, roundTimeAtBuzz:0, answerTime:7, roundTime:20, spokenText:'',
   stats:{played:0,wins:0,best:0}, timers:{}, recognition:null, micActive:false,
   micPermission:'unknown', speechSupported:!!(window.SpeechRecognition||window.webkitSpeechRecognition),
-  waveIntervals:[], audioReady:false, audioLoading:false, audioUnlocked:false, songsPlayed:0, gameStartTime:0,
+  waveIntervals:[], audioReady:false, audioLoading:false, songsPlayed:0, gameStartTime:0,
   bonusPool:[], nextBonusAt:0, skipVotes:[], totalSkips:0, paused:false, pauseRequester:null,
   pauseVotes:{}, restartVotes:{}, footerRestartVotes:{}, pausedTimerRemaining:0, pausedAudioTime:0,
   // Party mode realtime state
@@ -461,51 +461,19 @@ const state = {
   currentUser: null, currentProfile: null, _pendingAvatarFile: null,
 };
 
-function buildSongPool() {
-  let genres = state.genres.length > 0 ? state.genres : Object.keys(SONGS);
-  let pool = [];
-  genres.forEach(gid => { if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s, genre:gid}))); });
-  if (pool.length === 0) {
-    // Last resort: use all songs
-    Object.keys(SONGS).forEach(gid => { if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s, genre:gid}))); });
-  }
-  console.log('[buildSongPool] pool size:', pool.length, 'genres:', genres.length);
-  return pool;
-}
+function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s,genre:gid}))); }); return pool; }
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
-function requireAuth() {
-  // Safe: works even if Supabase hasn't loaded yet
-  if (typeof sb !== 'undefined' && state.currentUser) {
-    goto('modeselect');
-  } else if (typeof sb === 'undefined') {
-    // Supabase not loaded — go to mode select anyway (offline/local mode)
-    goto('modeselect');
-  } else {
-    goto('register');
-  }
-}
-
-function handleProfileBtn() {
-  if (typeof sb !== 'undefined' && state.currentUser) {
-    goto('profile');
-  } else if (typeof sb === 'undefined') {
-    goto('modeselect');
-  } else {
-    goto('register');
-  }
-}
-
 function goto(name) { clearAllTimers(); stopAudio(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.stop();}catch(e){} state.recognition=null;} state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting')renderWaitingRoom(); if(name==='join')prefillJoinCode(); if(name==='party-setup')renderPartySetupPlayers(); }
 function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function clearAllTimers() { Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
-function norm(s) { return (s||'').toLowerCase().replace(/[\u2018\u2019']/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
+function norm(s) { return (s||'').toLowerCase().replace(/[''`]/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
 function wordMatch(answer,target) { const aw=norm(answer).split(' ').filter(w=>w.length>1); const tw=norm(target).split(' ').filter(w=>w.length>1); if(!tw.length)return norm(answer).includes(norm(target)); const hits=tw.filter(t=>aw.some(a=>a.includes(t)||t.includes(a))); return hits.length/tw.length>=0.55; }
 function checkAnswer(spoken,song) { const hasTitle=wordMatch(spoken,song.title); const hasArtist=wordMatch(spoken,song.artist); if(song.isBonus){const pts=(hasTitle&&hasArtist)?5:(hasTitle||hasArtist)?2:0; return{hasTitle,hasArtist,pts,isBonus:true};} const pts=(hasTitle&&hasArtist)?3:(hasTitle||hasArtist)?1:0; return{hasTitle,hasArtist,pts}; }
-function renderGenres() { const grid=document.getElementById('genre-grid'); const allGenreIds=GENRES.map(g=>g.id); const allSelected=allGenreIds.every(id=>state.genres.includes(id)); const noneSelected=state.genres.length===0; const actionsRow=document.getElementById('genre-actions-row'); actionsRow.innerHTML='<button class="genre-action-btn '+(allSelected?'active':'')+'" onclick="toggleSelectAll()">'+(allSelected?'✓ All Selected':'🌍 Select All')+'</button><button class="genre-action-btn" onclick="clearGenreSelection()" '+(noneSelected?'disabled style="opacity:0.4;cursor:not-allowed"':'')+'>✕ Clear</button>'; grid.innerHTML=GENRES.map(g=>{const sel=state.genres.includes(g.id); const bdr=sel?'border-color:'+g.color+';background:'+g.color+'08':''; return '<div class="genre-card '+(sel?'selected':'')+'" style="'+bdr+'" onclick="toggleGenre(\''+g.id+'\')"><div class="genre-check">'+(sel?'✓':'')+'</div><div class="genre-emoji">'+g.emoji+'</div><div class="genre-name" style="color:'+(sel?g.color:'var(--text)')+'">'+g.name+'</div><div class="genre-count" style="color:'+g.color+'">'+(SONGS[g.id]?.length||0)+' songs</div></div>';}).join(''); const summary=document.getElementById('genre-summary'); if(state.genres.length===0){summary.innerHTML='Select at least one genre to continue';}else if(allSelected){summary.innerHTML=`<b>All genres</b> selected — <b>${totalSongCount()}</b> songs in the mix 🔥`;}else{const names=state.genres.map(id=>{const g=GENRES.find(x=>x.id===id); return g?g.emoji+' '+g.name:id;}); summary.innerHTML=`<b>${state.genres.length}</b> genre${state.genres.length>1?'s':''} · <b>${totalSongCount()}</b> songs — ${names.join(', ')}`;} document.getElementById('genre-continue-btn').disabled=state.genres.length===0; }
+function renderGenres() { const grid=document.getElementById('genre-grid'); const allGenreIds=GENRES.map(g=>g.id); const allSelected=allGenreIds.every(id=>state.genres.includes(id)); const noneSelected=state.genres.length===0; const actionsRow=document.getElementById('genre-actions-row'); actionsRow.innerHTML=`<button class="genre-action-btn ${allSelected?'active':''}" onclick="toggleSelectAll()">${allSelected?'✓ All Selected':'🌍 Select All'}</button><button class="genre-action-btn" onclick="clearGenreSelection()" ${noneSelected?'disabled style="opacity:0.4;cursor:not-allowed"':''}>✕ Clear</button>`; grid.innerHTML=GENRES.map(g=>{const sel=state.genres.includes(g.id); return`<div class="genre-card ${sel?'selected':''}" style="${sel?`border-color:${g.color};background:${g.color}08`:''}" onclick="toggleGenre('${g.id}')"><div class="genre-check">${sel?'✓':''}</div><div class="genre-emoji">${g.emoji}</div><div class="genre-name" style="color:${sel?g.color:'var(--text)'}">${g.name}</div><div class="genre-count" style="color:${g.color}">${SONGS[g.id]?.length||0} songs</div></div>`;}).join(''); const summary=document.getElementById('genre-summary'); if(state.genres.length===0){summary.innerHTML='Select at least one genre to continue';}else if(allSelected){summary.innerHTML=`<b>All genres</b> selected — <b>${totalSongCount()}</b> songs in the mix 🔥`;}else{const names=state.genres.map(id=>{const g=GENRES.find(x=>x.id===id); return g?g.emoji+' '+g.name:id;}); summary.innerHTML=`<b>${state.genres.length}</b> genre${state.genres.length>1?'s':''} · <b>${totalSongCount()}</b> songs — ${names.join(', ')}`;} document.getElementById('genre-continue-btn').disabled=state.genres.length===0; }
 function toggleGenre(id) { const idx=state.genres.indexOf(id); if(idx===-1){state.genres.push(id);}else{state.genres.splice(idx,1);} renderGenres(); }
 function toggleSelectAll() { const allGenreIds=GENRES.map(g=>g.id); const allSelected=allGenreIds.every(id=>state.genres.includes(id)); if(allSelected){state.genres=[];}else{state.genres=[...allGenreIds];} renderGenres(); }
 function clearGenreSelection() { state.genres=[]; renderGenres(); }
-function selectMode(m) { unlockAudio();
+function selectMode(m) {
   state.mode = m;
   if (m === 'party') {
     // Party goes: genreselect → settings → party-setup → waiting
@@ -699,33 +667,10 @@ function renderGradeRows(target) {
       </div>
     </div>`).join('');
 }
-function unlockAudio() {
-  if (state.audioUnlocked) return;
-  // Use a short silent data URI to unlock the audio context on mobile
-  // Must happen inside a user gesture (tap/click handler)
-  const silence = new Audio();
-  silence.volume = 0;
-  // Minimal valid MP3 silence
-  silence.src = 'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6v////////////////////////////////8AAAAATGF2YzU4LjU0AAAAAAAAAAAAAAAAJAAAAAAAAAAAASDs90hvAAAAAAAAAAAAAAAAAAAA//MUZAAAAAGkAAAAAAAAA0gAAAAATEFN//MUZAMAAAGkAAAAAAAAA0gAAAAARTMu//MUZAYAAAGkAAAAAAAAA0gAAAAAOTku//MUZAkAAAGkAAAAAAAAA0gAAAAANVVV';
-  silence.play().then(() => {
-    state.audioUnlocked = true;
-    console.log('[audio] Unlocked successfully');
-    // Now pre-load a tiny bit of a real iTunes track to warm up the audio pipeline
-  }).catch(e => {
-    console.log('[audio] Unlock failed (expected if no gesture):', e.message);
-  });
-}
-
 function beginGame() {
-  unlockAudio();
   primeMicPermission();
   if (state.mode === 'party') {
-    // createPartyRoom lives in the Supabase script block — call via window to be safe
-    if (typeof createPartyRoom === 'function') {
-      createPartyRoom();
-    } else {
-      alert('Game services not loaded yet. Please wait a moment and try again.');
-    }
+    createPartyRoom();
     return;
   }
   const myName = state.currentProfile?.nickname || 'You';
@@ -818,14 +763,7 @@ async function fetchAndPlaySong(song) {
   const url = `https://itunes.apple.com/search?term=${query}&entity=${entity}&media=music&limit=10&country=US`;
 
   try {
-    const controller = new AbortController();
-    const fetchTimeout = setTimeout(() => controller.abort(), 8000);
-    let res;
-    try {
-      res = await fetch(url, { signal: controller.signal, mode: 'cors' });
-    } finally {
-      clearTimeout(fetchTimeout);
-    }
+    const res = await fetch(url);
     if (!res.ok) throw new Error('iTunes fetch failed: ' + res.status);
     const data = await res.json();
 
@@ -856,6 +794,7 @@ async function fetchAndPlaySong(song) {
     if (!best) best = (data.results || []).find(r => r.previewUrl);
 
     if (best && best.previewUrl && state.phase === 'playing') {
+      audio.crossOrigin = 'anonymous';
       audio.src = best.previewUrl;
       audio.volume = 0.9;
 
@@ -933,37 +872,7 @@ async function fetchAndPlaySong(song) {
       audio.currentTime = Math.min(startOffset, duration - 5);
       state.audioReady = true;
       state.audioLoading = false;
-      try {
-        await audio.play();
-        console.log('[audio] Playing:', best.trackName || song.title);
-      } catch(playErr) {
-        console.warn('[audio] play() blocked:', playErr.message);
-        // Try without crossOrigin restriction
-        audio.removeAttribute('crossOrigin');
-        const newSrc = audio.src;
-        audio.src = '';
-        audio.src = newSrc;
-        try {
-          await new Promise((res, rej) => {
-            audio.addEventListener('canplaythrough', res, { once: true });
-            audio.addEventListener('error', rej, { once: true });
-            audio.load();
-          });
-          await audio.play();
-          console.log('[audio] Playing after crossOrigin removal');
-        } catch(e2) {
-          // Last resort: show tap prompt
-          setStatus('📱 Tap the screen to start audio', false);
-          const tapHandler = () => {
-            document.removeEventListener('touchstart', tapHandler);
-            document.removeEventListener('click', tapHandler);
-            audio.play().catch(() => {});
-            setStatus('🎵 Song is playing — buzz in when you know it!', false);
-          };
-          document.addEventListener('touchstart', tapHandler, { once: true });
-          document.addEventListener('click', tapHandler, { once: true });
-        }
-      }
+      await audio.play();
 
       const isBonusSong = state.currentSong && state.currentSong.isBonus;
       setStatus(
@@ -973,85 +882,26 @@ async function fetchAndPlaySong(song) {
       setWaveform(true, false);
 
     } else {
-      // No preview found — try a broader search before giving up
-      console.warn('[audio] No preview found for:', song.title, '— trying alternate query');
       state.audioLoading = false;
       if (state.phase === 'playing') {
-        // Try a simpler search (title only)
-        const altQuery = encodeURIComponent(song.title);
-        const altUrl = `https://itunes.apple.com/search?term=${altQuery}&entity=song&limit=5`;
-        try {
-          const altRes = await fetch(altUrl);
-          const altData = await altRes.json();
-          const altBest = (altData.results || []).find(r => r.previewUrl);
-          if (altBest && state.phase === 'playing') {
-            console.log('[audio] Found via alt search:', altBest.trackName);
-            audio.crossOrigin = 'anonymous';
-            audio.src = altBest.previewUrl;
-            audio.volume = 0.9;
-            await new Promise((resolve, reject) => {
-              audio.addEventListener('canplaythrough', resolve, { once: true });
-              audio.addEventListener('error', reject, { once: true });
-              audio.load();
-            });
-            audio.currentTime = 2;
-            state.audioReady = true;
-            await audio.play();
-            setStatus('🎵 Song is playing — buzz in when you know it!', false);
-            setWaveform(true, false);
-            return;
-          }
-        } catch(altErr) {
-          console.warn('[audio] Alt search also failed:', altErr.message);
-        }
-        // Truly no audio — show clear message with skip option
-        setStatus('⚠️ No audio preview found — buzz in if you know the song title!', false);
+        setStatus('🎵 No preview available — name the song!', false);
         setWaveform(false, false);
-        // Auto-advance after 8 seconds if no one buzzes
-        state.timers.noAudio = setTimeout(() => {
-          if (state.phase === 'playing') {
-            console.log('[audio] Auto-skipping unplayable song');
-            skipRound();
-          }
-        }, 8000);
       }
     }
   } catch(err) {
-    console.warn('[audio] Fetch error:', err.message || err);
+    console.warn('Audio fetch error:', err);
     state.audioLoading = false;
     if (state.phase === 'playing') {
-      // Check if it's a rate limit (429) or network error
-      const isRateLimit = err.message && (err.message.includes('429') || err.message.includes('rate'));
-      const isNetwork = err.message && err.message.includes('fetch');
-      if (isRateLimit) {
-        setStatus('⏳ iTunes API rate limited — waiting 5s then retrying…', false);
-        setTimeout(() => {
-          if (state.phase === 'playing') fetchAndPlaySong(song);
-        }, 5000);
-      } else {
-        setStatus(isNetwork ? '📶 Network error — check your connection' : '🎵 Buzz in if you know this song!', false);
-        setWaveform(false, false);
-      }
+      setStatus('🎵 Buzz in when ready!', false);
+      setWaveform(false, false);
     }
   }
 }
 function updateTimerRing(val,max) { const circ=2*Math.PI*40; const arc=document.getElementById('timer-arc'); const num=document.getElementById('timer-num'); if(!arc||!num)return; const pct=val/max; arc.style.strokeDasharray=`${pct*circ} ${circ}`; const isLow=pct<=0.3; arc.style.stroke=isLow?'var(--pink)':'var(--teal)'; num.style.color=isLow?'var(--pink)':'var(--text)'; num.textContent=val; }
-function beginRound() {
-  console.log('[beginRound] mode:', state.mode, 'songs:', state.songs?.length, 'genres:', state.genres?.length, 'players:', state.players?.length);
-  if (!state.songs || state.songs.length === 0) {
-    console.error('[beginRound] No songs! Rebuilding pool...');
-    state.songs = shuffle(buildSongPool());
-    state.songIdx = 0;
-    if (state.songs.length === 0) {
-      alert('No songs available. Please go back and select at least one genre.');
-      goto('genreselect');
-      return;
-    }
-  }
-  clearAllTimers(); const isBonusRound=state.songsPlayed===state.nextBonusAt&&state.bonusPool.length>0; if(isBonusRound){state.currentSong=state.bonusPool.shift(); state.nextBonusAt=state.songsPlayed+4+Math.floor(Math.random()*3);}else{state.currentSong=state.songs[state.songIdx%state.songs.length];} state.phase='playing'; state.buzzQueue=[]; state.buzzTimes={}; state.roundTimeAtBuzz=0; state.spokenText=''; state.micActive=false; state.skipVotes=[]; state.roundTime=20; state.answerTime=7; if(state.mode==='solo'){document.getElementById('round-tag').textContent=`SONG ${state.songsPlayed+1}/${soloSongLimit(state.targetScore)}`;}else{document.getElementById('round-tag').textContent='RND '+state.round;} updateTimerRing(20,20); updateInfoRow(); if(isBonusRound){showBonusBanner(state.currentSong); document.getElementById('screen-game').classList.add('bonus-active');}else{document.getElementById('screen-game').classList.remove('bonus-active');} setWaveform(false,true); setStatus('⏳ Loading preview…',false); renderActionArea(); if(state.mode==='party')scheduleAI(); tickRound(); fetchAndPlaySong(state.currentSong); }
+function beginRound() { clearAllTimers(); const isBonusRound=state.songsPlayed===state.nextBonusAt&&state.bonusPool.length>0; if(isBonusRound){state.currentSong=state.bonusPool.shift(); state.nextBonusAt=state.songsPlayed+4+Math.floor(Math.random()*3);}else{state.currentSong=state.songs[state.songIdx%state.songs.length];} state.phase='playing'; state.buzzQueue=[]; state.buzzTimes={}; state.roundTimeAtBuzz=0; state.spokenText=''; state.micActive=false; state.skipVotes=[]; state.roundTime=20; state.answerTime=7; if(state.mode==='solo'){document.getElementById('round-tag').textContent=`SONG ${state.songsPlayed+1}/${soloSongLimit(state.targetScore)}`;}else{document.getElementById('round-tag').textContent='RND '+state.round;} updateTimerRing(20,20); updateInfoRow(); if(isBonusRound){showBonusBanner(state.currentSong); document.getElementById('screen-game').classList.add('bonus-active');}else{document.getElementById('screen-game').classList.remove('bonus-active');} setWaveform(false,true); setStatus('⏳ Loading preview…',false); renderActionArea(); if(state.mode==='party')scheduleAI(); tickRound(); fetchAndPlaySong(state.currentSong); }
 function tickRound() { if(state.phase!=='playing')return; if(state.roundTime<=0){endRound(null,null,null,true);return;} state.timers.round=setTimeout(()=>{state.roundTime--; updateTimerRing(state.roundTime,20); tickRound();},1000); }
 function scheduleAI() { const rates={easy:0.42,normal:0.70,legend:0.90}; const minT={easy:12,normal:7,legend:3}; const maxT={easy:26,normal:19,legend:9}; if(Math.random()>(rates[state.difficulty]||0.70))return; const delay=(minT[state.difficulty]+Math.random()*(maxT[state.difficulty]-minT[state.difficulty]))*1000; state.timers.ai=setTimeout(()=>{if(state.phase!=='playing')return; const aiIdx=state.players.findIndex(p=>p.avatar==='🤖'); if(aiIdx===-1)return; clearTimeout(state.timers.round); state.roundTimeAtBuzz=state.roundTime; state.buzzQueue=[aiIdx]; state.phase='answering'; pauseAudio(); setWaveform(false); setStatus('🤖 AI buzzed in!',false); renderActionArea(); state.timers.aianswer=setTimeout(()=>{const pts=state.currentSong.isBonus?5:3; endRound(aiIdx,{hasTitle:true,hasArtist:true,pts},state.currentSong);},1800);},delay); }
-function playerBuzz(playerIdx) { unlockAudio(); if(playerIdx===undefined)playerIdx=0; if(state.phase!=='playing')return; if(state.buzzQueue.includes(playerIdx))return; state.buzzTimes[playerIdx]=Date.now(); state.buzzQueue.push(playerIdx); if(state.buzzQueue.length===1){clearTimeout(state.timers.round); clearTimeout(state.timers.ai); state.roundTimeAtBuzz=state.roundTime; state.phase='answering'; state.answerTime=7; state.spokenText=''; pauseAudio(); setWaveform(false); startAnswerFor(playerIdx);}else{renderActionArea();} }
+function playerBuzz(playerIdx) { if(playerIdx===undefined)playerIdx=0; if(state.phase!=='playing')return; if(state.buzzQueue.includes(playerIdx))return; state.buzzTimes[playerIdx]=Date.now(); state.buzzQueue.push(playerIdx); if(state.buzzQueue.length===1){clearTimeout(state.timers.round); clearTimeout(state.timers.ai); state.roundTimeAtBuzz=state.roundTime; state.phase='answering'; state.answerTime=7; state.spokenText=''; pauseAudio(); setWaveform(false); startAnswerFor(playerIdx);}else{renderActionArea();} }
 function startAnswerFor(playerIdx) { state.answerTime=7; state.spokenText=''; stopMic(); const p=state.players[playerIdx]; setStatus(`🎙️ ${p?p.avatar+' '+p.name:'You'} — speak your answer now!`,true); renderActionArea(); startMic(); tickAnswer(); }
 function tickAnswer() { if(state.phase!=='answering')return; if(state.answerTime<=0){if(state.phase==='answering')handleAnswerTimeout();return;} state.timers.answer=setTimeout(()=>{if(state.phase!=='answering')return; state.answerTime--; renderActionArea(); tickAnswer();},1000); }
 function handleAnswerTimeout() { if(state.phase!=='answering')return; stopMic(); clearTimeout(state.timers.answer); const timedOutIdx=state.buzzQueue[0]; const timedOutName=state.players[timedOutIdx]?.name||'You'; const area=document.getElementById('action-area'); if(area){area.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;gap:10px;animation:popIn 0.3s ease;"><div style="font-size:52px;">⏱</div><div style="font-size:28px;font-weight:900;letter-spacing:3px;color:var(--pink);">TOO SLOW!</div><div style="font-size:13px;color:var(--muted);">${timedOutName} ran out of time</div></div>`;} setStatus('',false); state.timers.tooSlow=setTimeout(()=>{if(state.phase!=='answering')return; state.buzzQueue.shift(); if(state.buzzQueue.length>0){const nextIdx=state.buzzQueue[0]; const nextP=state.players[nextIdx]; setStatus(`🎙️ ${nextP?nextP.avatar+' '+nextP.name:'Next'} — your turn!`,true); startAnswerFor(nextIdx);}else{if(state.roundTimeAtBuzz>0){state.phase='playing'; state.roundTime=state.roundTimeAtBuzz; updateTimerRing(state.roundTime,20); if(audio.src){audio.play().catch(()=>{}); setWaveform(true,false);} setStatus('🎵 Song still playing — buzz in if you know it!',false); renderActionArea(); tickRound(); if(state.mode==='party')scheduleAI();}else{endRound(null,null,state.currentSong,true);}}},1600); }
@@ -1294,6 +1144,22 @@ function updateHomeUI() {
     } else {
       profileBtn.textContent = '👤 Profile'
     }
+  }
+}
+
+function requireAuth() {
+  if (state.currentUser) {
+    goto('modeselect')
+  } else {
+    goto('register')
+  }
+}
+
+function handleProfileBtn() {
+  if (state.currentUser) {
+    goto('profile')
+  } else {
+    goto('register')
   }
 }
 
@@ -1819,79 +1685,42 @@ async function createPartyRoom() {
   const btn = document.querySelector('#screen-settings .btn-primary:last-of-type');
   if (btn) { btn.textContent = 'Creating room…'; btn.disabled = true; }
 
-  const resetBtn = () => { if (btn) { btn.textContent = '🎵  Start Game!'; btn.disabled = false; } };
-
-  // Check Supabase is ready
-  if (typeof sb === 'undefined') {
-    resetBtn();
-    alert('Game services not ready. Please wait a moment and try again.');
-    return;
-  }
-
   try {
     const code = generateRoomCode();
-    console.log('[createPartyRoom] attempting with code:', code, 'user:', state.currentUser.id);
-
     const settings = {
       genres: state.genres,
       targetScore: state.targetScore,
-      difficulty: state.difficulty || 'normal',
+      difficulty: state.difficulty,
     };
-
-    // Insert room with a 10s timeout
-    const roomPromise = sb.from('game_rooms').insert({
+    const { data: room, error } = await sb.from('game_rooms').insert({
       code,
       host_id: state.currentUser.id,
       status: 'waiting',
       settings,
     }).select().single();
-
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Request timed out after 10 seconds')), 10000)
-    );
-
-    const { data: room, error } = await Promise.race([roomPromise, timeoutPromise]);
     if (error) throw error;
-    if (!room) throw new Error('Room not returned from database');
-
-    console.log('[createPartyRoom] room created:', room.id);
 
     // Add host as first player
-    const { error: playerErr } = await sb.from('room_players').insert({
+    await sb.from('room_players').insert({
       room_id: room.id,
       player_id: state.currentUser.id,
       is_host: true,
-      mic_ready: state.micPermission === 'granted',
+      mic_ready: false,
       score: 0,
     });
-    if (playerErr) console.warn('[createPartyRoom] player insert error (non-fatal):', playerErr);
 
     state.partyRoom = room;
     state.partyIsHost = true;
     state.partyInvited = [];
-
-    const codeEl = document.getElementById('party-room-code');
-    if (codeEl) codeEl.textContent = code;
-
+    document.getElementById('party-room-code').textContent = code;
     subscribeToRoom(room.id);
     goto('party-setup');
     await refreshPartyPlayers();
 
   } catch(e) {
-    console.error('[createPartyRoom] error:', e);
-    resetBtn();
-    // Give a specific message for common issues
-    let msg = 'Could not create room.';
-    if (e.message && e.message.includes('timed out')) {
-      msg = 'Connection timed out. Check your internet and try again.';
-    } else if (e.message && e.message.includes('duplicate')) {
-      msg = 'Room code collision — please try again.';
-    } else if (e.code === '42501' || (e.message && e.message.includes('policy'))) {
-      msg = 'Permission error. Make sure you are logged in and try again.';
-    } else if (e.message) {
-      msg = 'Error: ' + e.message;
-    }
-    alert(msg);
+    console.error('Create room error:', e);
+    if (btn) { btn.textContent = '🎵  Start Game!'; btn.disabled = false; }
+    alert('Could not create room. Please try again.');
   }
 }
 
@@ -2094,7 +1923,6 @@ function renderPartySetupPlayers() {
 
 function goToWaiting() {
   goto('waiting');
-  setTimeout(refreshPartyPlayers, 200);
 }
 
 // ── WAITING ROOM ──
@@ -2140,9 +1968,9 @@ function renderWaitingRoom() {
     const notReadyCount = state.partyPlayers.filter(p => !p.mic_ready).length;
     if (hostCtrl) hostCtrl.innerHTML = `
       <div style="margin-top:8px;">
-        ${notReadyCount > 0 ? `<div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:10px;">${notReadyCount} player${notReadyCount!==1?'s':''} still setting up mic</div>` : ''}
-        <button class="btn-primary" id="host-start-btn" onclick="hostStartGame()" style="font-size:16px;padding:16px;">
-          🎵 Start Game!
+        ${!allReady ? `<div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:10px;">${notReadyCount} player${notReadyCount!==1?'s':''} still setting up microphone</div>` : ''}
+        <button class="btn-primary" onclick="hostStartGame()" style="font-size:16px;padding:16px;" ${state.partyPlayers.length < 2 ? 'disabled style="opacity:0.4;"' : ''}>
+          🎵 Start Game${state.partyPlayers.length < 2 ? ' (need 2+ players)' : '!'}
         </button>
         <button class="btn-secondary" onclick="goto('party-setup')" style="font-size:13px;margin-top:10px;">← Back to Invite</button>
       </div>`;
@@ -2196,29 +2024,19 @@ async function markMicReady() {
 
 // ── HOST STARTS GAME ──
 async function hostStartGame() {
-  console.log('[hostStartGame] isHost:', state.partyIsHost, 'room:', state.partyRoom?.id, 'players:', state.partyPlayers.length);
-  if (!state.partyIsHost) { alert('Only the host can start the game.'); return; }
-  if (!state.partyRoom) { alert('Room not found — please go back and create a new room.'); return; }
-
-  const btn = document.getElementById('host-start-btn');
-  if (btn) { btn.textContent = 'Starting…'; btn.disabled = true; }
-
-  try {
-    const { error } = await sb.from('game_rooms').update({
-      status: 'playing',
-      current_phase: 'playing',
-      settings: { ...(state.partyRoom.settings || {}), startedAt: Date.now() }
-    }).eq('id', state.partyRoom.id);
-
-    if (error) throw error;
-    // Refresh players from DB one final time before starting
-    await refreshPartyPlayers();
-    startPartyGame();
-  } catch(e) {
-    console.error('[hostStartGame] error:', e);
-    alert('Could not start game: ' + (e.message || JSON.stringify(e)));
-    if (btn) { btn.textContent = '🎵 Start Game!'; btn.disabled = false; }
-  }
+  if (!state.partyIsHost || !state.partyRoom) return;
+  const song = buildPartySongList();
+  // Signal all players to start via room status change
+  await sb.from('game_rooms').update({
+    status: 'playing',
+    current_phase: 'playing',
+    settings: {
+      ...state.partyRoom.settings,
+      songList: song,
+      startedAt: Date.now(),
+    }
+  }).eq('id', state.partyRoom.id);
+  startPartyGame();
 }
 
 function buildPartySongList() {
@@ -2226,40 +2044,15 @@ function buildPartySongList() {
 }
 
 function startPartyGame() {
-  // Build players from partyPlayers if available, otherwise use just the current user
-  if (state.partyPlayers && state.partyPlayers.length > 0) {
-    state.players = state.partyPlayers.map(rp => ({
-      id: rp.player_id,
-      name: rp.profiles?.nickname || rp.player_id?.slice(0,6) || 'Player',
-      avatar: rp.profiles?.avatar_url || '🎵',
-      score: 0,
-      isHost: rp.is_host,
-      isMe: rp.player_id === state.currentUser?.id,
-    }));
-  } else {
-    // Fallback: just the current user as a solo-style party game
-    const me = state.currentProfile;
-    state.players = [{
-      id: state.currentUser?.id,
-      name: me?.nickname || 'You',
-      avatar: me?.avatar_url || '🎵',
-      score: 0,
-      isHost: true,
-      isMe: true,
-    }];
-  }
-
-  // Ensure at least one player
-  if (!state.players.length) {
-    alert('No players loaded. Please try again.');
-    const btn = document.getElementById('host-start-btn');
-    if (btn) { btn.textContent = '🎵 Start Game!'; btn.disabled = false; }
-    return;
-  }
-
-  console.log('[startPartyGame] players:', state.players.map(p => p.name));
-
-  state.mode = 'party';
+  // Build players array from room_players
+  state.players = state.partyPlayers.map(rp => ({
+    id: rp.player_id,
+    name: rp.profiles?.nickname || 'Player',
+    avatar: rp.profiles?.avatar_url || '🎵',
+    score: 0,
+    isHost: rp.is_host,
+    isMe: rp.player_id === state.currentUser?.id,
+  }));
   state.round = 1;
   state.consecutiveNoScore = 0;
   state.songsPlayed = 0;
