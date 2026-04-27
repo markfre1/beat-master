@@ -915,7 +915,6 @@ function startMic() {
   try {
     const rec = new SR();
     state.recognition = rec;
-    // Single-shot mode: continuous=false prevents mobile from re-firing old results
     rec.continuous = false;
     rec.interimResults = true;
     rec.lang = 'en-US';
@@ -924,38 +923,23 @@ function startMic() {
     rec.onstart = () => { state.micActive = true; renderActionArea(); };
 
     rec.onresult = (e) => {
-      let interim = '';
-      let newFinal = '';
+      // Simply take whatever the browser says right now — no accumulation
+      // The LAST result is always the most complete on mobile
+      let text = '';
       for (let i = 0; i < e.results.length; i++) {
-        if (e.results[i].isFinal) {
-          newFinal += e.results[i][0].transcript;
-        } else {
-          interim += e.results[i][0].transcript;
-        }
+        text += e.results[i][0].transcript;
       }
-      // Only update display — don't append to _finalTranscript yet
-      // _finalTranscript only gets the final result when recognition ends
-      state._interimTranscript = interim;
-      if (newFinal) state._sessionFinal = newFinal;
-      state.spokenText = ((state._finalTranscript || '') + (newFinal || interim)).trim();
+      state.spokenText = text.trim();
       renderActionArea();
     };
 
     rec.onend = () => {
-      // Commit this session's final result to the accumulator
-      if (state._sessionFinal) {
-        state._finalTranscript = ((state._finalTranscript || '') + state._sessionFinal).trim();
-        state._sessionFinal = '';
-      }
-      state._interimTranscript = '';
-      state.spokenText = (state._finalTranscript || '').trim();
-
-      // Restart for another single-shot session if still answering
+      // Restart with a fresh instance if still in answering phase
       if (state.micActive && state.phase === 'answering') {
         state.recognition = null;
         setTimeout(() => {
           if (state.micActive && state.phase === 'answering') startMic();
-        }, 150);
+        }, 200);
       } else {
         state.micActive = false;
         renderActionArea();
@@ -964,11 +948,10 @@ function startMic() {
 
     rec.onerror = (e) => {
       if (e.error === 'no-speech') {
-        // Restart quietly on silence
         state.recognition = null;
         setTimeout(() => {
           if (state.micActive && state.phase === 'answering') startMic();
-        }, 150);
+        }, 200);
         return;
       }
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
