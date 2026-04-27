@@ -3,92 +3,59 @@
 <head>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
-body { background:#111; color:#fff; font-family:sans-serif; padding:20px; }
-button { background:#e8ff3a; color:#000; border:none; border-radius:12px; padding:16px 24px; font-size:18px; font-weight:900; margin:10px; cursor:pointer; display:block; width:100%; }
-#log { background:#222; border-radius:8px; padding:12px; margin-top:16px; font-size:12px; font-family:monospace; white-space:pre-wrap; min-height:200px; }
+body{background:#111;color:#fff;font-family:sans-serif;padding:20px}
+button{background:#e8ff3a;color:#000;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:900;margin:8px 0;cursor:pointer;width:100%;display:block}
+#log{background:#222;border-radius:8px;padding:12px;margin-top:16px;font-size:13px;font-family:monospace;white-space:pre-wrap;min-height:150px}
 </style>
 </head>
 <body>
-<h2>🎵 Audio Test</h2>
-<button onclick="testFetch()">1. Test iTunes Fetch</button>
-<button onclick="testPlay()">2. Test Audio Play</button>
-<button onclick="testDirect()">3. Play Direct URL</button>
-<div id="log">Tap a button to test...
-</div>
-
-<audio id="test-audio" playsinline webkit-playsinline></audio>
-
+<h2>Audio Test</h2>
+<button id="b1">1. Fetch iTunes</button>
+<button id="b2">2. Play Audio</button>
+<button id="b3">3. Play Direct</button>
+<div id="log">Ready. Tap a button.\n</div>
+<audio id="au" playsinline></audio>
 <script>
-const log = document.getElementById('log');
-const au = document.getElementById('test-audio');
+var previewUrl = null;
+var au = document.getElementById('au');
+var log = document.getElementById('log');
 
-function addLog(msg) {
-  log.textContent += new Date().toLocaleTimeString() + ' ' + msg + '
-';
-  log.scrollTop = log.scrollHeight;
-}
+function L(msg) { log.textContent += '\n' + msg; }
 
-async function testFetch() {
-  addLog('Fetching from iTunes...');
-  try {
-    const url = 'https://itunes.apple.com/search?term=queen+bohemian+rhapsody&entity=song&limit=3';
-    addLog('URL: ' + url);
-    const res = await fetch(url, { mode: 'cors' });
-    addLog('HTTP status: ' + res.status);
-    const data = await res.json();
-    addLog('Results: ' + data.resultCount);
-    if (data.results && data.results.length > 0) {
-      const preview = data.results[0].previewUrl;
-      addLog('Preview URL: ' + (preview || 'NONE'));
-      window._testPreviewUrl = preview;
-    }
-  } catch(e) {
-    addLog('ERROR: ' + e.message);
-  }
-}
+document.getElementById('b1').addEventListener('click', function() {
+  L('Fetching iTunes...');
+  fetch('https://itunes.apple.com/search?term=queen&entity=song&limit=3')
+    .then(function(r) { L('Status: ' + r.status); return r.json(); })
+    .then(function(d) {
+      L('Results: ' + d.resultCount);
+      if (d.results && d.results[0]) {
+        previewUrl = d.results[0].previewUrl;
+        L('Preview URL: ' + (previewUrl ? previewUrl.slice(0,60) : 'NONE'));
+      }
+    })
+    .catch(function(e) { L('FETCH ERROR: ' + e.message); });
+});
 
-async function testPlay() {
-  if (!window._testPreviewUrl) {
-    addLog('Run fetch test first!');
-    return;
-  }
-  addLog('Attempting to play: ' + window._testPreviewUrl.slice(0,60) + '...');
-  try {
-    au.src = window._testPreviewUrl;
-    au.volume = 1.0;
-    au.load();
-    await au.play();
-    addLog('SUCCESS - audio is playing!');
-  } catch(e) {
-    addLog('PLAY ERROR: ' + e.name + ' - ' + e.message);
-    // Try with a different approach
-    addLog('Trying without load()...');
-    try {
-      au.src = window._testPreviewUrl;
-      await au.play();
-      addLog('SUCCESS on second attempt!');
-    } catch(e2) {
-      addLog('SECOND ATTEMPT FAILED: ' + e2.message);
-    }
-  }
-}
+document.getElementById('b2').addEventListener('click', function() {
+  if (!previewUrl) { L('Run fetch first'); return; }
+  L('Playing: ' + previewUrl.slice(0,50));
+  au.src = previewUrl;
+  au.volume = 1;
+  au.play()
+    .then(function() { L('SUCCESS - playing!'); })
+    .catch(function(e) { L('PLAY ERROR: ' + e.name + ' ' + e.message); });
+});
 
-async function testDirect() {
-  // Use a known working audio URL
-  const testUrl = 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/6f/97/48/6f974853-1e48-a849-f3ed-4a9db34cc5e6/mzaf_12167461822497892.plus.aac.p.m4a';
-  addLog('Testing hardcoded URL...');
-  try {
-    au.src = testUrl;
-    au.volume = 1.0;
-    await au.play();
-    addLog('SUCCESS - direct URL works!');
-  } catch(e) {
-    addLog('DIRECT URL ERROR: ' + e.name + ' - ' + e.message);
-  }
-}
+document.getElementById('b3').addEventListener('click', function() {
+  L('Trying direct hardcoded URL...');
+  au.src = 'https://audio-ssl.itunes.apple.com/itunes-assets/AudioPreview125/v4/6f/97/48/6f974853-1e48-a849-f3ed-4a9db34cc5e6/mzaf_12167461822497892.plus.aac.p.m4a';
+  au.volume = 1;
+  au.play()
+    .then(function() { L('SUCCESS - direct URL works!'); })
+    .catch(function(e) { L('DIRECT ERROR: ' + e.name + ' ' + e.message); });
+});
 
-addLog('Page loaded. Browser: ' + navigator.userAgent.slice(0,80));
-addLog('Audio element: ' + (au ? 'found' : 'NOT FOUND'));
+L('Browser: ' + navigator.userAgent.slice(0, 100));
 </script>
 </body>
 </html>
