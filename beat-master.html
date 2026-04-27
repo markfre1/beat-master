@@ -344,7 +344,7 @@ button { touch-action:manipulation; }
 </style>
 </head>
 <body>
-<audio id="song-audio" preload="auto" style="display:none"></audio>
+<audio id="song-audio" preload="auto" style="display:none" playsinline webkit-playsinline x-webkit-airplay="allow"></audio>
 <div class="screen" id="screen-home"><div class="home-inner"><div class="logo-box">🎵</div><div class="home-title">BEAT<br>MASTER</div><div class="home-tagline">Hear the tune. Beat the buzzer. Drop the beat.</div><div class="home-sub">Are you a music master?</div><div class="home-actions"><button class="btn-primary" onclick="requireAuth()">▶ &nbsp;Play Now</button><div style="display:flex;gap:8px;"><button class="btn-secondary" style="flex:1;font-size:13px;" id="profile-btn" onclick="handleProfileBtn()">👤 Profile</button><button class="btn-secondary" style="flex:1;font-size:13px;" id="leaderboard-btn" onclick="goto('leaderboard')">🏆 Leaderboard</button></div></div><div class="stats-row"><div class="stat-item"><div class="stat-num" id="stat-played">0</div><div class="stat-lbl">Played</div></div><div class="stat-item"><div class="stat-num" id="stat-wins">0</div><div class="stat-lbl">Wins</div></div><div class="stat-item"><div class="stat-num" id="stat-best">0</div><div class="stat-lbl">Best</div></div></div></div></div>
 <div class="screen hidden" id="screen-modeselect"><div class="page-header"><div class="back-btn" onclick="goto('home')">←</div><div><div class="page-title">Choose Your Game</div><div class="page-sub">How do you want to play?</div></div></div><div class="page-body"><div class="mode-grid" style="grid-template-columns:1fr;gap:14px;"><div class="mode-card" onclick="selectMode('solo')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🎯</div><div><div class="mode-name">Solo Challenge</div><div class="mode-desc">Beat the buzzer. Test your knowledge. No opponents.</div></div></div><div class="mode-card" onclick="selectMode('party')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🏠</div><div><div class="mode-name">Private Party</div><div class="mode-desc">Create your game room. Invite your friends. Challenge each other.</div></div></div><div class="mode-card disabled" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="soon-tag">COMING SOON</div><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🌍</div><div><div class="mode-name">Play Globally</div><div class="mode-desc">Create a public game. Wait for players to join. Challenge the world.</div></div></div></div></div></div>
 <div class="screen hidden" id="screen-genreselect"><div class="page-header"><div class="back-btn" onclick="goto('modeselect')">←</div><div><div class="page-title">Pick Your Genres</div><div class="page-sub">Select one, several, or all.</div></div></div><div class="page-body"><div class="genre-actions-row" id="genre-actions-row"></div><div class="genre-grid" id="genre-grid"></div><div class="genre-selected-summary" id="genre-summary"></div></div><div class="continue-wrap"><button class="btn-primary" id="genre-continue-btn" disabled onclick="goto('settings')">Continue →</button></div></div>
@@ -461,7 +461,17 @@ const state = {
   currentUser: null, currentProfile: null, _pendingAvatarFile: null,
 };
 
-function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s,genre:gid}))); }); return pool; }
+function buildSongPool() {
+  let genres = state.genres.length > 0 ? state.genres : Object.keys(SONGS);
+  let pool = [];
+  genres.forEach(gid => { if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s, genre:gid}))); });
+  if (pool.length === 0) {
+    // Last resort: use all songs
+    Object.keys(SONGS).forEach(gid => { if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s, genre:gid}))); });
+  }
+  console.log('[buildSongPool] pool size:', pool.length, 'genres:', genres.length);
+  return pool;
+}
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
 function requireAuth() {
   // Safe: works even if Supabase hasn't loaded yet
@@ -807,7 +817,14 @@ async function fetchAndPlaySong(song) {
   const url = `https://itunes.apple.com/search?term=${query}&entity=${entity}&media=music&limit=10&country=US`;
 
   try {
-    const res = await fetch(url);
+    const controller = new AbortController();
+    const fetchTimeout = setTimeout(() => controller.abort(), 8000);
+    let res;
+    try {
+      res = await fetch(url, { signal: controller.signal, mode: 'cors' });
+    } finally {
+      clearTimeout(fetchTimeout);
+    }
     if (!res.ok) throw new Error('iTunes fetch failed: ' + res.status);
     const data = await res.json();
 
@@ -1003,7 +1020,19 @@ async function fetchAndPlaySong(song) {
   }
 }
 function updateTimerRing(val,max) { const circ=2*Math.PI*40; const arc=document.getElementById('timer-arc'); const num=document.getElementById('timer-num'); if(!arc||!num)return; const pct=val/max; arc.style.strokeDasharray=`${pct*circ} ${circ}`; const isLow=pct<=0.3; arc.style.stroke=isLow?'var(--pink)':'var(--teal)'; num.style.color=isLow?'var(--pink)':'var(--text)'; num.textContent=val; }
-function beginRound() { clearAllTimers(); const isBonusRound=state.songsPlayed===state.nextBonusAt&&state.bonusPool.length>0; if(isBonusRound){state.currentSong=state.bonusPool.shift(); state.nextBonusAt=state.songsPlayed+4+Math.floor(Math.random()*3);}else{state.currentSong=state.songs[state.songIdx%state.songs.length];} state.phase='playing'; state.buzzQueue=[]; state.buzzTimes={}; state.roundTimeAtBuzz=0; state.spokenText=''; state.micActive=false; state.skipVotes=[]; state.roundTime=20; state.answerTime=7; if(state.mode==='solo'){document.getElementById('round-tag').textContent=`SONG ${state.songsPlayed+1}/${soloSongLimit(state.targetScore)}`;}else{document.getElementById('round-tag').textContent='RND '+state.round;} updateTimerRing(20,20); updateInfoRow(); if(isBonusRound){showBonusBanner(state.currentSong); document.getElementById('screen-game').classList.add('bonus-active');}else{document.getElementById('screen-game').classList.remove('bonus-active');} setWaveform(false,true); setStatus('⏳ Loading preview…',false); renderActionArea(); if(state.mode==='party')scheduleAI(); tickRound(); fetchAndPlaySong(state.currentSong); }
+function beginRound() {
+  console.log('[beginRound] mode:', state.mode, 'songs:', state.songs?.length, 'genres:', state.genres?.length, 'players:', state.players?.length);
+  if (!state.songs || state.songs.length === 0) {
+    console.error('[beginRound] No songs! Rebuilding pool...');
+    state.songs = shuffle(buildSongPool());
+    state.songIdx = 0;
+    if (state.songs.length === 0) {
+      alert('No songs available. Please go back and select at least one genre.');
+      goto('genreselect');
+      return;
+    }
+  }
+  clearAllTimers(); const isBonusRound=state.songsPlayed===state.nextBonusAt&&state.bonusPool.length>0; if(isBonusRound){state.currentSong=state.bonusPool.shift(); state.nextBonusAt=state.songsPlayed+4+Math.floor(Math.random()*3);}else{state.currentSong=state.songs[state.songIdx%state.songs.length];} state.phase='playing'; state.buzzQueue=[]; state.buzzTimes={}; state.roundTimeAtBuzz=0; state.spokenText=''; state.micActive=false; state.skipVotes=[]; state.roundTime=20; state.answerTime=7; if(state.mode==='solo'){document.getElementById('round-tag').textContent=`SONG ${state.songsPlayed+1}/${soloSongLimit(state.targetScore)}`;}else{document.getElementById('round-tag').textContent='RND '+state.round;} updateTimerRing(20,20); updateInfoRow(); if(isBonusRound){showBonusBanner(state.currentSong); document.getElementById('screen-game').classList.add('bonus-active');}else{document.getElementById('screen-game').classList.remove('bonus-active');} setWaveform(false,true); setStatus('⏳ Loading preview…',false); renderActionArea(); if(state.mode==='party')scheduleAI(); tickRound(); fetchAndPlaySong(state.currentSong); }
 function tickRound() { if(state.phase!=='playing')return; if(state.roundTime<=0){endRound(null,null,null,true);return;} state.timers.round=setTimeout(()=>{state.roundTime--; updateTimerRing(state.roundTime,20); tickRound();},1000); }
 function scheduleAI() { const rates={easy:0.42,normal:0.70,legend:0.90}; const minT={easy:12,normal:7,legend:3}; const maxT={easy:26,normal:19,legend:9}; if(Math.random()>(rates[state.difficulty]||0.70))return; const delay=(minT[state.difficulty]+Math.random()*(maxT[state.difficulty]-minT[state.difficulty]))*1000; state.timers.ai=setTimeout(()=>{if(state.phase!=='playing')return; const aiIdx=state.players.findIndex(p=>p.avatar==='🤖'); if(aiIdx===-1)return; clearTimeout(state.timers.round); state.roundTimeAtBuzz=state.roundTime; state.buzzQueue=[aiIdx]; state.phase='answering'; pauseAudio(); setWaveform(false); setStatus('🤖 AI buzzed in!',false); renderActionArea(); state.timers.aianswer=setTimeout(()=>{const pts=state.currentSong.isBonus?5:3; endRound(aiIdx,{hasTitle:true,hasArtist:true,pts},state.currentSong);},1800);},delay); }
 function playerBuzz(playerIdx) { unlockAudio(); if(playerIdx===undefined)playerIdx=0; if(state.phase!=='playing')return; if(state.buzzQueue.includes(playerIdx))return; state.buzzTimes[playerIdx]=Date.now(); state.buzzQueue.push(playerIdx); if(state.buzzQueue.length===1){clearTimeout(state.timers.round); clearTimeout(state.timers.ai); state.roundTimeAtBuzz=state.roundTime; state.phase='answering'; state.answerTime=7; state.spokenText=''; pauseAudio(); setWaveform(false); startAnswerFor(playerIdx);}else{renderActionArea();} }
