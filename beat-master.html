@@ -463,7 +463,7 @@ const state = {
 
 function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s,genre:gid}))); }); return pool; }
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
-function goto(name) { clearAllTimers(); stopAudio(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.stop();}catch(e){} state.recognition=null;} state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting')renderWaitingRoom(); if(name==='join')prefillJoinCode(); if(name==='party-setup')renderPartySetupPlayers(); }
+function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting')renderWaitingRoom(); if(name==='join')prefillJoinCode(); if(name==='party-setup')renderPartySetupPlayers(); }
 function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function clearAllTimers() { Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
 function norm(s) { return (s||'').toLowerCase().replace(/[''`]/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
@@ -923,13 +923,22 @@ function startMic() {
     rec.onstart = () => { state.micActive = true; renderActionArea(); };
 
     rec.onresult = (e) => {
-      // On mobile, each onresult event contains the FULL running transcript
-      // in e.results[e.results.length-1] — just take the last entry only.
-      // Taking all entries and concatenating causes duplication because
-      // earlier entries contain partial words already included in the last entry.
-      const last = e.results[e.results.length - 1];
-      state.spokenText = last[0].transcript.trim();
-      renderActionArea();
+      let finals = '';
+      let interim = '';
+      for (let i = 0; i < e.results.length; i++) {
+        if (e.results[i].isFinal) {
+          finals += e.results[i][0].transcript + ' ';
+        } else {
+          interim = e.results[i][0].transcript;
+        }
+      }
+      const text = (finals.trim() || interim).trim();
+      // Only update if we have something new and it's longer or different
+      // This prevents first word repeating while waiting for second word
+      if (text && text.length >= (state.spokenText || '').length) {
+        state.spokenText = text;
+        renderActionArea();
+      }
     };
 
     rec.onend = () => {
