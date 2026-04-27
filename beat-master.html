@@ -700,19 +700,20 @@ function renderGradeRows(target) {
     </div>`).join('');
 }
 function unlockAudio() {
-  // Mobile browsers require a user gesture before audio can play.
-  // Call this during any button tap to pre-unlock the audio element.
   if (state.audioUnlocked) return;
-  const silence = audio;
+  // Use a short silent data URI to unlock the audio context on mobile
+  // Must happen inside a user gesture (tap/click handler)
+  const silence = new Audio();
   silence.volume = 0;
-  silence.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA';
+  // Minimal valid MP3 silence
+  silence.src = 'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6v////////////////////////////////8AAAAATGF2YzU4LjU0AAAAAAAAAAAAAAAAJAAAAAAAAAAAASDs90hvAAAAAAAAAAAAAAAAAAAA//MUZAAAAAGkAAAAAAAAA0gAAAAATEFN//MUZAMAAAGkAAAAAAAAA0gAAAAARTMu//MUZAYAAAGkAAAAAAAAA0gAAAAAOTku//MUZAkAAAGkAAAAAAAAA0gAAAAANVVV';
   silence.play().then(() => {
-    silence.pause();
-    silence.src = '';
-    silence.volume = 0.9;
     state.audioUnlocked = true;
-    console.log('[audio] Unlocked on mobile');
-  }).catch(() => {});
+    console.log('[audio] Unlocked successfully');
+    // Now pre-load a tiny bit of a real iTunes track to warm up the audio pipeline
+  }).catch(e => {
+    console.log('[audio] Unlock failed (expected if no gesture):', e.message);
+  });
 }
 
 function beginGame() {
@@ -855,7 +856,6 @@ async function fetchAndPlaySong(song) {
     if (!best) best = (data.results || []).find(r => r.previewUrl);
 
     if (best && best.previewUrl && state.phase === 'playing') {
-      audio.crossOrigin = 'anonymous';
       audio.src = best.previewUrl;
       audio.volume = 0.9;
 
@@ -935,18 +935,34 @@ async function fetchAndPlaySong(song) {
       state.audioLoading = false;
       try {
         await audio.play();
+        console.log('[audio] Playing:', best.trackName || song.title);
       } catch(playErr) {
         console.warn('[audio] play() blocked:', playErr.message);
-        // Show a tap-to-play button on mobile
-        setStatus('📱 Tap anywhere to start audio', false);
-        const tapHandler = () => {
-          document.removeEventListener('touchstart', tapHandler);
-          document.removeEventListener('click', tapHandler);
-          audio.play().catch(() => {});
-          setStatus('🎵 Song is playing — buzz in when you know it!', false);
-        };
-        document.addEventListener('touchstart', tapHandler, { once: true });
-        document.addEventListener('click', tapHandler, { once: true });
+        // Try without crossOrigin restriction
+        audio.removeAttribute('crossOrigin');
+        const newSrc = audio.src;
+        audio.src = '';
+        audio.src = newSrc;
+        try {
+          await new Promise((res, rej) => {
+            audio.addEventListener('canplaythrough', res, { once: true });
+            audio.addEventListener('error', rej, { once: true });
+            audio.load();
+          });
+          await audio.play();
+          console.log('[audio] Playing after crossOrigin removal');
+        } catch(e2) {
+          // Last resort: show tap prompt
+          setStatus('📱 Tap the screen to start audio', false);
+          const tapHandler = () => {
+            document.removeEventListener('touchstart', tapHandler);
+            document.removeEventListener('click', tapHandler);
+            audio.play().catch(() => {});
+            setStatus('🎵 Song is playing — buzz in when you know it!', false);
+          };
+          document.addEventListener('touchstart', tapHandler, { once: true });
+          document.addEventListener('click', tapHandler, { once: true });
+        }
       }
 
       const isBonusSong = state.currentSong && state.currentSong.isBonus;
