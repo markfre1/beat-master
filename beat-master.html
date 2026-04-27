@@ -902,7 +902,7 @@ function beginRound() { clearAllTimers(); const isBonusRound=state.songsPlayed==
 function tickRound() { if(state.phase!=='playing')return; if(state.roundTime<=0){endRound(null,null,null,true);return;} state.timers.round=setTimeout(()=>{state.roundTime--; updateTimerRing(state.roundTime,20); tickRound();},1000); }
 function scheduleAI() { const rates={easy:0.42,normal:0.70,legend:0.90}; const minT={easy:12,normal:7,legend:3}; const maxT={easy:26,normal:19,legend:9}; if(Math.random()>(rates[state.difficulty]||0.70))return; const delay=(minT[state.difficulty]+Math.random()*(maxT[state.difficulty]-minT[state.difficulty]))*1000; state.timers.ai=setTimeout(()=>{if(state.phase!=='playing')return; const aiIdx=state.players.findIndex(p=>p.avatar==='🤖'); if(aiIdx===-1)return; clearTimeout(state.timers.round); state.roundTimeAtBuzz=state.roundTime; state.buzzQueue=[aiIdx]; state.phase='answering'; pauseAudio(); setWaveform(false); setStatus('🤖 AI buzzed in!',false); renderActionArea(); state.timers.aianswer=setTimeout(()=>{const pts=state.currentSong.isBonus?5:3; endRound(aiIdx,{hasTitle:true,hasArtist:true,pts},state.currentSong);},1800);},delay); }
 function playerBuzz(playerIdx) { if(playerIdx===undefined)playerIdx=0; if(state.phase!=='playing')return; if(state.buzzQueue.includes(playerIdx))return; state.buzzTimes[playerIdx]=Date.now(); state.buzzQueue.push(playerIdx); if(state.buzzQueue.length===1){clearTimeout(state.timers.round); clearTimeout(state.timers.ai); state.roundTimeAtBuzz=state.roundTime; state.phase='answering'; state.answerTime=7; state.spokenText=''; pauseAudio(); setWaveform(false); startAnswerFor(playerIdx);}else{renderActionArea();} }
-function startAnswerFor(playerIdx) { state.answerTime=7; state.spokenText=''; state._finalTranscript=''; state._sessionFinal=''; state._interimTranscript=''; stopMic(); const p=state.players[playerIdx]; setStatus(`🎙️ ${p?p.avatar+' '+p.name:'You'} — speak your answer now!`,true); renderActionArea(); startMic(); tickAnswer(); }
+function startAnswerFor(playerIdx) { state.answerTime=7; state.spokenText=''; state._finalTranscript=''; stopMic(); const p=state.players[playerIdx]; setStatus(`🎙️ ${p?p.avatar+' '+p.name:'You'} — speak your answer now!`,true); renderActionArea(); startMic(); tickAnswer(); }
 function tickAnswer() { if(state.phase!=='answering')return; if(state.answerTime<=0){if(state.phase==='answering')handleAnswerTimeout();return;} state.timers.answer=setTimeout(()=>{if(state.phase!=='answering')return; state.answerTime--; renderActionArea(); tickAnswer();},1000); }
 function handleAnswerTimeout() { if(state.phase!=='answering')return; stopMic(); clearTimeout(state.timers.answer); const timedOutIdx=state.buzzQueue[0]; const timedOutName=state.players[timedOutIdx]?.name||'You'; const area=document.getElementById('action-area'); if(area){area.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;gap:10px;animation:popIn 0.3s ease;"><div style="font-size:52px;">⏱</div><div style="font-size:28px;font-weight:900;letter-spacing:3px;color:var(--pink);">TOO SLOW!</div><div style="font-size:13px;color:var(--muted);">${timedOutName} ran out of time</div></div>`;} setStatus('',false); state.timers.tooSlow=setTimeout(()=>{if(state.phase!=='answering')return; state.buzzQueue.shift(); if(state.buzzQueue.length>0){const nextIdx=state.buzzQueue[0]; const nextP=state.players[nextIdx]; setStatus(`🎙️ ${nextP?nextP.avatar+' '+nextP.name:'Next'} — your turn!`,true); startAnswerFor(nextIdx);}else{if(state.roundTimeAtBuzz>0){state.phase='playing'; state.roundTime=state.roundTimeAtBuzz; updateTimerRing(state.roundTime,20); if(audio.src){audio.play().catch(()=>{}); setWaveform(true,false);} setStatus('🎵 Song still playing — buzz in if you know it!',false); renderActionArea(); tickRound(); if(state.mode==='party')scheduleAI();}else{endRound(null,null,state.currentSong,true);}}},1600); }
 function submitAnswer() { if(state.phase!=='answering')return; state.phase='submitting'; stopMic(); clearTimeout(state.timers.answer); clearTimeout(state.timers.tooSlow); const playerIdx=state.buzzQueue[0]??0; const result=checkAnswer(state.spokenText,state.currentSong); endRound(playerIdx,result,state.currentSong); }
@@ -915,23 +915,23 @@ function startMic() {
   try {
     const rec = new SR();
     state.recognition = rec;
-    rec.continuous = false;
-    rec.interimResults = false; // final results only — no interim on mobile
+    rec.continuous = true;
+    rec.interimResults = true;
     rec.lang = 'en-US';
     rec.maxAlternatives = 1;
-    let lastTranscript = ''; // deduplicate identical results
 
     rec.onstart = () => { state.micActive = true; renderActionArea(); };
 
     rec.onresult = (e) => {
-      // Take only the single final result from this utterance
-      const transcript = e.results[e.results.length - 1][0].transcript.trim();
-      // Ignore if identical to last (Android sometimes fires onresult twice)
-      if (transcript && transcript !== lastTranscript) {
-        lastTranscript = transcript;
-        state.spokenText = transcript;
-        renderActionArea();
+      // Build the full transcript from ALL results each time
+      // This is the correct approach — don't accumulate separately
+      // just read the complete picture the browser gives us
+      let text = '';
+      for (let i = 0; i < e.results.length; i++) {
+        text += e.results[i][0].transcript;
       }
+      state.spokenText = text.trim();
+      renderActionArea();
     };
 
     rec.onend = () => {
@@ -941,9 +941,7 @@ function startMic() {
     };
 
     rec.onerror = (e) => {
-      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        state.micPermission = 'denied';
-      }
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') state.micPermission = 'denied';
       state.micActive = false;
       state.recognition = null;
       renderActionArea();
