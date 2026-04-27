@@ -909,18 +909,65 @@ async function fetchAndPlaySong(song) {
       setWaveform(true, false);
 
     } else {
+      // No preview found — try a broader search before giving up
+      console.warn('[audio] No preview found for:', song.title, '— trying alternate query');
       state.audioLoading = false;
       if (state.phase === 'playing') {
-        setStatus('🎵 No preview available — name the song!', false);
+        // Try a simpler search (title only)
+        const altQuery = encodeURIComponent(song.title);
+        const altUrl = `https://itunes.apple.com/search?term=${altQuery}&entity=song&limit=5`;
+        try {
+          const altRes = await fetch(altUrl);
+          const altData = await altRes.json();
+          const altBest = (altData.results || []).find(r => r.previewUrl);
+          if (altBest && state.phase === 'playing') {
+            console.log('[audio] Found via alt search:', altBest.trackName);
+            audio.crossOrigin = 'anonymous';
+            audio.src = altBest.previewUrl;
+            audio.volume = 0.9;
+            await new Promise((resolve, reject) => {
+              audio.addEventListener('canplaythrough', resolve, { once: true });
+              audio.addEventListener('error', reject, { once: true });
+              audio.load();
+            });
+            audio.currentTime = 2;
+            state.audioReady = true;
+            await audio.play();
+            setStatus('🎵 Song is playing — buzz in when you know it!', false);
+            setWaveform(true, false);
+            return;
+          }
+        } catch(altErr) {
+          console.warn('[audio] Alt search also failed:', altErr.message);
+        }
+        // Truly no audio — show clear message with skip option
+        setStatus('⚠️ No audio preview found — buzz in if you know the song title!', false);
         setWaveform(false, false);
+        // Auto-advance after 8 seconds if no one buzzes
+        state.timers.noAudio = setTimeout(() => {
+          if (state.phase === 'playing') {
+            console.log('[audio] Auto-skipping unplayable song');
+            skipRound();
+          }
+        }, 8000);
       }
     }
   } catch(err) {
-    console.warn('Audio fetch error:', err);
+    console.warn('[audio] Fetch error:', err.message || err);
     state.audioLoading = false;
     if (state.phase === 'playing') {
-      setStatus('🎵 Buzz in when ready!', false);
-      setWaveform(false, false);
+      // Check if it's a rate limit (429) or network error
+      const isRateLimit = err.message && (err.message.includes('429') || err.message.includes('rate'));
+      const isNetwork = err.message && err.message.includes('fetch');
+      if (isRateLimit) {
+        setStatus('⏳ iTunes API rate limited — waiting 5s then retrying…', false);
+        setTimeout(() => {
+          if (state.phase === 'playing') fetchAndPlaySong(song);
+        }, 5000);
+      } else {
+        setStatus(isNetwork ? '📶 Network error — check your connection' : '🎵 Buzz in if you know this song!', false);
+        setWaveform(false, false);
+      }
     }
   }
 }
