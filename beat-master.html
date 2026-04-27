@@ -923,14 +923,12 @@ function startMic() {
     rec.onstart = () => { state.micActive = true; renderActionArea(); };
 
     rec.onresult = (e) => {
-      // Build the full transcript from ALL results each time
-      // This is the correct approach — don't accumulate separately
-      // just read the complete picture the browser gives us
-      let text = '';
-      for (let i = 0; i < e.results.length; i++) {
-        text += e.results[i][0].transcript;
-      }
-      state.spokenText = text.trim();
+      // On mobile, each onresult event contains the FULL running transcript
+      // in e.results[e.results.length-1] — just take the last entry only.
+      // Taking all entries and concatenating causes duplication because
+      // earlier entries contain partial words already included in the last entry.
+      const last = e.results[e.results.length - 1];
+      state.spokenText = last[0].transcript.trim();
       renderActionArea();
     };
 
