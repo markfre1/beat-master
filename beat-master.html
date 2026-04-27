@@ -923,8 +923,6 @@ function startMic() {
     rec.onstart = () => { state.micActive = true; renderActionArea(); };
 
     rec.onresult = (e) => {
-      // Simply take whatever the browser says right now — no accumulation
-      // The LAST result is always the most complete on mobile
       let text = '';
       for (let i = 0; i < e.results.length; i++) {
         text += e.results[i][0].transcript;
@@ -933,27 +931,15 @@ function startMic() {
       renderActionArea();
     };
 
+    // NO auto-restart on end — prevents doubling on mobile
+    // User can tap mic button again if needed
     rec.onend = () => {
-      // Restart with a fresh instance if still in answering phase
-      if (state.micActive && state.phase === 'answering') {
-        state.recognition = null;
-        setTimeout(() => {
-          if (state.micActive && state.phase === 'answering') startMic();
-        }, 200);
-      } else {
-        state.micActive = false;
-        renderActionArea();
-      }
+      state.micActive = false;
+      state.recognition = null;
+      renderActionArea();
     };
 
     rec.onerror = (e) => {
-      if (e.error === 'no-speech') {
-        state.recognition = null;
-        setTimeout(() => {
-          if (state.micActive && state.phase === 'answering') startMic();
-        }, 200);
-        return;
-      }
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         state.micPermission = 'denied';
       }
