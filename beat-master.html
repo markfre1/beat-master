@@ -1,0 +1,2346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Beat Master">
+<meta name="format-detection" content="telephone=no">
+<meta name="theme-color" content="#080810">
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%237B4FFF'/%3E%3Ctext x='50' y='68' font-size='56' text-anchor='middle'%3E🎵%3C/text%3E%3C/svg%3E">
+<title>Beat Master 🎵</title>
+<style>
+* {
+  margin:0; padding:0; box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;
+  -webkit-user-select:none; user-select:none;
+}
+input, textarea { -webkit-user-select:text; user-select:text; }
+:root {
+  --neon:#E8FF3A; --pink:#FF3A8C; --teal:#00E5CC; --purple:#7B4FFF;
+  --dark:#080810; --dark2:#0E0E1C; --dark3:#161624; --mid:#1E1E30;
+  --border:rgba(255,255,255,0.08); --text:#F0F0FF; --muted:#7777AA;
+  --sat: env(safe-area-inset-top, 0px); --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px); --sar: env(safe-area-inset-right, 0px);
+  --vh: 100vh; --vh: 100dvh;
+}
+html, body { height:100%; width:100%; overflow:hidden; background:var(--dark); color:var(--text); font-family:'Segoe UI',system-ui,-apple-system,sans-serif; overscroll-behavior:none; -webkit-overflow-scrolling:touch; touch-action:manipulation; position:fixed; inset:0; }
+button, input, textarea { font-family:inherit; color:inherit; }
+button { touch-action:manipulation; }
+.screen { position:fixed; inset:0; height:var(--vh); display:flex; flex-direction:column; background:var(--dark); overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; transition:opacity 0.2s; padding-top:var(--sat); padding-bottom:var(--sab); padding-left:var(--sal); padding-right:var(--sar); }
+.screen.hidden { display:none; }
+.btn-primary { background:var(--neon); color:#000; border:none; border-radius:14px; padding:16px 32px; font-size:17px; font-weight:700; cursor:pointer; width:100%; transition:transform 0.1s, opacity 0.1s; box-shadow:0 0 30px rgba(232,255,58,0.3); }
+.btn-primary:hover { opacity:0.9; transform:translateY(-1px); }
+.btn-primary:active { transform:scale(0.97); }
+.btn-primary:disabled { opacity:0.35; cursor:not-allowed; transform:none; }
+.btn-secondary { background:transparent; color:var(--text); border:1px solid var(--border); border-radius:14px; padding:14px 28px; font-size:15px; font-weight:600; cursor:pointer; width:100%; transition:all 0.15s; }
+.btn-secondary:hover { border-color:rgba(255,255,255,0.25); background:rgba(255,255,255,0.04); }
+#screen-home { align-items:center; justify-content:center; background:radial-gradient(ellipse 80% 60% at 50% -10%, rgba(123,79,255,0.2) 0%, transparent 60%), radial-gradient(ellipse 50% 40% at 85% 85%, rgba(0,229,204,0.1) 0%, transparent 50%), var(--dark); }
+.home-inner { display:flex; flex-direction:column; align-items:center; justify-content:center; flex:1; width:100%; padding: clamp(12px, 4vh, 48px) clamp(20px, 6vw, 32px); gap: 0; }
+.logo-box { width: clamp(64px, 18vw, 120px); height: clamp(64px, 18vw, 120px); border-radius:22px; background:linear-gradient(135deg,var(--purple),var(--teal)); display:flex; align-items:center; justify-content:center; font-size: clamp(28px, 8vw, 56px); margin-bottom: clamp(10px, 2.5vh, 28px); box-shadow:0 0 60px rgba(123,79,255,0.4); flex-shrink:0; }
+.home-title { font-size: clamp(52px, 17vw, 140px); font-weight:900; line-height:0.88; letter-spacing:3px; text-align:center; margin-bottom:10px; background:linear-gradient(135deg,#fff 20%,var(--neon) 80%); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
+.home-tagline { font-size: clamp(15px, 4vw, 18px); font-weight: 600; color: var(--text); text-align: center; letter-spacing: 0.3px; margin-bottom: 6px; line-height: 1.3; }
+.home-sub { font-size: clamp(11px, 2.8vw, 13px); letter-spacing:3px; color:var(--teal); text-transform:uppercase; margin-bottom: clamp(16px, 3.5vh, 48px); text-align:center; font-weight: 700; }
+.home-actions { width:100%; max-width:340px; display:flex; flex-direction:column; gap:12px; padding:0 8px; }
+.home-actions .btn-primary { font-size: clamp(15px, 4.4vw, 20px); padding: clamp(14px, 4vw, 22px); }
+.stats-row { display:flex; gap: clamp(16px, 6vw, 48px); margin-top: clamp(16px, 3.5vh, 44px); }
+.stat-item { text-align:center; }
+.stat-num { font-size: clamp(32px, 9vw, 48px); font-weight:900; color:var(--neon); line-height:1; }
+.stat-lbl { font-size: clamp(10px, 2.6vw, 12px); color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
+.page-header { padding:16px 16px 0; display:flex; align-items:center; gap:12px; flex-shrink:0; }
+.back-btn { width:42px; height:42px; border-radius:13px; background:var(--dark3); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:20px; flex-shrink:0; transition:background 0.15s; }
+.back-btn:hover { background:var(--mid); }
+.page-title { font-size:clamp(22px,6vw,28px); font-weight:900; letter-spacing:1px; }
+.page-sub { font-size:12px; color:var(--muted); }
+.page-body { padding:16px; flex:1; }
+.mode-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.mode-card { background:var(--dark3); border:2px solid var(--border); border-radius:18px; padding: clamp(28px, 6vw, 42px) 16px; cursor:pointer; transition:all 0.15s; text-align:center; position:relative; }
+.mode-card:not(.disabled):hover { border-color:var(--purple); background:rgba(123,79,255,0.08); transform:translateY(-2px); }
+.mode-card:active { transform:scale(0.97); }
+.mode-card.disabled { opacity:0.4; cursor:not-allowed; }
+.mode-icon { font-size: clamp(44px, 11vw, 60px); margin-bottom:14px; }
+.mode-name { font-weight:800; font-size: clamp(15px, 3.8vw, 17px); margin-bottom:6px; }
+.mode-desc { font-size: clamp(11px, 2.9vw, 13px); color:var(--muted); line-height:1.45; }
+.soon-tag { position:absolute; top:10px; right:10px; background:rgba(255,255,255,0.08); border-radius:8px; padding:2px 8px; font-size:9px; color:var(--muted); letter-spacing:1px; }
+.genre-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.genre-card { border-radius:16px; padding:16px 12px; cursor:pointer; border:2px solid var(--border); background:var(--dark3); transition:all 0.15s; position:relative; }
+.genre-card:hover { transform:translateY(-2px); }
+.genre-card.selected { border-color:var(--neon); background:rgba(232,255,58,0.04); }
+.genre-emoji { font-size:26px; margin-bottom:4px; }
+.genre-name { font-weight:700; font-size:13px; }
+.genre-count { font-size:11px; color:var(--muted); margin-top:2px; }
+.genre-check { position:absolute; top:10px; right:10px; width:22px; height:22px; border-radius:7px; border:2px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:900; color:transparent; transition:all 0.15s; }
+.genre-card.selected .genre-check { background:var(--neon); border-color:var(--neon); color:#000; }
+.genre-actions-row { display:flex; gap:8px; margin-bottom:12px; }
+.genre-action-btn { flex:1; background:var(--dark3); border:1px solid var(--border); border-radius:10px; padding:8px 10px; color:var(--muted); font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; transition:all 0.15s; text-align:center; }
+.genre-action-btn:hover { border-color:rgba(255,255,255,0.2); color:var(--text); background:rgba(255,255,255,0.04); }
+.genre-action-btn.active { border-color:var(--neon); color:var(--neon); background:rgba(232,255,58,0.06); }
+.genre-selected-summary { font-size:12px; color:var(--muted); text-align:center; margin-top:12px; padding:8px; letter-spacing:0.3px; }
+.genre-selected-summary b { color:var(--neon); }
+.continue-wrap { padding:0 16px 24px; }
+.settings-block { margin-bottom:26px; }
+.settings-label { font-size:10px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; font-weight:600; }
+.pill-row { display:flex; gap:8px; flex-wrap:wrap; }
+.pill { padding:10px 20px; border-radius:30px; border:1px solid var(--border); background:var(--dark3); cursor:pointer; font-size:14px; font-weight:600; color:var(--muted); transition:all 0.15s; }
+.pill.active { background:var(--neon); color:#000; border-color:var(--neon); }
+.diff-info { margin-top:8px; font-size:12px; color:var(--muted); }
+.target-bar { background:var(--dark3); border:1px solid var(--border); border-radius:12px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center; font-size:13px; color:var(--muted); margin-bottom:22px; flex-wrap:wrap; gap:6px; }
+.target-bar span { color:var(--neon); font-size:22px; font-weight:900; }
+.player-list { display:flex; flex-direction:column; gap:8px; margin-bottom:10px; }
+.player-row { display:flex; align-items:center; gap:12px; background:var(--dark3); border:1px solid var(--border); border-radius:12px; padding:11px 14px; }
+.p-avatar { font-size:22px; }
+.p-name { font-weight:600; font-size:14px; flex:1; }
+.p-status { font-size:10px; letter-spacing:1px; }
+.p-status.ready { color:var(--teal); }
+.p-status.wait { color:var(--muted); }
+.add-player-row { display:flex; gap:8px; }
+.add-input { flex:1; background:var(--dark3); border:1px solid var(--border); border-radius:10px; padding:10px 14px; color:var(--text); font-size:14px; outline:none; font-family:inherit; }
+.add-input::placeholder { color:var(--muted); }
+.add-input:focus { border-color:rgba(255,255,255,0.2); }
+.add-btn { background:var(--dark3); border:1px solid var(--border); border-radius:10px; padding:10px 16px; color:var(--text); font-size:14px; cursor:pointer; white-space:nowrap; transition:background 0.15s; }
+.add-btn:hover { background:var(--mid); }
+#screen-game { background:radial-gradient(ellipse 100% 50% at 50% 0%, rgba(123,79,255,0.12) 0%, transparent 55%), var(--dark); overflow:hidden; position: relative; }
+.game-header { padding:10px 12px; display:flex; justify-content:space-between; align-items:center; flex-shrink:0; gap:8px; }
+.score-panel { display:flex; align-items:center; gap:8px; flex-wrap:wrap; min-width:0; flex:1; }
+.score-box { background:var(--dark3); border:1px solid var(--border); border-radius:13px; padding:7px 10px; min-width:56px; text-align:center; transition:border-color 0.3s, box-shadow 0.3s; }
+.score-box.buzzed { border-color:var(--neon); box-shadow:0 0 20px rgba(232,255,58,0.15); }
+.score-player { font-size:9px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70px; }
+.score-num { font-size:clamp(28px,8vw,40px); font-weight:900; color:var(--neon); line-height:1; }
+.score-vs { font-size:14px; font-weight:900; color:var(--mid); }
+.round-tag { background:var(--dark3); border:1px solid var(--border); border-radius:9px; padding:5px 10px; font-size:11px; color:var(--muted); letter-spacing:1px; white-space:nowrap; flex-shrink:0; }
+.game-body { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:12px 16px; gap:12px; min-height:0; overflow-y:auto; }
+.game-footer { flex-shrink: 0; display: flex; align-items: center; justify-content: center; gap: 0; padding: 10px 20px 14px; border-top: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.2); }
+.gf-btn { flex: 1; max-width: 160px; background: transparent; border: none; color: var(--muted); font-size: 12px; font-weight: 600; font-family: inherit; letter-spacing: 0.5px; padding: 8px 12px; border-radius: 10px; cursor: pointer; transition: all 0.15s; display: flex; align-items: center; justify-content: center; gap: 5px; }
+.gf-btn:hover { background: rgba(255,255,255,0.06); color: var(--text); }
+.gf-btn:active { transform: scale(0.96); }
+.gf-restart:hover { color: var(--teal); }
+.gf-end:hover { color: var(--pink); }
+.gf-divider { width: 1px; height: 22px; background: rgba(255,255,255,0.08); margin: 0 8px; flex-shrink: 0; }
+.gf-confirm { position: absolute; bottom: 0; left: 0; right: 0; background: var(--dark2); border-top: 1px solid var(--border); padding: 14px 20px 18px; display: flex; flex-direction: column; align-items: center; gap: 10px; z-index: 10; animation: slideUp 0.2s ease; }
+@keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+.gf-confirm-title { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: 0.5px; }
+.gf-confirm-sub { font-size: 11px; color: var(--muted); text-align: center; }
+.gf-confirm-btns { display: flex; gap: 10px; width: 100%; max-width: 280px; }
+.gf-confirm-yes { flex: 1; padding: 11px; border-radius: 11px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; border: none; }
+.gf-confirm-no  { flex: 1; padding: 11px; border-radius: 11px; font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer; background: var(--dark3); border: 1px solid var(--border); color: var(--muted); }
+.gf-confirm-no:hover { color: var(--text); }
+.gf-vote-row { display: flex; align-items: center; justify-content: space-between; width: 100%; max-width: 300px; background: var(--dark3); border: 1px solid var(--border); border-radius: 10px; padding: 8px 12px; }
+.gf-vote-name { font-size: 13px; font-weight: 600; }
+.gf-vote-btns { display: flex; gap: 6px; }
+.gf-vote-yes { background: rgba(0,229,204,0.12); border: 1px solid rgba(0,229,204,0.3); color: var(--teal); font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+.gf-vote-no  { background: rgba(255,58,140,0.12); border: 1px solid rgba(255,58,140,0.3); color: var(--pink); font-size: 11px; font-weight: 700; padding: 5px 12px; border-radius: 8px; cursor: pointer; font-family: inherit; }
+.gf-voted-yes { font-size: 11px; font-weight: 700; color: var(--teal); letter-spacing: 1px; }
+.gf-voted-no  { font-size: 11px; font-weight: 700; color: var(--pink); letter-spacing: 1px; }
+.waveform { display:flex; align-items:center; gap:3px; height:50px; width:100%; max-width:320px; justify-content:center; }
+.wbar { width:4px; border-radius:4px; background:var(--purple); transition:height 0.15s; animation:wv 0.7s ease-in-out infinite; }
+.wbar.off { animation:none; height:6px !important; background:var(--mid); }
+.wbar.loading { animation:wvload 0.4s ease-in-out infinite; height:12px !important; background:var(--muted); }
+@keyframes wvload { 0%,100%{opacity:0.3} 50%{opacity:0.8} }
+.timer-wrap { position:relative; flex-shrink:0; }
+.timer-wrap svg { display:block; transform:rotate(-90deg); }
+.timer-num { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:900; }
+.game-info { display:flex; align-items:center; gap:12px; }
+.info-row { font-size:11px; color:var(--muted); letter-spacing:1px; text-align:center; line-height:1.7; }
+.info-row b { color:var(--neon); }
+.status-msg { font-size:12px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; text-align:center; min-height:18px; }
+.status-msg.hot { color:var(--pink); animation:blink 0.5s infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+.buzzer-btn { width:clamp(120px,38vw,175px); height:clamp(120px,38vw,175px); border-radius:50%; border:none; cursor:pointer; background:radial-gradient(circle at 35% 35%, #FF6EAF, var(--pink)); box-shadow:0 0 0 10px rgba(255,58,140,0.15), 0 0 0 22px rgba(255,58,140,0.06), 0 8px 30px rgba(255,58,140,0.4); transition:transform 0.08s, box-shadow 0.08s, background 0.2s; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; position:relative; overflow:hidden; }
+.buzzer-btn::before { content:''; position:absolute; top:12%; left:22%; width:28%; height:18%; background:rgba(255,255,255,0.22); border-radius:50%; filter:blur(4px); }
+.buzzer-btn:hover:not(:disabled) { transform:scale(1.04); box-shadow:0 0 0 14px rgba(255,58,140,0.2), 0 0 0 28px rgba(255,58,140,0.07), 0 14px 50px rgba(255,58,140,0.5); }
+.buzzer-btn:active:not(:disabled) { transform:scale(0.93); }
+.buzzer-btn.teal { background:radial-gradient(circle at 35% 35%, #5FFFEA, var(--teal)); box-shadow:0 0 0 10px rgba(0,229,204,0.15), 0 0 0 22px rgba(0,229,204,0.06), 0 8px 30px rgba(0,229,204,0.4); }
+.buzzer-btn:disabled { opacity:0.28; cursor:not-allowed; }
+.bz-label { font-size:clamp(18px,5vw,26px); font-weight:900; color:#fff; letter-spacing:2px; z-index:1; }
+.bz-sub { font-size:11px; color:rgba(255,255,255,0.7); letter-spacing:1px; z-index:1; }
+.buzz-hint { background:rgba(232,255,58,0.06); border:1px solid rgba(232,255,58,0.2); border-radius:12px; padding:8px 14px; font-size:11px; color:rgba(232,255,58,0.8); letter-spacing:0.5px; text-align:center; max-width:320px; }
+.answer-panel { width:100%; max-width:340px; background:var(--dark3); border:1px solid var(--border); border-radius:20px; padding:16px; }
+.answer-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; }
+.answer-title { font-weight:700; font-size:14px; }
+.mic-btn { width:56px; height:56px; border-radius:50%; border:2px solid var(--neon); background:rgba(232,255,58,0.08); cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:24px; margin:0 auto 8px; transition:all 0.15s; }
+.mic-btn.active { background:rgba(232,255,58,0.18); box-shadow:0 0 0 10px rgba(232,255,58,0.1), 0 0 0 20px rgba(232,255,58,0.04); animation:micpulse 1s ease-in-out infinite; }
+@keyframes micpulse { 0%,100%{box-shadow:0 0 0 0 rgba(232,255,58,0.4)} 50%{box-shadow:0 0 0 16px rgba(232,255,58,0)} }
+.mic-status { font-size:11px; color:var(--muted); text-align:center; margin-bottom:8px; letter-spacing:0.5px; }
+.mic-setup { background:var(--dark3); border:1px solid var(--border); border-radius:16px; padding:18px 16px; display:flex; flex-direction:column; align-items:center; gap:10px; }
+.mic-setup-title { font-size:13px; font-weight:700; letter-spacing:0.5px; }
+.mic-setup-desc { font-size:11px; color:var(--muted); text-align:center; line-height:1.5; max-width:280px; }
+.mic-test-btn { background:rgba(232,255,58,0.08); border:2px solid var(--neon); color:var(--neon); border-radius:12px; padding:12px 22px; font-size:14px; font-weight:700; font-family:inherit; cursor:pointer; transition:all 0.15s; display:flex; align-items:center; gap:8px; }
+.mic-test-btn:hover { background:rgba(232,255,58,0.15); }
+.mic-test-btn:active { transform:scale(0.97); }
+.mic-test-btn.granted { border-color:var(--teal); color:var(--teal); background:rgba(0,229,204,0.08); }
+.mic-test-btn.denied { border-color:var(--pink); color:var(--pink); background:rgba(255,58,140,0.08); }
+.mic-test-btn.unsupported { border-color:var(--mid); color:var(--muted); background:transparent; cursor:default; }
+.mic-status-line { font-size:11px; letter-spacing:0.5px; }
+.mic-status-line.ok { color:var(--teal); }
+.mic-status-line.err { color:var(--pink); }
+.mic-status-line.warn { color:#FFD700; }
+.answer-display { background:var(--dark2); border:1px solid var(--border); border-radius:12px; padding:10px 12px; font-size:14px; font-weight:600; min-height:40px; display:flex; align-items:center; justify-content:center; text-align:center; margin-bottom:10px; }
+.answer-display.empty { color:var(--muted); font-style:italic; font-weight:400; }
+.answer-btns { display:flex; gap:8px; }
+.answer-btns button { flex:1; padding:12px; font-size:13px; }
+.ai-buzz-box { text-align:center; padding:20px; }
+.ai-dots { display:flex; gap:5px; justify-content:center; margin-top:12px; }
+.ai-dot { width:8px; height:8px; border-radius:50%; background:var(--purple); animation:aidot 1.2s ease-in-out infinite; }
+.ai-dot:nth-child(2) { animation-delay:0.2s; }
+.ai-dot:nth-child(3) { animation-delay:0.4s; }
+@keyframes aidot { 0%,100%{opacity:0.3;transform:scale(0.7)} 50%{opacity:1;transform:scale(1)} }
+#screen-result { align-items:center; justify-content:center; background:radial-gradient(ellipse 70% 60% at 50% 50%, rgba(123,79,255,0.1), transparent 70%), var(--dark); }
+.result-icon { font-size:56px; margin-bottom:10px; animation:popIn 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
+@keyframes popIn { from{transform:scale(0);opacity:0} to{transform:scale(1);opacity:1} }
+.result-who { font-size:12px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; margin-bottom:4px; }
+.result-verdict { font-size:clamp(36px,10vw,54px); font-weight:900; letter-spacing:3px; margin-bottom:4px; }
+.result-verdict.correct { color:var(--neon); }
+.result-verdict.wrong { color:var(--pink); }
+.result-verdict.skip { color:var(--muted); }
+.result-pts { font-size:14px; color:var(--teal); letter-spacing:1px; margin-bottom:20px; }
+.song-reveal { background:var(--dark3); border:1px solid var(--border); border-radius:18px; padding:18px; text-align:center; width:100%; max-width:320px; margin-bottom:20px; }
+.rev-label { font-size:9px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-bottom:8px; }
+.rev-song { font-size:18px; font-weight:700; margin-bottom:4px; }
+.rev-artist { font-size:15px; color:var(--teal); }
+.rev-year { font-size:12px; color:var(--muted); margin-top:4px; }
+.mini-scores { display:flex; gap:14px; margin-bottom:18px; flex-wrap:wrap; justify-content:center; }
+.mini-score { text-align:center; }
+.mini-num { font-size:clamp(30px,9vw,42px); font-weight:900; color:var(--neon); line-height:1; }
+.mini-name { font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; }
+.mini-sep { font-size:22px; color:var(--mid); align-self:center; }
+.next-hint { font-size:11px; color:var(--muted); letter-spacing:1px; }
+.pause-btn { width: 36px; height: 36px; border-radius: 10px; background: var(--dark3); border: 1px solid var(--border); color: var(--muted); font-size: 16px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; flex-shrink: 0; }
+.pause-btn:hover { background: var(--mid); color: var(--text); border-color: rgba(255,255,255,0.2); }
+#screen-pause { align-items: center; justify-content: center; gap: 0; background: rgba(8,8,16,0.97); }
+.pause-icon { font-size: 64px; margin-bottom: 12px; animation: popIn 0.3s cubic-bezier(0.175,0.885,0.32,1.275); }
+.pause-title { font-size: 48px; font-weight: 900; letter-spacing: 6px; color: var(--text); margin-bottom: 8px; }
+.pause-sub { font-size: 14px; color: var(--muted); margin-bottom: 28px; text-align: center; max-width: 300px; }
+.pause-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 280px; align-items: stretch; margin-top: 12px; }
+.pause-vote-wrap { background: var(--dark3); border: 1px solid var(--border); border-radius: 18px; padding: 20px; width: 100%; max-width: 320px; margin-bottom: 16px; }
+.pause-vote-title { font-size: 11px; letter-spacing: 2px; color: var(--muted); text-transform: uppercase; margin-bottom: 14px; text-align: center; }
+.pause-vote-players { display: flex; flex-direction: column; gap: 8px; }
+.pvp-row { display: flex; align-items: center; justify-content: space-between; background: var(--dark2); border: 1px solid var(--border); border-radius: 12px; padding: 10px 14px; }
+.pvp-name { font-size: 14px; font-weight: 600; }
+.pvp-status { font-size: 12px; font-weight: 700; letter-spacing: 1px; }
+.pvp-status.agreed { color: var(--teal); }
+.pvp-status.pending { color: var(--muted); }
+.pvp-status.declined { color: var(--pink); }
+.pvp-agree-btn { background: rgba(0,229,204,0.1); border: 1px solid rgba(0,229,204,0.3); border-radius: 9px; color: var(--teal); font-size: 12px; font-weight: 700; padding: 6px 14px; cursor: pointer; font-family: inherit; transition: all 0.15s; }
+.pvp-agree-btn:hover { background: rgba(0,229,204,0.2); }
+.pvp-decline-btn { background: rgba(255,58,140,0.1); border: 1px solid rgba(255,58,140,0.3); border-radius: 9px; color: var(--pink); font-size: 12px; font-weight: 700; padding: 6px 14px; cursor: pointer; font-family: inherit; transition: all 0.15s; margin-left: 6px; }
+.pvp-decline-btn:hover { background: rgba(255,58,140,0.2); }
+.submit-confirm-btn { width: 100%; padding: 14px 16px; font-size: 14px; font-weight: 700; border-radius: 14px; margin-bottom: 0; background: var(--neon); color: #000; border: none; cursor: pointer; animation: popIn 0.25s cubic-bezier(0.175,0.885,0.32,1.275); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: inherit; }
+.submit-confirm-btn:hover { opacity: 0.9; }
+.submit-confirm-btn:active { transform: scale(0.97); }
+.skip-btn { background: transparent; border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; color: var(--muted); font-size: 13px; font-weight: 600; padding: 10px 22px; cursor: pointer; transition: all 0.15s; font-family: inherit; display: flex; align-items: center; gap: 4px; }
+.skip-btn:hover { border-color: rgba(255,255,255,0.25); color: var(--text); background: rgba(255,255,255,0.04); }
+.skip-btn:active { transform: scale(0.97); }
+.skip-party-wrap { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: 14px; padding: 12px 16px; width: 100%; max-width: 340px; }
+.skip-party-label { font-size: 11px; color: var(--muted); letter-spacing: 0.5px; margin-bottom: 10px; text-align: center; }
+.skip-vote-row { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.skip-vote-btn { background: var(--dark3); border: 1px solid var(--border); border-radius: 10px; padding: 8px 14px; color: var(--muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s; font-family: inherit; display: flex; align-items: center; gap: 6px; }
+.skip-vote-btn:hover:not(:disabled) { border-color: rgba(255,255,255,0.25); color: var(--text); }
+.skip-vote-btn.voted { border-color: var(--teal); color: var(--teal); background: rgba(0,229,204,0.08); cursor: default; }
+.skip-vote-btn span { font-size: 11px; }
+@keyframes bonusSlide { from{transform:translateY(-100%);opacity:0} to{transform:translateY(0);opacity:1} }
+#bonus-banner { border-bottom: 1px solid rgba(255,255,255,0.15); }
+.bonus-type-tag { display:inline-block; border:1px solid; border-radius:20px; padding:3px 12px; font-size:10px; letter-spacing:2px; font-weight:700; text-transform:uppercase; margin-bottom:6px; }
+.bonus-title { font-size:28px; font-weight:900; color:#fff; letter-spacing:4px; text-shadow:0 0 30px rgba(255,255,255,0.5); }
+.bonus-sub { font-size:13px; color:rgba(255,255,255,0.85); margin-top:4px; }
+.bonus-hint { font-size:11px; color:rgba(255,255,255,0.6); margin-top:6px; font-style:italic; }
+#screen-game.bonus-active #round-tag { border-color:rgba(255,215,0,0.5); color:#FFD700; background:rgba(255,215,0,0.08); }
+.grade-preview { background:var(--dark2); border:1px solid var(--border); border-radius:14px; padding:14px 16px; margin-top:10px; }
+.gp-title { font-size:9px; letter-spacing:3px; color:var(--muted); text-transform:uppercase; margin-bottom:10px; font-weight:600; }
+.gp-grades { display:flex; flex-direction:column; gap:6px; }
+.gp-row { display:flex; align-items:center; gap:10px; }
+.gp-letter { width:28px; height:28px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:900; flex-shrink:0; }
+.gp-letter.s { background:rgba(255,215,0,0.15); color:#FFD700; border:1px solid rgba(255,215,0,0.3); }
+.gp-letter.a { background:rgba(232,255,58,0.12); color:var(--neon); border:1px solid rgba(232,255,58,0.25); }
+.gp-letter.b { background:rgba(0,229,204,0.12); color:var(--teal); border:1px solid rgba(0,229,204,0.25); }
+.gp-letter.c { background:rgba(84,160,255,0.12); color:#54A0FF; border:1px solid rgba(84,160,255,0.25); }
+.gp-letter.d { background:rgba(255,58,140,0.12); color:var(--pink); border:1px solid rgba(255,58,140,0.25); }
+.gp-letter.f { background:rgba(255,255,255,0.05); color:var(--muted); border:1px solid var(--border); }
+.gp-desc { font-size:12px; color:var(--muted); }
+#screen-gameover { align-items:center; justify-content:center; background:radial-gradient(ellipse 80% 80% at 50% 50%, rgba(232,255,58,0.05), transparent 70%), var(--dark); }
+.trophy { font-size:80px; margin-bottom:14px; animation:trophyIn 0.6s cubic-bezier(0.175,0.885,0.32,1.275); }
+@keyframes trophyIn { from{transform:scale(0) rotate(-20deg)} to{transform:scale(1) rotate(0)} }
+.go-label { font-size:11px; color:var(--neon); letter-spacing:4px; text-transform:uppercase; margin-bottom:6px; }
+.go-name { font-size:clamp(32px,10vw,64px); font-weight:900; letter-spacing:2px; margin-bottom:6px; }
+.go-sub { font-size:14px; color:var(--muted); margin-bottom:28px; text-align:center; max-width:280px; padding:0 16px; }
+.final-cards { display:flex; gap:10px; margin-bottom:28px; flex-wrap:wrap; justify-content:center; padding:0 16px; }
+.final-card { background:var(--dark3); border:1px solid var(--border); border-radius:16px; padding:14px 12px; text-align:center; min-width:80px; flex:1; max-width:120px; transition:border-color 0.3s; }
+.final-card.win { border-color:var(--neon); background:rgba(232,255,58,0.05); }
+.fc-name { font-size:11px; color:var(--muted); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+.fc-num { font-size:clamp(32px,9vw,50px); font-weight:900; color:var(--neon); line-height:1; }
+.go-actions { display:flex; flex-direction:column; gap:10px; width:100%; max-width:280px; padding:0 16px; }
+@media (max-width: 380px) { .mode-grid { grid-template-columns: 1fr; } .genre-grid { grid-template-columns: 1fr 1fr; gap:8px; } .genre-card { padding:12px 10px; } .genre-emoji { font-size:22px; } .genre-name { font-size:12px; } .score-box { padding:5px 8px; min-width:48px; } .score-num { font-size:24px; } .score-player { font-size:8px; max-width:54px; } .score-vs { font-size:12px; } .game-header { padding:8px 10px; } .game-body { padding:8px 12px; gap:8px; } .waveform { height:40px; } .answer-panel { padding:12px; } .buzz-hint { padding:6px 10px; font-size:10px; } .home-tagline { font-size:13px; } .stat-num { font-size:clamp(24px,8vw,42px); } }
+@media (max-height: 600px) { .game-body { gap:6px; padding:6px 12px; } .waveform { height:36px; } .timer-wrap svg { width:70px; height:70px; } .timer-num { font-size:22px; } .buzzer-btn { width:110px !important; height:110px !important; } .bz-label { font-size:16px !important; } .result-icon { font-size:44px; margin-bottom:6px; } .result-verdict { margin-bottom:2px; } .result-pts { margin-bottom:12px; } .song-reveal { padding:14px; margin-bottom:12px; } }
+@media (min-width: 768px) { .genre-grid { grid-template-columns: repeat(3, 1fr); } }
+
+/* ─── LEADERBOARD ─── */
+.lb-tabs { display:flex; background:var(--dark3); border-radius:12px; padding:4px; gap:4px; margin-bottom:16px; }
+.lb-tab { flex:1; padding:9px 6px; border:none; background:transparent; color:var(--muted); font-size:12px; font-weight:700; font-family:inherit; border-radius:9px; cursor:pointer; transition:all 0.15s; letter-spacing:0.3px; text-align:center; }
+.lb-tab.active { background:var(--dark); color:var(--text); box-shadow:0 1px 4px rgba(0,0,0,0.4); }
+.lb-tab:hover:not(.active) { color:var(--text); }
+.lb-row { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:14px; margin-bottom:6px; background:var(--dark3); border:1px solid var(--border); transition:border-color 0.2s, background 0.2s; animation:lbSlide 0.35s ease both; }
+.lb-row.you { border-color:var(--neon); background:rgba(232,255,58,0.05); }
+.lb-row.top1 { border-color:#FFD700; background:rgba(255,215,0,0.06); }
+.lb-row.top2 { border-color:#C0C0C0; background:rgba(192,192,192,0.04); }
+.lb-row.top3 { border-color:#CD7F32; background:rgba(205,127,50,0.05); }
+@keyframes lbSlide { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+.lb-rank-badge { width:32px; text-align:center; font-size:20px; flex-shrink:0; }
+.lb-rank-num { font-size:13px; font-weight:900; color:var(--muted); }
+.lb-avatar { width:40px; height:40px; border-radius:50%; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:18px; overflow:hidden; }
+.lb-avatar img { width:100%; height:100%; object-fit:cover; }
+.lb-info { flex:1; min-width:0; }
+.lb-name { font-size:14px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lb-sub { font-size:11px; color:var(--muted); margin-top:2px; letter-spacing:0.3px; }
+.lb-stat { text-align:right; flex-shrink:0; }
+.lb-stat-val { font-size:20px; font-weight:900; color:var(--neon); line-height:1; }
+.lb-stat-lbl { font-size:9px; color:var(--muted); letter-spacing:1.5px; text-transform:uppercase; margin-top:2px; }
+.lb-grade-badge { width:28px; height:28px; border-radius:7px; display:flex; align-items:center; justify-content:center; font-size:14px; font-weight:900; flex-shrink:0; }
+.lb-divider { display:flex; align-items:center; gap:10px; margin:12px 0; }
+.lb-divider-line { flex:1; height:1px; background:var(--border); }
+.lb-divider-text { font-size:10px; color:var(--muted); letter-spacing:2px; text-transform:uppercase; white-space:nowrap; }
+.lb-empty { text-align:center; padding:40px 20px; color:var(--muted); font-size:14px; line-height:1.8; }
+.lb-loading { display:flex; flex-direction:column; align-items:center; gap:12px; padding:40px 20px; }
+.lb-loading-dot { width:8px; height:8px; border-radius:50%; background:var(--purple); animation:aidot 1.2s ease-in-out infinite; display:inline-block; margin:0 3px; }
+.lb-loading-dot:nth-child(2){animation-delay:0.2s}
+.lb-loading-dot:nth-child(3){animation-delay:0.4s}
+
+/* ─── PARTY MODE ─── */
+.room-code-display { font-family:'Courier New',monospace; font-size:clamp(36px,10vw,56px); font-weight:900; letter-spacing:10px; color:var(--neon); text-align:center; background:var(--dark3); border:2px solid rgba(232,255,58,0.3); border-radius:16px; padding:16px 20px; margin:12px 0; }
+.invite-row { display:flex; gap:8px; margin-bottom:10px; }
+.invite-input { flex:1; background:var(--dark3); border:1px solid var(--border); border-radius:10px; padding:11px 14px; color:var(--text); font-size:14px; outline:none; font-family:inherit; }
+.invite-input::placeholder { color:var(--muted); }
+.invite-input:focus { border-color:var(--neon); }
+.invite-send-btn { background:var(--neon); border:none; border-radius:10px; padding:11px 18px; color:#000; font-size:13px; font-weight:700; cursor:pointer; font-family:inherit; white-space:nowrap; flex-shrink:0; }
+.invite-send-btn:active { transform:scale(0.97); }
+
+/* Waiting room */
+.waiting-player-row { display:flex; align-items:center; gap:12px; background:var(--dark3); border:1px solid var(--border); border-radius:13px; padding:12px 14px; margin-bottom:8px; animation:popIn 0.3s ease; }
+.waiting-player-row.you { border-color:var(--neon); }
+.waiting-avatar { width:40px; height:40px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0; overflow:hidden; background:linear-gradient(135deg,var(--purple),var(--teal)); }
+.waiting-avatar img { width:100%; height:100%; object-fit:cover; }
+.waiting-name { flex:1; font-size:14px; font-weight:700; }
+.waiting-mic-status { font-size:11px; font-weight:700; letter-spacing:0.5px; }
+.waiting-mic-status.ready { color:var(--teal); }
+.waiting-mic-status.not-ready { color:var(--muted); }
+.kick-btn { background:rgba(255,58,140,0.1); border:1px solid rgba(255,58,140,0.25); border-radius:8px; color:var(--pink); font-size:11px; font-weight:700; padding:5px 10px; cursor:pointer; font-family:inherit; transition:all 0.15s; }
+.kick-btn:hover { background:rgba(255,58,140,0.2); }
+
+/* Party buzzer layout */
+.party-buzzer-wrap { display:flex; flex-direction:column; align-items:center; gap:16px; width:100%; }
+.party-main-buzzer { /* inherits .buzzer-btn */ }
+.party-player-cards { display:flex; gap:8px; flex-wrap:wrap; justify-content:center; width:100%; max-width:340px; }
+.party-player-card { background:var(--dark3); border:1px solid var(--border); border-radius:12px; padding:8px 10px; text-align:center; min-width:70px; flex:1; max-width:90px; transition:all 0.2s; position:relative; }
+.party-player-card.buzzed { border-color:var(--pink); background:rgba(255,58,140,0.08); }
+.party-player-card.answering { border-color:var(--neon); background:rgba(232,255,58,0.06); animation:playerPulse 0.8s ease-in-out infinite alternate; }
+.party-player-card.you-card { border-color:var(--purple); }
+@keyframes playerPulse { from{box-shadow:0 0 0 0 rgba(232,255,58,0.3)} to{box-shadow:0 0 0 8px rgba(232,255,58,0)} }
+.pcard-avatar { font-size:18px; margin-bottom:2px; }
+.pcard-name { font-size:9px; color:var(--muted); letter-spacing:0.5px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.pcard-score { font-size:14px; font-weight:900; color:var(--neon); line-height:1; margin-top:2px; }
+.pcard-timer { font-size:10px; color:var(--pink); font-weight:700; margin-top:2px; }
+.pcard-status { font-size:9px; letter-spacing:0.5px; margin-top:2px; }
+</style>
+</head>
+<body>
+<audio id="song-audio" preload="auto" style="display:none"></audio>
+<div class="screen" id="screen-home"><div class="home-inner"><div class="logo-box">🎵</div><div class="home-title">BEAT<br>MASTER</div><div class="home-tagline">Hear the tune. Beat the buzzer. Drop the beat.</div><div class="home-sub">Are you a music master?</div><div class="home-actions"><button class="btn-primary" onclick="requireAuth()">▶ &nbsp;Play Now</button><div style="display:flex;gap:8px;"><button class="btn-secondary" style="flex:1;font-size:13px;" id="profile-btn" onclick="handleProfileBtn()">👤 Profile</button><button class="btn-secondary" style="flex:1;font-size:13px;" id="leaderboard-btn" onclick="goto('leaderboard')">🏆 Leaderboard</button></div></div><div class="stats-row"><div class="stat-item"><div class="stat-num" id="stat-played">0</div><div class="stat-lbl">Played</div></div><div class="stat-item"><div class="stat-num" id="stat-wins">0</div><div class="stat-lbl">Wins</div></div><div class="stat-item"><div class="stat-num" id="stat-best">0</div><div class="stat-lbl">Best</div></div></div></div></div>
+<div class="screen hidden" id="screen-modeselect"><div class="page-header"><div class="back-btn" onclick="goto('home')">←</div><div><div class="page-title">Choose Your Game</div><div class="page-sub">How do you want to play?</div></div></div><div class="page-body"><div class="mode-grid" style="grid-template-columns:1fr;gap:14px;"><div class="mode-card" onclick="selectMode('solo')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🎯</div><div><div class="mode-name">Solo Challenge</div><div class="mode-desc">Beat the buzzer. Test your knowledge. No opponents.</div></div></div><div class="mode-card" onclick="selectMode('party')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🏠</div><div><div class="mode-name">Private Party</div><div class="mode-desc">Create your game room. Invite your friends. Challenge each other.</div></div></div><div class="mode-card disabled" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="soon-tag">COMING SOON</div><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🌍</div><div><div class="mode-name">Play Globally</div><div class="mode-desc">Create a public game. Wait for players to join. Challenge the world.</div></div></div></div></div></div>
+<div class="screen hidden" id="screen-genreselect"><div class="page-header"><div class="back-btn" onclick="goto('modeselect')">←</div><div><div class="page-title">Pick Your Genres</div><div class="page-sub">Select one, several, or all.</div></div></div><div class="page-body"><div class="genre-actions-row" id="genre-actions-row"></div><div class="genre-grid" id="genre-grid"></div><div class="genre-selected-summary" id="genre-summary"></div></div><div class="continue-wrap"><button class="btn-primary" id="genre-continue-btn" disabled onclick="goto('settings')">Continue →</button></div></div>
+<div class="screen hidden" id="screen-settings"><div class="page-header"><div class="back-btn" onclick="goto('genreselect')">←</div><div><div class="page-title">Finish Game Setup</div><div class="page-sub" id="settings-mode-sub">Solo Challenge</div></div></div><div class="page-body" id="settings-body"></div></div>
+<div class="screen hidden" id="screen-game"><div class="game-header"><div class="score-panel" id="score-panel"></div><div style="display:flex;align-items:center;gap:6px;flex-shrink:0;"><div class="round-tag" id="round-tag">RND 1</div><button class="pause-btn" id="pause-btn" onclick="requestPause()" title="Pause">⏸</button></div></div><div class="game-body"><div class="waveform" id="waveform"></div><div class="game-info"><div class="timer-wrap" id="timer-wrap"><svg width="80" height="80" viewBox="0 0 100 100"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="7"/><circle id="timer-arc" cx="50" cy="50" r="40" fill="none" stroke="var(--teal)" stroke-width="7" stroke-linecap="round" stroke-dasharray="251.2 251.2"/></svg><div class="timer-num" id="timer-num">30</div></div><div class="info-row" id="info-row"></div></div><div class="status-msg" id="status-msg">🎵 Song is playing — buzz in when you know it!</div><div id="action-area"></div></div><div class="game-footer"><button class="gf-btn gf-restart" onclick="gameFooterRestart()" title="Restart game">🔄 Restart</button><div class="gf-divider"></div><button class="gf-btn gf-end" onclick="gameFooterEnd()" title="End game">🚪 End Game</button></div></div>
+<div class="screen hidden" id="screen-pause"><div class="pause-icon">⏸</div><div class="pause-title">PAUSED</div><div class="pause-sub" id="pause-sub">Game is paused.</div><div id="pause-vote-area"></div><div class="pause-actions" id="pause-actions"><button class="btn-primary" style="font-size:16px;padding:16px;max-width:280px" onclick="resumeGame()">▶ Resume</button><button class="btn-secondary" style="font-size:14px;max-width:280px" onclick="goto('home')">🏠 Quit to Home</button></div></div>
+<div class="screen hidden" id="screen-result" style="padding:24px 20px;"><div class="result-icon" id="res-icon">🎯</div><div class="result-who" id="res-who"></div><div class="result-verdict" id="res-verdict">CORRECT!</div><div class="result-pts" id="res-pts"></div><div class="song-reveal"><div class="rev-label">The song was</div><div class="rev-song" id="res-song"></div><div class="rev-artist" id="res-artist"></div><div class="rev-year" id="res-year"></div></div><div class="mini-scores" id="res-scores"></div><div class="next-hint">Next song loading...</div><div id="result-actions"></div></div>
+<div class="screen hidden" id="screen-gameover"><div id="go-trophy" class="trophy">🏆</div><div class="go-label" id="go-label">Winner!</div><div class="go-name" id="go-name"></div><div class="go-sub" id="go-sub"></div><div class="final-cards" id="go-cards"></div><div class="go-actions"><button class="btn-primary" style="font-size:16px;padding:16px" onclick="rematch()">🔄 Play Again</button><button class="btn-secondary" style="font-size:14px" onclick="goto('leaderboard')">🏆 Leaderboard</button><button class="btn-secondary" style="font-size:14px" onclick="goto('home')">🏠 Home</button></div></div>
+<script>
+(function setupMobileViewport(){
+  const setVH = () => {
+    const h = (window.visualViewport ? window.visualViewport.height : window.innerHeight);
+    document.documentElement.style.setProperty('--vh', h + 'px');
+  };
+  setVH();
+  window.addEventListener('resize', setVH, {passive:true});
+  window.addEventListener('orientationchange', () => setTimeout(setVH, 150));
+  if (window.visualViewport) { window.visualViewport.addEventListener('resize', setVH, {passive:true}); }
+})();
+['gesturestart','gesturechange','gestureend'].forEach(ev => { document.addEventListener(ev, e => e.preventDefault(), {passive:false}); });
+let __lastTouchEnd = 0;
+document.addEventListener('touchend', function(e){ const now = Date.now(); if (now - __lastTouchEnd <= 320) e.preventDefault(); __lastTouchEnd = now; }, {passive:false});
+
+const SONGS = {
+  '80s':[ {title:"Take On Me",artist:"A-ha",year:1985},{title:"Sweet Child O' Mine",artist:"Guns N' Roses",year:1987},{title:"Livin' on a Prayer",artist:"Bon Jovi",year:1986},{title:"Girls Just Want to Have Fun",artist:"Cyndi Lauper",year:1983},{title:"Every Breath You Take",artist:"The Police",year:1983},{title:"Africa",artist:"Toto",year:1982},{title:"Total Eclipse of the Heart",artist:"Bonnie Tyler",year:1983},{title:"Wake Me Up Before You Go-Go",artist:"Wham!",year:1984},{title:"Don't You Forget About Me",artist:"Simple Minds",year:1985},{title:"Jump",artist:"Van Halen",year:1984},{title:"Jessie's Girl",artist:"Rick Springfield",year:1981},{title:"Eye of the Tiger",artist:"Survivor",year:1982},{title:"99 Luftballons",artist:"Nena",year:1983},{title:"Footloose",artist:"Kenny Loggins",year:1984},{title:"Karma Chameleon",artist:"Culture Club",year:1983} ],
+  '90s':[ {title:"Smells Like Teen Spirit",artist:"Nirvana",year:1991},{title:"Baby Got Back",artist:"Sir Mix-a-Lot",year:1992},{title:"No Scrubs",artist:"TLC",year:1999},{title:"Wannabe",artist:"Spice Girls",year:1996},{title:"Losing My Religion",artist:"R.E.M.",year:1991},{title:"I Will Always Love You",artist:"Whitney Houston",year:1992},{title:"Waterfalls",artist:"TLC",year:1995},{title:"Under the Bridge",artist:"Red Hot Chili Peppers",year:1992},{title:"Creep",artist:"Radiohead",year:1992},{title:"Ironic",artist:"Alanis Morissette",year:1995},{title:"Gangsta's Paradise",artist:"Coolio",year:1995},{title:"Baby One More Time",artist:"Britney Spears",year:1998},{title:"MMMBop",artist:"Hanson",year:1997},{title:"Wonderwall",artist:"Oasis",year:1995},{title:"Killing Me Softly",artist:"Fugees",year:1996} ],
+  '2000s':[ {title:"Crazy in Love",artist:"Beyoncé",year:2003},{title:"Yeah!",artist:"Usher",year:2004},{title:"Hey Ya!",artist:"OutKast",year:2003},{title:"Mr. Brightside",artist:"The Killers",year:2003},{title:"Since U Been Gone",artist:"Kelly Clarkson",year:2004},{title:"In Da Club",artist:"50 Cent",year:2003},{title:"Lose Yourself",artist:"Eminem",year:2002},{title:"Toxic",artist:"Britney Spears",year:2003},{title:"Rehab",artist:"Amy Winehouse",year:2006},{title:"Paper Planes",artist:"M.I.A.",year:2007},{title:"Poker Face",artist:"Lady Gaga",year:2008},{title:"Umbrella",artist:"Rihanna",year:2007},{title:"Beautiful Day",artist:"U2",year:2000},{title:"Rolling in the Deep",artist:"Adele",year:2010},{title:"Single Ladies",artist:"Beyoncé",year:2008} ],
+  '70s':[ {title:"Bohemian Rhapsody",artist:"Queen",year:1975},{title:"Hotel California",artist:"Eagles",year:1977},{title:"Stayin' Alive",artist:"Bee Gees",year:1977},{title:"Born to Run",artist:"Bruce Springsteen",year:1975},{title:"Go Your Own Way",artist:"Fleetwood Mac",year:1977},{title:"Dream On",artist:"Aerosmith",year:1973},{title:"Dancing Queen",artist:"ABBA",year:1976},{title:"Free Bird",artist:"Lynyrd Skynyrd",year:1973},{title:"Superstition",artist:"Stevie Wonder",year:1972},{title:"Philadelphia Freedom",artist:"Elton John",year:1975},{title:"Roxanne",artist:"The Police",year:1978},{title:"Don't Stop Me Now",artist:"Queen",year:1978} ],
+  '60s':[ {title:"Hey Jude",artist:"The Beatles",year:1968},{title:"Respect",artist:"Aretha Franklin",year:1967},{title:"Good Vibrations",artist:"The Beach Boys",year:1966},{title:"Like a Rolling Stone",artist:"Bob Dylan",year:1965},{title:"Purple Haze",artist:"Jimi Hendrix",year:1967},{title:"My Generation",artist:"The Who",year:1965},{title:"A Day in the Life",artist:"The Beatles",year:1967},{title:"Paint It Black",artist:"Rolling Stones",year:1966},{title:"Johnny B. Goode",artist:"Chuck Berry",year:1958},{title:"Gimme Shelter",artist:"Rolling Stones",year:1969},{title:"I Got You (I Feel Good)",artist:"James Brown",year:1965},{title:"Sunshine of Your Love",artist:"Cream",year:1967} ],
+  'rap':[ {title:"HUMBLE.",artist:"Kendrick Lamar",year:2017},{title:"God's Plan",artist:"Drake",year:2018},{title:"Sicko Mode",artist:"Travis Scott",year:2018},{title:"Rap God",artist:"Eminem",year:2013},{title:"N****s in Paris",artist:"Jay-Z & Kanye West",year:2011},{title:"Alright",artist:"Kendrick Lamar",year:2015},{title:"POWER",artist:"Kanye West",year:2010},{title:"Started From the Bottom",artist:"Drake",year:2013},{title:"Old Town Road",artist:"Lil Nas X",year:2019},{title:"Hotline Bling",artist:"Drake",year:2015},{title:"Juicy",artist:"The Notorious B.I.G.",year:1994},{title:"Empire State of Mind",artist:"Jay-Z",year:2009},{title:"Lose Yourself",artist:"Eminem",year:2002},{title:"99 Problems",artist:"Jay-Z",year:2003},{title:"ROCKSTAR",artist:"Post Malone",year:2017} ],
+  'rock':[ {title:"Back in Black",artist:"AC/DC",year:1980},{title:"Stairway to Heaven",artist:"Led Zeppelin",year:1971},{title:"Welcome to the Jungle",artist:"Guns N' Roses",year:1987},{title:"Don't Stop Believin'",artist:"Journey",year:1981},{title:"Seven Nation Army",artist:"The White Stripes",year:2003},{title:"Come as You Are",artist:"Nirvana",year:1992},{title:"Everlong",artist:"Foo Fighters",year:1997},{title:"Black",artist:"Pearl Jam",year:1991},{title:"Killing in the Name",artist:"Rage Against the Machine",year:1992},{title:"Learn to Fly",artist:"Foo Fighters",year:1999},{title:"More Than a Feeling",artist:"Boston",year:1976},{title:"Highway to Hell",artist:"AC/DC",year:1979},{title:"Paranoid",artist:"Black Sabbath",year:1970},{title:"Master of Puppets",artist:"Metallica",year:1986},{title:"Under Pressure",artist:"Queen & David Bowie",year:1981} ],
+  'movies':[ {title:"Star Wars Main Theme",artist:"John Williams",year:1977},{title:"Schindler's List Theme",artist:"John Williams",year:1993},{title:"The Godfather Theme",artist:"Nino Rota",year:1972},{title:"Forrest Gump Theme",artist:"Alan Silvestri",year:1994},{title:"Inception - Time",artist:"Hans Zimmer",year:2010},{title:"Interstellar Theme",artist:"Hans Zimmer",year:2014},{title:"The Dark Knight Theme",artist:"Hans Zimmer",year:2008},{title:"Gladiator - Now We Are Free",artist:"Hans Zimmer",year:2000},{title:"Pirates of the Caribbean",artist:"Klaus Badelt",year:2003},{title:"Avatar Theme",artist:"James Horner",year:2009},{title:"Titanic - My Heart Will Go On",artist:"Celine Dion",year:1997},{title:"The Lion King - Circle of Life",artist:"Hans Zimmer",year:1994},{title:"E.T. Theme",artist:"John Williams",year:1982},{title:"Jurassic Park Theme",artist:"John Williams",year:1993},{title:"Indiana Jones Theme",artist:"John Williams",year:1981} ],
+  'themes':[ {title:"Friends Theme",artist:"The Rembrandts",year:1994},{title:"Game of Thrones Theme",artist:"Ramin Djawadi",year:2011},{title:"Stranger Things Theme",artist:"Kyle Dixon & Michael Stein",year:2016},{title:"The Simpsons Theme",artist:"Danny Elfman",year:1989},{title:"Breaking Bad Theme",artist:"Dave Porter",year:2008},{title:"Succession Theme",artist:"Nicholas Britell",year:2018},{title:"The Mandalorian Theme",artist:"Ludwig Goransson",year:2019},{title:"Super Mario Theme",artist:"Koji Kondo",year:1985},{title:"Tetris Theme",artist:"Hirokazu Tanaka",year:1984},{title:"Legend of Zelda Theme",artist:"Koji Kondo",year:1986},{title:"Halo Theme",artist:"Martin O'Donnell",year:2001},{title:"Pokemon Theme",artist:"Jason Paige",year:1998},{title:"Jeopardy Theme",artist:"Merv Griffin",year:1964},{title:"Mission Impossible Theme",artist:"Lalo Schifrin",year:1966},{title:"James Bond Theme",artist:"Monty Norman",year:1962} ],
+  'classical':[ {title:"Symphony No. 5",artist:"Beethoven",year:1808},{title:"Für Elise",artist:"Beethoven",year:1810},{title:"Ode to Joy (Symphony No. 9)",artist:"Beethoven",year:1824},{title:"Moonlight Sonata",artist:"Beethoven",year:1801},{title:"Eine kleine Nachtmusik",artist:"Mozart",year:1787},{title:"Rondo alla Turca (Turkish March)",artist:"Mozart",year:1783},{title:"Symphony No. 40",artist:"Mozart",year:1788},{title:"Lacrimosa (Requiem)",artist:"Mozart",year:1791},{title:"Spring (The Four Seasons)",artist:"Vivaldi",year:1725},{title:"Nocturne in E-flat, Op. 9 No. 2",artist:"Chopin",year:1832},{title:"Minute Waltz",artist:"Chopin",year:1847},{title:"Toccata and Fugue in D minor",artist:"Bach",year:1704},{title:"Air on the G String",artist:"Bach",year:1717},{title:"Swan Lake Theme",artist:"Tchaikovsky",year:1876},{title:"1812 Overture",artist:"Tchaikovsky",year:1880},{title:"Dance of the Sugar Plum Fairy",artist:"Tchaikovsky",year:1892},{title:"The Blue Danube",artist:"Strauss II",year:1866},{title:"Canon in D",artist:"Pachelbel",year:1680},{title:"In the Hall of the Mountain King",artist:"Grieg",year:1875},{title:"William Tell Overture",artist:"Rossini",year:1829} ],
+};
+
+const BONUS = {
+  tv: [
+    {title:"Theme from Friends",artist:"Friends",searchQuery:"I'll Be There for You Rembrandts Friends theme",hint:"Could this BE any more iconic?",year:1994},
+    {title:"Game of Thrones Theme",artist:"Game of Thrones",searchQuery:"Game of Thrones main title Ramin Djawadi",hint:"Winter is coming…",year:2011},
+    {title:"The Fresh Prince Theme",artist:"Fresh Prince",searchQuery:"Fresh Prince of Bel Air theme song Will Smith",hint:"West Philadelphia born and raised…",year:1990},
+    {title:"Seinfeld Theme",artist:"Seinfeld",searchQuery:"Seinfeld bass theme Jonathan Wolff",hint:"No hugging, no learning.",year:1989},
+    {title:"The Simpsons Theme",artist:"The Simpsons",searchQuery:"The Simpsons theme Danny Elfman",hint:"D'oh!",year:1989},
+    {title:"Stranger Things Theme",artist:"Stranger Things",searchQuery:"Stranger Things theme Kyle Dixon Michael Stein",hint:"From the Upside Down…",year:2016},
+    {title:"Breaking Bad Theme",artist:"Breaking Bad",searchQuery:"Breaking Bad main title Dave Porter",hint:"Say my name.",year:2008},
+    {title:"Twin Peaks Theme",artist:"Twin Peaks",searchQuery:"Twin Peaks theme Angelo Badalamenti Falling",hint:"The owls are not what they seem.",year:1990},
+    {title:"The Office Theme",artist:"The Office",searchQuery:"The Office theme song US version",hint:"That's what she said.",year:2005},
+    {title:"X-Files Theme",artist:"The X-Files",searchQuery:"X-Files theme Mark Snow",hint:"The truth is out there.",year:1993},
+    {title:"Succession Theme",artist:"Succession",searchQuery:"Succession theme Nicholas Britell",hint:"We're not a family, we're a firm.",year:2018},
+    {title:"The Sopranos Theme",artist:"The Sopranos",searchQuery:"Woke Up This Morning Alabama 3 Sopranos",hint:"Every day feels like Sunday morning.",year:1999},
+    {title:"Cheers Theme",artist:"Cheers",searchQuery:"Where Everybody Knows Your Name Cheers theme",hint:"Sometimes you wanna go where everybody knows your name.",year:1982},
+    {title:"Sherlock Theme",artist:"Sherlock BBC",searchQuery:"Sherlock BBC theme David Arnold Michael Price",hint:"Elementary, my dear Watson.",year:2010},
+    {title:"Mandalorian Theme",artist:"The Mandalorian",searchQuery:"The Mandalorian theme Ludwig Goransson",hint:"This is the way.",year:2019},
+  ],
+  games: [
+    {title:"Super Mario Theme",artist:"Super Mario Bros",searchQuery:"Super Mario Bros theme Koji Kondo original",hint:"It's-a me, Mario!",year:1985},
+    {title:"Tetris Theme",artist:"Tetris",searchQuery:"Tetris theme Korobeiniki original",hint:"The blocks never stop falling.",year:1984},
+    {title:"Legend of Zelda Theme",artist:"The Legend of Zelda",searchQuery:"Legend of Zelda main theme Koji Kondo",hint:"It's dangerous to go alone.",year:1986},
+    {title:"Halo Theme",artist:"Halo",searchQuery:"Halo main theme Martin O'Donnell",hint:"A ringworld worth fighting for.",year:2001},
+    {title:"Doom Theme",artist:"Doom",searchQuery:"Doom E1M1 At Doom's Gate Bobby Prince",hint:"Rip and tear.",year:1993},
+    {title:"Minecraft Theme",artist:"Minecraft",searchQuery:"Minecraft Sweden C418 piano",hint:"Creepers say ssssss.",year:2011},
+    {title:"Pokémon Theme",artist:"Pokémon",searchQuery:"Pokemon theme song original anime gotta catch em",hint:"Gotta catch 'em all!",year:1997},
+    {title:"Final Fantasy Victory Fanfare",artist:"Final Fantasy",searchQuery:"Final Fantasy victory fanfare Nobuo Uematsu",hint:"Level up!",year:1987},
+    {title:"Undertale Megalovania",artist:"Undertale",searchQuery:"Undertale Megalovania Toby Fox",hint:"sans. undertale.",year:2015},
+    {title:"Animal Crossing Theme",artist:"Animal Crossing",searchQuery:"Animal Crossing main theme Nintendo",hint:"Tom Nook says pay up.",year:2001},
+    {title:"Skyrim Theme",artist:"The Elder Scrolls V: Skyrim",searchQuery:"Skyrim Dragonborn theme Jeremy Soule",hint:"FUS RO DAH!",year:2011},
+    {title:"Portal Theme",artist:"Portal",searchQuery:"Portal Still Alive Jonathan Coulton",hint:"The cake is a lie.",year:2007},
+    {title:"Street Fighter Theme",artist:"Street Fighter II",searchQuery:"Street Fighter 2 Guile theme arcade",hint:"Guile's theme goes with everything.",year:1991},
+    {title:"Tetris Theme B",artist:"Tetris",searchQuery:"Tetris type B theme music",hint:"The harder Tetris track.",year:1984},
+    {title:"Mortal Kombat Theme",artist:"Mortal Kombat",searchQuery:"Mortal Kombat techno theme original 1992",hint:"MORTAL KOMBAT!",year:1992},
+  ],
+  popculture: [
+    {title:"Imperial March",artist:"Star Wars",searchQuery:"Star Wars Imperial March John Williams",hint:"I am your father.",year:1980},
+    {title:"Indiana Jones Theme",artist:"Indiana Jones",searchQuery:"Indiana Jones Raiders March John Williams",hint:"Why'd it have to be snakes?",year:1981},
+    {title:"Jaws Theme",artist:"Jaws",searchQuery:"Jaws theme John Williams",hint:"You're gonna need a bigger boat.",year:1975},
+    {title:"Jurassic Park Theme",artist:"Jurassic Park",searchQuery:"Jurassic Park theme John Williams",hint:"Life finds a way.",year:1993},
+    {title:"Harry Potter Theme",artist:"Harry Potter",searchQuery:"Harry Potter Hedwig's Theme John Williams",hint:"You're a wizard, Harry.",year:2001},
+    {title:"James Bond Theme",artist:"James Bond",searchQuery:"James Bond theme Monty Norman orchestra",hint:"Shaken, not stirred.",year:1962},
+    {title:"The Godfather Theme",artist:"The Godfather",searchQuery:"The Godfather theme Nino Rota",hint:"I'm gonna make him an offer he can't refuse.",year:1972},
+    {title:"Mission Impossible Theme",artist:"Mission Impossible",searchQuery:"Mission Impossible theme Lalo Schifrin",hint:"This message will self-destruct.",year:1966},
+    {title:"Pirates of the Caribbean Theme",artist:"Pirates of the Caribbean",searchQuery:"Pirates Caribbean He's a Pirate Klaus Badelt",hint:"Why is the rum always gone?",year:2003},
+    {title:"Interstellar Theme",artist:"Interstellar",searchQuery:"Interstellar main theme Hans Zimmer",hint:"Do not go gentle into that good night.",year:2014},
+    {title:"Forrest Gump Theme",artist:"Forrest Gump",searchQuery:"Forrest Gump Feather Theme Alan Silvestri",hint:"Life is like a box of chocolates.",year:1994},
+    {title:"The Lion King Theme",artist:"The Lion King",searchQuery:"Circle of Life Lion King Hans Zimmer",hint:"Hakuna Matata.",year:1994},
+    {title:"Titanic Theme",artist:"Titanic",searchQuery:"My Heart Will Go On Celine Dion Titanic",hint:"I'll never let go, Jack.",year:1997},
+    {title:"Avengers Theme",artist:"Avengers",searchQuery:"Avengers theme Alan Silvestri Marvel",hint:"I am Iron Man.",year:2012},
+    {title:"Back to the Future Theme",artist:"Back to the Future",searchQuery:"Back to the Future theme Alan Silvestri",hint:"Great Scott!",year:1985},
+  ],
+};
+const BONUS_FLAT = [...BONUS.tv, ...BONUS.games, ...BONUS.popculture].map(s => ({...s, isBonus:true, bonusType: BONUS.tv.includes(s)?'tv': BONUS.games.includes(s)?'games':'popculture'}));
+BONUS.tv.forEach(s=>{s.isBonus=true;s.bonusType='tv';});
+BONUS.games.forEach(s=>{s.isBonus=true;s.bonusType='games';});
+BONUS.popculture.forEach(s=>{s.isBonus=true;s.bonusType='popculture';});
+
+const GENRES = [
+  {id:'80s',name:'80s',emoji:'📼',color:'#FF6B6B'},{id:'90s',name:'90s',emoji:'📻',color:'#FF9F43'},
+  {id:'2000s',name:'2000s',emoji:'💿',color:'#54A0FF'},{id:'70s',name:'70s',emoji:'🎸',color:'#A29BFE'},
+  {id:'60s',name:'60s',emoji:'🎺',color:'#FFEAA7'},{id:'rap',name:'Rap / Hip-Hop',emoji:'🎤',color:'#00CEC9'},
+  {id:'rock',name:'Rock',emoji:'⚡',color:'#E17055'},{id:'classical',name:'Classical',emoji:'🎻',color:'#D4AF37'},{id:'movies',name:'Movie Scores',emoji:'🎬',color:'#FF6B9D'},{id:'themes',name:'Theme Songs',emoji:'📺',color:'#C77DFF'},
+];
+
+const state = {
+  screen:'home', mode:null, genres:[], targetScore:5, difficulty:'normal', players:[],
+  songs:[], songIdx:0, currentSong:null, round:1, consecutiveNoScore:0, phase:'idle',
+  buzzQueue:[], buzzTimes:{}, roundTimeAtBuzz:0, answerTime:7, roundTime:20, spokenText:'',
+  stats:{played:0,wins:0,best:0}, timers:{}, recognition:null, micActive:false,
+  micPermission:'unknown', speechSupported:!!(window.SpeechRecognition||window.webkitSpeechRecognition),
+  waveIntervals:[], audioReady:false, audioLoading:false, songsPlayed:0, gameStartTime:0,
+  bonusPool:[], nextBonusAt:0, skipVotes:[], totalSkips:0, paused:false, pauseRequester:null,
+  pauseVotes:{}, restartVotes:{}, footerRestartVotes:{}, pausedTimerRemaining:0, pausedAudioTime:0,
+  // Party mode realtime state
+  partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false,
+  partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [],
+  currentUser: null, currentProfile: null, _pendingAvatarFile: null,
+};
+
+function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s,genre:gid}))); }); return pool; }
+function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
+function requireAuth() {
+  // Safe: works even if Supabase hasn't loaded yet
+  if (typeof sb !== 'undefined' && state.currentUser) {
+    goto('modeselect');
+  } else if (typeof sb === 'undefined') {
+    // Supabase not loaded — go to mode select anyway (offline/local mode)
+    goto('modeselect');
+  } else {
+    goto('register');
+  }
+}
+
+function handleProfileBtn() {
+  if (typeof sb !== 'undefined' && state.currentUser) {
+    goto('profile');
+  } else if (typeof sb === 'undefined') {
+    goto('modeselect');
+  } else {
+    goto('register');
+  }
+}
+
+function goto(name) { clearAllTimers(); stopAudio(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.stop();}catch(e){} state.recognition=null;} state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting')renderWaitingRoom(); if(name==='join')prefillJoinCode(); if(name==='party-setup')renderPartySetupPlayers(); }
+function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+function clearAllTimers() { Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
+function norm(s) { return (s||'').toLowerCase().replace(/[\u2018\u2019']/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
+function wordMatch(answer,target) { const aw=norm(answer).split(' ').filter(w=>w.length>1); const tw=norm(target).split(' ').filter(w=>w.length>1); if(!tw.length)return norm(answer).includes(norm(target)); const hits=tw.filter(t=>aw.some(a=>a.includes(t)||t.includes(a))); return hits.length/tw.length>=0.55; }
+function checkAnswer(spoken,song) { const hasTitle=wordMatch(spoken,song.title); const hasArtist=wordMatch(spoken,song.artist); if(song.isBonus){const pts=(hasTitle&&hasArtist)?5:(hasTitle||hasArtist)?2:0; return{hasTitle,hasArtist,pts,isBonus:true};} const pts=(hasTitle&&hasArtist)?3:(hasTitle||hasArtist)?1:0; return{hasTitle,hasArtist,pts}; }
+function renderGenres() { const grid=document.getElementById('genre-grid'); const allGenreIds=GENRES.map(g=>g.id); const allSelected=allGenreIds.every(id=>state.genres.includes(id)); const noneSelected=state.genres.length===0; const actionsRow=document.getElementById('genre-actions-row'); actionsRow.innerHTML='<button class="genre-action-btn '+(allSelected?'active':'')+'" onclick="toggleSelectAll()">'+(allSelected?'✓ All Selected':'🌍 Select All')+'</button><button class="genre-action-btn" onclick="clearGenreSelection()" '+(noneSelected?'disabled style="opacity:0.4;cursor:not-allowed"':'')+'>✕ Clear</button>'; grid.innerHTML=GENRES.map(g=>{const sel=state.genres.includes(g.id); const bdr=sel?'border-color:'+g.color+';background:'+g.color+'08':''; return '<div class="genre-card '+(sel?'selected':'')+'" style="'+bdr+'" onclick="toggleGenre(\''+g.id+'\')"><div class="genre-check">'+(sel?'✓':'')+'</div><div class="genre-emoji">'+g.emoji+'</div><div class="genre-name" style="color:'+(sel?g.color:'var(--text)')+'">'+g.name+'</div><div class="genre-count" style="color:'+g.color+'">'+(SONGS[g.id]?.length||0)+' songs</div></div>';}).join(''); const summary=document.getElementById('genre-summary'); if(state.genres.length===0){summary.innerHTML='Select at least one genre to continue';}else if(allSelected){summary.innerHTML=`<b>All genres</b> selected — <b>${totalSongCount()}</b> songs in the mix 🔥`;}else{const names=state.genres.map(id=>{const g=GENRES.find(x=>x.id===id); return g?g.emoji+' '+g.name:id;}); summary.innerHTML=`<b>${state.genres.length}</b> genre${state.genres.length>1?'s':''} · <b>${totalSongCount()}</b> songs — ${names.join(', ')}`;} document.getElementById('genre-continue-btn').disabled=state.genres.length===0; }
+function toggleGenre(id) { const idx=state.genres.indexOf(id); if(idx===-1){state.genres.push(id);}else{state.genres.splice(idx,1);} renderGenres(); }
+function toggleSelectAll() { const allGenreIds=GENRES.map(g=>g.id); const allSelected=allGenreIds.every(id=>state.genres.includes(id)); if(allSelected){state.genres=[];}else{state.genres=[...allGenreIds];} renderGenres(); }
+function clearGenreSelection() { state.genres=[]; renderGenres(); }
+function selectMode(m) {
+  state.mode = m;
+  if (m === 'party') {
+    // Party goes: genreselect → settings → party-setup → waiting
+    goto('genreselect');
+  } else {
+    goto('genreselect');
+  }
+}
+function renderSettings() {
+  document.getElementById('settings-mode-sub').textContent=state.mode==='party'?'Private Party':'Solo Challenge';
+  const body=document.getElementById('settings-body'); let html='';
+  if(state.mode==='party'){
+    if(!state.players.length)state.players=[{name:'Player 1',avatar:'🎵',score:0}];
+    html+=`<div class="settings-block"><div class="settings-label">Players (${state.players.length}/6)</div><div class="player-list" id="player-list-render">${renderPlayerList()}</div>${state.players.length<6?`<div class="add-player-row"><input class="add-input" id="new-player-input" placeholder="Add player name..." onkeydown="if(event.key==='Enter')addPlayer()"><button class="add-btn" onclick="addPlayer()">+ Add</button></div>`:''}</div>`;
+  } else {
+    state.players=[{name:'You',avatar:'🎯',score:0}];
+  }
+  if(!state.targetScore)state.targetScore=5;
+
+  if(state.mode==='solo'){
+    // ── SECTION 1: Win Condition ──
+    html+=`<div class="settings-block">
+      <div class="settings-label" style="display:flex;align-items:center;gap:8px;"><span style="background:var(--purple);color:#fff;width:20px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;">1</span> Set Your Win Condition</div>
+      <div id="win-condition-pills" style="display:flex;gap:10px;margin-bottom:12px;">
+        <button class="pill ${state.targetScore===5?'active':''}" onclick="setSoloTarget(5)" style="flex:1;text-align:center;">First to<br><b style="font-size:18px;">5</b> pts</button>
+        <button class="pill ${state.targetScore===10?'active':''}" onclick="setSoloTarget(10)" style="flex:1;text-align:center;">First to<br><b style="font-size:18px;">10</b> pts</button>
+        <button class="pill ${![5,10].includes(state.targetScore)?'active':''}" id="custom-pill" onclick="showCustomTarget()" style="flex:1;text-align:center;">Custom<br><b style="font-size:18px;" id="custom-pill-val">${![5,10].includes(state.targetScore)?state.targetScore:'✎'}</b> pts</button>
+      </div>
+      <div id="custom-input-row" style="display:${![5,10].includes(state.targetScore)?'flex':'none'};flex-direction:column;gap:10px;margin-bottom:12px;background:var(--dark3);border:1px solid var(--neon);border-radius:14px;padding:14px;">
+        <div style="font-size:12px;color:var(--muted);letter-spacing:0.5px;">Drag to set your custom target:</div>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <input id="custom-pts-slider" type="range" min="1" max="50" value="${![5,10].includes(state.targetScore)?state.targetScore:15}" style="flex:1;accent-color:var(--neon);" oninput="applyCustomTarget(this.value)">
+          <span id="custom-pts-display" style="font-size:24px;font-weight:900;color:var(--neon);min-width:52px;text-align:center;">${![5,10].includes(state.targetScore)?state.targetScore:15} pts</span>
+        </div>
+      </div>
+      <div style="background:var(--dark3);border:1px solid var(--border);border-radius:12px;padding:11px 14px;font-size:13px;color:var(--muted);">
+        Reach <b style="color:var(--neon);font-size:16px;" id="solo-target-display">${state.targetScore} pts</b> to win · <span style="color:var(--pink);">20 songs max</span>
+      </div>
+    </div>`;
+
+    // ── SECTION 2: Grading Scale ──
+    html+=`<div class="settings-block">
+      <div class="settings-label" style="display:flex;align-items:center;gap:8px;"><span style="background:var(--teal);color:#000;width:20px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;">2</span> Grading Scale</div>
+      <div style="background:var(--dark3);border:1px solid var(--border);border-radius:14px;overflow:hidden;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--border);">
+          <span style="font-size:13px;">🎵 Guess the song only</span>
+          <span style="font-weight:900;color:var(--neon);font-size:15px;">1 pt</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;border-bottom:1px solid var(--border);">
+          <span style="font-size:13px;">🎤 Guess the artist only</span>
+          <span style="font-weight:900;color:var(--neon);font-size:15px;">1 pt</span>
+        </div>
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:rgba(232,255,58,0.04);">
+          <span style="font-size:13px;font-weight:600;">🎯 Guess song + artist</span>
+          <span style="font-weight:900;color:var(--neon);font-size:18px;">3 pts</span>
+        </div>
+      </div>
+    </div>`;
+
+    // ── SECTION 3: How You Rank ──
+    html+=`<div class="settings-block">
+      <div class="settings-label" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;"><span style="background:var(--pink);color:#fff;width:20px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;">3</span> How You Rank</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:10px;letter-spacing:0.3px;">Based on target of <b style="color:var(--neon);">${state.targetScore} pts</b> — adjusts automatically for custom targets</div>
+      <div class="grade-preview"><div class="gp-grades" id="grade-scale-rows">${renderGradeRows(state.targetScore)}</div></div>
+    </div>`;
+  } else {
+    html+=`<div class="settings-block"><div class="settings-label">Win Condition</div>
+      <div class="pill-row">${[5,10,15].map(n=>`<div class="pill ${state.targetScore===n?'active':''}" onclick="setTarget(${n})">${n} pts</div>`).join('')}</div>
+      <div class="target-bar"><span>First to <b id="target-display">${state.targetScore}</b> points wins</span><span style="font-size:12px;color:var(--muted)">20s per song · 7s to answer</span></div>
+    </div>`;
+  }
+
+  // ── SECTION 4 (Solo) / SECTION 2 (Party): Speak your Answers ──
+  const sectionNum = state.mode==='solo' ? '4' : '2';
+  const sectionColor = state.mode==='solo' ? 'var(--purple)' : 'var(--teal)';
+  html+=`<div class="settings-block">
+    <div class="settings-label" style="display:flex;align-items:center;gap:8px;"><span style="background:${sectionColor};color:${state.mode==='solo'?'#fff':'#000'};width:20px;height:20px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;">${sectionNum}</span> Speak Your Answers</div>
+    ${renderMicSetupBlock()}
+  </div>`;
+
+  html+=`<button class="btn-primary" style="font-size:17px;padding:18px" onclick="beginGame()">🎵 &nbsp;Start Game!</button>`;
+  body.innerHTML=html;
+  if(state.micPermission==='unknown'&&navigator.permissions&&navigator.permissions.query){
+    navigator.permissions.query({name:'microphone'}).then(status=>{
+      if(status.state==='granted'){state.micPermission='granted';renderSettings();}
+      else if(status.state==='denied'){state.micPermission='denied';renderSettings();}
+    }).catch(()=>{});
+  }
+}
+function renderMicSetupBlock() {
+  const supported=state.speechSupported;
+  const perm=state.micPermission;
+  const isEmbedded=(window.self!==window.top);
+  const micApiMissing=!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia;
+  const micBlocked=isEmbedded||micApiMissing||perm==='denied';
+
+  if(micBlocked){
+    const tipText=micApiMissing?'Microphone API not available in this browser.':isEmbedded?'Open this page in a direct browser tab to enable voice.':'Mic access denied. Open in a direct browser tab and allow mic in settings.';
+    return`<div class="mic-setup" id="mic-setup-block" style="border-color:rgba(255,58,140,0.3);background:rgba(255,58,140,0.04);">
+      <div class="mic-setup-title" style="color:var(--pink);">🚫 Microphone Blocked</div>
+      <div class="mic-setup-desc">Allow access now so you can speak your answers when you buzz in. You cannot play without this activated.</div>
+      <div class="mic-status-line warn" style="font-size:11px;text-align:center;padding:0 8px;line-height:1.6;">${tipText}</div>
+    </div>`;
+  }
+
+  if(perm==='granted'){
+    return`<div class="mic-setup" id="mic-setup-block" style="border-color:rgba(0,229,204,0.3);background:rgba(0,229,204,0.04);">
+      <div class="mic-setup-title" style="color:var(--teal);">✓ Microphone Ready</div>
+      <div class="mic-setup-desc">You're all set! Speak the song title and artist after you buzz in.</div>
+      <div class="mic-status-line ok">🎙️ ${supported?'Speech recognition active — speak your answers.':'Mic granted but speech recognition not supported. You will type answers.'}</div>
+    </div>`;
+  }
+
+  return`<div class="mic-setup" id="mic-setup-block">
+    <div class="mic-setup-title">🎙️ Microphone Access</div>
+    <div class="mic-setup-desc">Allow access now so you can <b>speak your answers</b> when you buzz in. You cannot play without this activated.</div>
+    <button id="mic-test-btn" class="mic-test-btn" onclick="testMicrophone()" style="width:100%;justify-content:center;">Enable Microphone</button>
+    <div id="mic-test-status" class="mic-status-line" style="text-align:center;">${supported?'Tap above — your browser will ask for permission, tap Allow.':'⚠️ Speech recognition not supported in this browser — you will type answers.'}</div>
+  </div>`;
+}
+function renderPlayerList() { return state.players.map((p,i)=>`<div class="player-row"><div class="p-avatar">${p.avatar}</div><div class="p-name">${p.name}</div><div class="p-status ${i===0?'ready':'wait'}">${i===0?'✓ HOST':'READY'}</div></div>`).join(''); }
+function addPlayer() { const inp=document.getElementById('new-player-input'); const name=inp?.value?.trim(); if(!name||state.players.length>=6)return; const avatars=['🎸','🎤','🥁','🎹','🎺','🎻']; state.players.push({name,avatar:avatars[(state.players.length)%avatars.length],score:0}); inp.value=''; renderSettings(); }
+function setDiff(d) { state.difficulty=d; const info={easy:'AI knows ~45% of songs, reacts slower',normal:'AI knows ~72% of songs, moderate speed',legend:'AI knows ~92% of songs, reacts FAST!'}; document.querySelectorAll('.pill').forEach(p=>p.classList.toggle('active',p.textContent.toLowerCase()===d)); const el=document.getElementById('diff-info'); if(el)el.textContent=info[d]; }
+function setTarget(n) { state.targetScore=n; document.querySelectorAll('.settings-block:last-of-type .pill').forEach(p=>p.classList.toggle('active',parseInt(p.textContent)===n)); const el=document.getElementById('target-display'); if(el)el.textContent=n; }
+function soloSongLimit(target) { return Math.min(60,Math.max(20,target*4)); }
+function setSoloTarget(n) {
+  state.targetScore=n;
+  // Hide custom row
+  const customRow=document.getElementById('custom-input-row');
+  if(customRow)customRow.style.display='none';
+  // Update all three pill highlights
+  const pills=document.querySelectorAll('#win-condition-pills .pill');
+  pills.forEach(p=>p.classList.remove('active'));
+  if(n===5 && pills[0]) pills[0].classList.add('active');
+  if(n===10 && pills[1]) pills[1].classList.add('active');
+  updateSoloTargetDisplay(n);
+}
+function showCustomTarget() {
+  const customRow=document.getElementById('custom-input-row');
+  if(customRow){
+    customRow.style.display='flex';
+    const slider=document.getElementById('custom-pts-slider');
+    if(slider){ applyCustomTarget(slider.value); slider.focus(); }
+  }
+  // Highlight custom pill, deactivate others
+  const pills=document.querySelectorAll('#win-condition-pills .pill');
+  pills.forEach(p=>p.classList.remove('active'));
+  const customPill=document.getElementById('custom-pill');
+  if(customPill)customPill.classList.add('active');
+}
+function applyCustomTarget(val) {
+  const n=parseInt(val);
+  if(!n||n<1)return;
+  state.targetScore=n;
+  // Update display inside custom pill
+  const customPillVal=document.getElementById('custom-pill-val');
+  if(customPillVal)customPillVal.textContent=n;
+  const display=document.getElementById('custom-pts-display');
+  if(display)display.textContent=n+' pts';
+  // Keep custom pill highlighted, deactivate others
+  const pills=document.querySelectorAll('#win-condition-pills .pill');
+  pills.forEach(p=>p.classList.remove('active'));
+  const customPill=document.getElementById('custom-pill');
+  if(customPill)customPill.classList.add('active');
+  updateSoloTargetDisplay(n);
+}
+function updateSoloTargetDisplay(n) { const limit=soloSongLimit(n); const disp=document.getElementById('solo-target-display'); if(disp)disp.textContent=n+' pts'; const limitEl=document.querySelector('.target-bar span:last-child'); if(limitEl)limitEl.textContent='⚠️ '+limit+' songs max'; const gradeRows=document.getElementById('grade-scale-rows'); if(gradeRows)gradeRows.innerHTML=renderGradeRows(n); }
+function renderGradeRows(target) {
+  const t = target;
+  const ratio = t / 5;
+  const sMax  = Math.max(1, Math.round(5  * ratio));
+  const aMax  = Math.max(sMax+1, Math.round(8  * ratio));
+  const bMax  = Math.max(aMax+1, Math.round(12 * ratio));
+  const cMax  = Math.max(bMax+1, Math.round(16 * ratio));
+  const dMax  = Math.max(cMax+1, Math.round(19 * ratio));
+  // letter = first letter of the grade word (L=Legendary, E=Expert, S=Solid, D=Decent, C=Close Call, X=Defeated)
+  const grades = [
+    { letter:'L', label:'Legendary',  color:'#FFD700',      range:`Win in ≤ ${sMax} song${sMax===1?'':'s'}`,      editable:true,  key:'sMax', val:sMax },
+    { letter:'E', label:'Expert',     color:'var(--neon)',   range:`Win in ${sMax+1}–${aMax} songs`,               editable:true,  key:'aMax', val:aMax },
+    { letter:'S', label:'Solid',      color:'var(--teal)',   range:`Win in ${aMax+1}–${bMax} songs`,               editable:true,  key:'bMax', val:bMax },
+    { letter:'D', label:'Decent',     color:'#54A0FF',       range:`Win in ${bMax+1}–${cMax} songs`,               editable:true,  key:'cMax', val:cMax },
+    { letter:'C', label:'Close Call', color:'var(--pink)',   range:`Win in ${cMax+1}–${dMax} songs`,               editable:true,  key:'dMax', val:dMax },
+    { letter:'X', label:'Defeated',   color:'var(--muted)', range:'20 songs — no win',                            editable:false, key:'',     val:0    },
+  ];
+  return grades.map(g=>`
+    <div class="gp-row" style="display:flex;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);gap:10px;">
+      <span style="background:${g.color}22;color:${g.color};border:1px solid ${g.color}44;width:32px;height:32px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;flex-shrink:0;">${g.letter}</span>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:${g.color};">${g.label}</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:1px;" id="grade-range-${g.key||'x'}">${g.range}</div>
+      </div>
+    </div>`).join('');
+}
+function beginGame() {
+  primeMicPermission();
+  if (state.mode === 'party') {
+    // createPartyRoom lives in the Supabase script block — call via window to be safe
+    if (typeof createPartyRoom === 'function') {
+      createPartyRoom();
+    } else {
+      alert('Game services not loaded yet. Please wait a moment and try again.');
+    }
+    return;
+  }
+  const myName = state.currentProfile?.nickname || 'You';
+  const myAvatar = state.currentProfile?.avatar_url || null;
+  state.players = [{name: myName, avatar: myAvatar || '🎯', score: 0}];
+  state.round=1; state.consecutiveNoScore=0; state.songsPlayed=0; state.totalSkips=0;
+  state.gameStartTime=Date.now();
+  state.songs=shuffle(buildSongPool()); state.songIdx=0;
+  state.bonusPool=shuffle([...BONUS_FLAT]); state.nextBonusAt=3+Math.floor(Math.random()*3);
+  goto('game'); beginRound();
+}
+function rematch() { state.players.forEach(p=>p.score=0); state.round=1; state.consecutiveNoScore=0; state.songsPlayed=0; state.totalSkips=0; state.gameStartTime=Date.now(); state.songs=shuffle(buildSongPool()); state.songIdx=0; state.bonusPool=shuffle([...BONUS_FLAT]); state.nextBonusAt=3+Math.floor(Math.random()*3); goto('game'); beginRound(); }
+function buildWaveform() { const wf=document.getElementById('waveform'); if(!wf)return; wf.innerHTML=''; const bars=Math.min(26,Math.floor(window.innerWidth/14)); for(let i=0;i<bars;i++){const b=document.createElement('div'); b.className='wbar'; const h=14+Math.random()*44; b.style.height=h+'px'; b.style.animationDelay=(i*0.065%0.75)+'s'; b.style.animationDuration=(0.45+(i%5)*0.09)+'s'; wf.appendChild(b);} }
+function setWaveform(playing,loading) { document.querySelectorAll('.wbar').forEach(b=>{b.classList.toggle('off',!playing&&!loading); b.classList.toggle('loading',!!loading);}); }
+function gameFooterEnd() { showFooterConfirm('end'); }
+function gameFooterRestart() { if(state.mode==='solo'){showFooterConfirm('restart-solo');}else{showFooterConfirm('restart-party');} }
+function showFooterConfirm(type) { closeFooterConfirm(); const overlay=document.createElement('div'); overlay.className='gf-confirm'; overlay.id='gf-confirm-overlay'; if(type==='end'){overlay.innerHTML=`<div class="gf-confirm-title">🚪 End Game?</div><div class="gf-confirm-sub">Your current progress will be lost.</div><div class="gf-confirm-btns"><button class="gf-confirm-no" onclick="closeFooterConfirm()">Cancel</button><button class="gf-confirm-yes" style="background:var(--pink);color:#000;" onclick="closeFooterConfirm();confirmEndGame()">End Game</button></div>`;}else if(type==='restart-solo'){overlay.innerHTML=`<div class="gf-confirm-title">🔄 Restart Game?</div><div class="gf-confirm-sub">Scores reset, same genre &amp; settings.</div><div class="gf-confirm-btns"><button class="gf-confirm-no" onclick="closeFooterConfirm()">Cancel</button><button class="gf-confirm-yes" style="background:var(--teal);color:#000;" onclick="closeFooterConfirm();restartGame()">Restart</button></div>`;}else if(type==='restart-party'){state.footerRestartVotes={}; overlay.innerHTML=buildPartyRestartVoteHtml();} document.getElementById('screen-game').appendChild(overlay); }
+function buildPartyRestartVoteHtml() { const rows=state.players.map((p,i)=>{const v=state.footerRestartVotes[i]; let statusHtml; if(v==='yes')statusHtml=`<span class="gf-voted-yes">✓ RESTART</span>`; else if(v==='no')statusHtml=`<span class="gf-voted-no">✗ NO</span>`; else statusHtml=`<div class="gf-vote-btns"><button class="gf-vote-yes" onclick="footerRestartVote(${i},'yes')">✓ Yes</button><button class="gf-vote-no" onclick="footerRestartVote(${i},'no')">✗ No</button></div>`; return`<div class="gf-vote-row"><span class="gf-vote-name">${p.avatar} ${p.name}</span>${statusHtml}</div>`;}).join(''); return`<div class="gf-confirm-title">🔄 Restart Vote — all must agree</div>${rows}<button class="gf-confirm-no" style="max-width:200px;margin-top:2px;" onclick="closeFooterConfirm()">Cancel</button>`; }
+function footerRestartVote(idx,vote) { state.footerRestartVotes[idx]=vote; const overlay=document.getElementById('gf-confirm-overlay'); if(!overlay)return; const allVoted=state.players.every((_,i)=>state.footerRestartVotes[i]!==undefined); if(allVoted){const allYes=state.players.every((_,i)=>state.footerRestartVotes[i]==='yes'); closeFooterConfirm(); if(allYes)restartGame(); return;} overlay.innerHTML=buildPartyRestartVoteHtml(); }
+function closeFooterConfirm() { const el=document.getElementById('gf-confirm-overlay'); if(el)el.remove(); }
+function confirmEndGame() { clearTimeout(state.timers.next); showGameOver(null); }
+function restartGame() { clearTimeout(state.timers.next); state.players.forEach(p=>p.score=0); state.round=1; state.songsPlayed=0; state.totalSkips=0; state.consecutiveNoScore=0; state.gameStartTime=Date.now(); state.songs=shuffle(buildSongPool()); state.songIdx=0; state.bonusPool=shuffle([...BONUS_FLAT]); state.nextBonusAt=3+Math.floor(Math.random()*3); goto('game'); beginRound(); }
+function requestRestartVote() { clearTimeout(state.timers.next); if(state.players.length===1){restartGame();return;} state.restartVotes={}; renderRestartVote(); }
+function renderRestartVote() { const resultActionsEl=document.getElementById('result-actions'); if(!resultActionsEl)return; const rows=state.players.map((p,i)=>{const vote=state.restartVotes[i]; let statusHtml='',btnsHtml=''; if(vote==='yes'){statusHtml=`<span style="color:var(--teal);font-size:11px;font-weight:700;">✓ RESTART</span>`;}else if(vote==='no'){statusHtml=`<span style="color:var(--pink);font-size:11px;font-weight:700;">✗ KEEP GOING</span>`;}else{btnsHtml=`<button onclick="castRestartVote(${i},'yes')" style="background:rgba(0,229,204,0.1);border:1px solid rgba(0,229,204,0.3);border-radius:8px;color:var(--teal);font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;font-family:inherit;">✓ Restart</button><button onclick="castRestartVote(${i},'no')" style="background:rgba(255,58,140,0.1);border:1px solid rgba(255,58,140,0.3);border-radius:8px;color:var(--pink);font-size:11px;font-weight:700;padding:5px 10px;cursor:pointer;font-family:inherit;margin-left:4px;">✗ No</button>`;} return`<div style="display:flex;align-items:center;justify-content:space-between;background:var(--dark2);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px;"><span style="font-size:13px;font-weight:600;">${p.avatar} ${p.name}</span><div style="display:flex;align-items:center;gap:4px;">${statusHtml}${btnsHtml}</div></div>`;}).join(''); resultActionsEl.innerHTML=`<div style="background:var(--dark3);border:1px solid var(--border);border-radius:14px;padding:14px;margin-top:8px;"><div style="font-size:10px;color:var(--muted);letter-spacing:2px;text-align:center;margin-bottom:10px;">RESTART VOTE — ALL MUST AGREE</div>${rows}<button onclick="cancelRestartVote()" style="width:100%;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--muted);font-size:12px;padding:8px;cursor:pointer;font-family:inherit;margin-top:4px;">Cancel</button></div>`; }
+function castRestartVote(playerIdx,vote) { state.restartVotes[playerIdx]=vote; const allVoted=state.players.every((_,i)=>state.restartVotes[i]!==undefined); if(!allVoted){renderRestartVote();return;} const allYes=state.players.every((_,i)=>state.restartVotes[i]==='yes'); if(allYes){restartGame();}else{cancelRestartVote();} }
+function cancelRestartVote() { state.restartVotes={}; const resultActionsEl=document.getElementById('result-actions'); if(resultActionsEl){resultActionsEl.innerHTML=`<div style="display:flex;gap:10px;justify-content:center;margin-top:4px;"><button class="btn-secondary" style="font-size:12px;padding:9px 14px;" onclick="requestRestartVote()">🔄 Restart Game</button><button class="btn-secondary" style="font-size:12px;padding:9px 14px;" onclick="confirmEndGame()">🚪 End Game</button></div>`;} }
+async function primeMicPermission() { if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){state.micPermission='unsupported';return;} if(navigator.permissions&&navigator.permissions.query){try{const status=await navigator.permissions.query({name:'microphone'}); if(status.state==='granted'){state.micPermission='granted';return;} if(status.state==='denied'){state.micPermission='denied';return;}}catch(e){}} try{const stream=await navigator.mediaDevices.getUserMedia({audio:true}); stream.getTracks().forEach(t=>t.stop()); state.micPermission='granted';}catch(e){state.micPermission='denied';} }
+async function testMicrophone() { const btn=document.getElementById('mic-test-btn'); const statusLine=document.getElementById('mic-test-status'); if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){state.micPermission='unsupported'; if(btn){btn.classList.add('unsupported');btn.innerHTML='🚫 Mic not available';btn.disabled=true;} if(statusLine){statusLine.className='mic-status-line warn';statusLine.textContent='Your browser does not expose a microphone API.';} return;} if(btn)btn.innerHTML='⏳ Requesting access…'; try{const stream=await navigator.mediaDevices.getUserMedia({audio:true}); stream.getTracks().forEach(t=>t.stop()); state.micPermission='granted'; if(btn){btn.classList.remove('denied','unsupported');btn.classList.add('granted');btn.innerHTML='✓ Microphone Ready';} if(statusLine){statusLine.className='mic-status-line ok';statusLine.textContent=state.speechSupported?'Speech recognition supported — you can speak your answers.':'Mic granted, but speech recognition is not supported in this browser. You\'ll type answers instead.';}}catch(e){state.micPermission='denied'; if(btn){btn.classList.remove('granted','unsupported');btn.classList.add('denied');btn.innerHTML='✕ Mic Blocked — Tap to Retry';} if(statusLine){statusLine.className='mic-status-line err';statusLine.textContent='Permission denied. You can still play and type your answers.';}} }
+function requestPause() { if(state.phase==='result'||state.phase==='idle')return; if(state.mode==='party')return; if(state.mode==='solo'){executePause();showPauseScreen();}else{state.pauseRequester=0;state.pauseVotes={}; if(state.players.length===1){executePause();showPauseScreen();return;} executePause();showPauseScreen(true);} }
+function executePause() { state.paused=true; state.pausedTimerRemaining=state.roundTime; state.pausedAudioTime=audio.currentTime; clearAllTimers(); pauseAudio(); }
+function showPauseScreen(isVote=false) { document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); document.getElementById('screen-pause').classList.remove('hidden'); if(state.mode==='solo'||!isVote){document.getElementById('pause-sub').textContent='Take a breather. Resume when ready.'; document.getElementById('pause-vote-area').innerHTML=''; document.getElementById('pause-actions').innerHTML=`<button class="btn-primary" style="font-size:16px;padding:16px;max-width:280px;width:100%" onclick="resumeGame()">▶ Resume</button><button class="btn-secondary" style="font-size:14px;max-width:280px;width:100%" onclick="goto('home')">🏠 Quit to Home</button>`;}else{renderPauseVoteScreen();} }
+function renderPauseVoteScreen() { const requester=state.players[state.pauseRequester||0]; document.getElementById('pause-sub').textContent=`${requester.avatar} ${requester.name} wants to pause. All players must agree.`; const rows=state.players.map((p,i)=>{const vote=state.pauseVotes[i]; let statusHtml='',btnsHtml=''; if(vote==='agreed'){statusHtml=`<span class="pvp-status agreed">✓ AGREED</span>`;}else if(vote==='declined'){statusHtml=`<span class="pvp-status declined">✗ DECLINED</span>`;}else{statusHtml=`<span class="pvp-status pending">PENDING…</span>`;btnsHtml=`<button class="pvp-agree-btn" onclick="castPauseVote(${i},'agreed')">✓ Agree</button><button class="pvp-decline-btn" onclick="castPauseVote(${i},'declined')">✗ No</button>`;} return`<div class="pvp-row"><div class="pvp-name">${p.avatar} ${p.name}</div><div style="display:flex;align-items:center;gap:6px;">${statusHtml}${btnsHtml}</div></div>`;}).join(''); document.getElementById('pause-vote-area').innerHTML=`<div class="pause-vote-wrap"><div class="pause-vote-title">Pause Vote</div><div class="pause-vote-players">${rows}</div></div>`; document.getElementById('pause-actions').innerHTML=`<button class="btn-secondary" style="font-size:14px;max-width:280px;width:100%" onclick="cancelPause()">✗ Cancel Pause Request</button><button class="btn-secondary" style="font-size:14px;max-width:280px;width:100%;margin-top:4px" onclick="goto('home')">🏠 Quit to Home</button>`; }
+function castPauseVote(playerIdx,vote) { state.pauseVotes[playerIdx]=vote; renderPauseVoteScreen(); const allVoted=state.players.every((_,i)=>state.pauseVotes[i]!==undefined); if(!allVoted)return; const allAgreed=state.players.every((_,i)=>state.pauseVotes[i]==='agreed'); if(allAgreed){document.getElementById('pause-sub').textContent='All players agreed. Game is paused.'; document.getElementById('pause-vote-area').innerHTML=''; document.getElementById('pause-actions').innerHTML=`<button class="btn-primary" style="font-size:16px;padding:16px;max-width:280px;width:100%" onclick="resumeGame()">▶ Resume</button><button class="btn-secondary" style="font-size:14px;max-width:280px;width:100%" onclick="goto('home')">🏠 Quit to Home</button>`;}else{cancelPause();} }
+function cancelPause() { state.pauseVotes={}; state.pauseRequester=null; resumeGame(); }
+function resumeGame() { state.paused=false; state.pauseVotes={}; state.pauseRequester=null; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); document.getElementById('screen-game').classList.remove('hidden'); if(audio.src){audio.currentTime=state.pausedAudioTime; audio.play().catch(()=>{}); setWaveform(true,false);} state.roundTime=state.pausedTimerRemaining; updateTimerRing(state.roundTime,20); tickRound(); if(state.mode==='party')scheduleAI(); }
+const audio=document.getElementById('song-audio'); audio.volume=0.85;
+function stopAudio() { try{audio.pause();audio.src='';}catch(e){} state.audioReady=false; state.audioLoading=false; }
+function pauseAudio() { try{audio.pause();}catch(e){} }
+function resumeAudio() { if(audio.src&&!audio.ended){audio.play().catch(()=>{});} }
+const BONUS_TYPE_LABELS = { tv:{label:'📺 TV Theme',color:'#A29BFE'}, games:{label:'🎮 Video Game Theme',color:'#00CEC9'}, popculture:{label:'🎬 Pop Culture',color:'#FFD700'} };
+function showBonusBanner(song) { const existing=document.getElementById('bonus-banner'); if(existing)existing.remove(); const typeInfo=BONUS_TYPE_LABELS[song.bonusType]||{label:'⚡ Bonus',color:'var(--neon)'}; const banner=document.createElement('div'); banner.id='bonus-banner'; banner.innerHTML=`<div class="bonus-type-tag" style="background:${typeInfo.color}20;border-color:${typeInfo.color}50;color:${typeInfo.color}">${typeInfo.label}</div><div class="bonus-title">⚡ BONUS ROUND</div><div class="bonus-sub">Name the theme — worth <b style="color:var(--neon)">5 pts</b> (double points)!</div><div class="bonus-hint">${song.hint||''}</div>`; banner.style.cssText=`position:fixed;top:0;left:0;right:0;z-index:999;background:linear-gradient(135deg,rgba(123,79,255,0.95),rgba(0,229,204,0.9));padding:18px 20px 16px;text-align:center;animation:bonusSlide 0.4s cubic-bezier(0.175,0.885,0.32,1.275);`; document.body.appendChild(banner); setTimeout(()=>{if(banner.parentNode)banner.style.opacity='0'; banner.style.transition='opacity 0.5s'; setTimeout(()=>banner.remove(),500);},3500); }
+// Detects a non-silent start offset in the audio using Web Audio API
+// Returns the offset (seconds) where sound actually begins, capped at maxScan seconds
+async function findSoundStart(audioElement, maxScan=15) {
+  try {
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const duration = audioElement.duration || 30;
+    const scanEnd = Math.min(duration - 2, maxScan);
+    // Sample a few offsets quickly and find first one with decent volume
+    const checkPoints = [0, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    for (const t of checkPoints) {
+      if (t >= scanEnd) break;
+      // Set position and briefly analyze
+      audioElement.currentTime = t;
+      await new Promise(r => setTimeout(r, 80)); // brief wait for seek
+      if (!audioElement.paused) {
+        // If audio is playing, check volume via analyser
+        const src = ctx.createMediaElementSource(audioElement);
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 256;
+        src.connect(analyser);
+        analyser.connect(ctx.destination);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(data);
+        const avg = data.reduce((a,b)=>a+b,0)/data.length;
+        src.disconnect();
+        analyser.disconnect();
+        ctx.close();
+        if (avg > 5) return t;
+      }
+    }
+    ctx.close();
+  } catch(e) { /* Web Audio not available, fall through */ }
+  return 0;
+}
+
+async function fetchAndPlaySong(song) {
+  stopAudio();
+  state.audioLoading = true;
+  setWaveform(false, true);
+  setStatus('⏳ Loading preview…', false);
+
+  // Bonus songs (TV themes, game music, movie scores) get broader search
+  const isSpecial = song.isBonus || song.genre === 'movies' || song.genre === 'themes';
+  const queryStr = song.searchQuery || (song.title + ' ' + song.artist);
+  const query = encodeURIComponent(queryStr);
+
+  // For bonus/special songs search across all media types for better coverage
+  const entity = isSpecial ? 'song,musicVideo' : 'song';
+  const url = `https://itunes.apple.com/search?term=${query}&entity=${entity}&media=music&limit=10&country=US`;
+
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('iTunes fetch failed: ' + res.status);
+    const data = await res.json();
+
+    const titleNorm = norm(song.title);
+    const artistNorm = norm(song.artist);
+    let best = null;
+
+    // Score each result for best match
+    const scored = (data.results || [])
+      .filter(r => r.previewUrl)
+      .map(r => {
+        const t = norm(r.trackName || r.collectionName || '');
+        const a = norm(r.artistName || '');
+        let score = 0;
+        const titleWords = titleNorm.split(' ').filter(w => w.length > 2);
+        const artistWords = artistNorm.split(' ').filter(w => w.length > 2);
+        titleWords.forEach(w => { if (t.includes(w)) score += 2; });
+        artistWords.forEach(w => { if (a.includes(w)) score += 1; });
+        // Bonus: exact title match
+        if (t === titleNorm) score += 5;
+        return { item: r, score };
+      })
+      .sort((a, b) => b.score - a.score);
+
+    best = scored[0]?.item || null;
+
+    // Fallback: any result with a preview
+    if (!best) best = (data.results || []).find(r => r.previewUrl);
+
+    if (best && best.previewUrl && state.phase === 'playing') {
+      audio.crossOrigin = 'anonymous';
+      audio.src = best.previewUrl;
+      audio.volume = 0.9;
+
+      await new Promise((resolve, reject) => {
+        const onReady = () => {
+          audio.removeEventListener('canplaythrough', onReady);
+          audio.removeEventListener('error', onErr);
+          resolve();
+        };
+        const onErr = (e) => {
+          audio.removeEventListener('canplaythrough', onReady);
+          audio.removeEventListener('error', onErr);
+          reject(e);
+        };
+        audio.addEventListener('canplaythrough', onReady, { once: true });
+        audio.addEventListener('error', onErr, { once: true });
+        audio.load();
+      });
+
+      if (state.phase !== 'playing') return;
+
+      const duration = audio.duration || 30;
+
+      // Smart offset: for special/bonus songs that may have silent intros,
+      // we scan forward to find where sound actually begins.
+      // For regular songs, use a randomized mid-track offset.
+      let startOffset = 0;
+
+      if (isSpecial) {
+        // For themes/scores/bonus: start early but skip any silent intro
+        // Try 0s first, then scan forward in 1s increments up to 8s
+        const silentIntroMax = 8;
+        startOffset = 0;
+        audio.currentTime = 0;
+        // Play briefly then check if we got dead air, nudge forward
+        for (let t = 0; t <= silentIntroMax; t += 1) {
+          if (t >= duration - 5) break;
+          audio.currentTime = t;
+          await new Promise(r => setTimeout(r, 60));
+          // Try playing and trust it — we can't easily sample without Web Audio context issues
+          // Instead, use a known-safe offset: start at 1s for themes (avoids countdown beeps etc)
+          startOffset = t;
+          if (t >= 1) break; // at least 1s in to skip any leader silence
+        }
+        // Additionally, for very well-known problematic songs, use specific known-good offsets
+        const titleKey = norm(song.title);
+        const knownOffsets = {
+          'doom': 4,         // Doom E1M1 has a 3s buildup
+          'at dooms gate': 4,
+          'tetris': 0,       // Tetris starts immediately
+          'super mario': 0,  // Mario starts immediately
+          'imperial march': 1,
+          'star wars': 2,
+          'game of thrones': 2,
+          'skyrim': 3,       // Skyrim has a choral build
+          'dragonborn': 3,
+          'halo': 2,
+          'interstellar': 4, // Zimmer builds slowly
+          'inception': 3,
+        };
+        for (const [key, offset] of Object.entries(knownOffsets)) {
+          if (titleKey.includes(key)) {
+            startOffset = offset;
+            break;
+          }
+        }
+      } else {
+        // Regular songs: random offset in the juicy middle section
+        const maxOffset = Math.max(0, duration - 12);
+        startOffset = maxOffset > 4
+          ? 4 + Math.random() * Math.min(maxOffset - 4, 10)
+          : Math.min(2, maxOffset);
+      }
+
+      audio.currentTime = Math.min(startOffset, duration - 5);
+      state.audioReady = true;
+      state.audioLoading = false;
+      await audio.play();
+
+      const isBonusSong = state.currentSong && state.currentSong.isBonus;
+      setStatus(
+        isBonusSong ? '⚡ Name the theme + its source for 5 pts!' : '🎵 Song is playing — buzz in when you know it!',
+        false
+      );
+      setWaveform(true, false);
+
+    } else {
+      state.audioLoading = false;
+      if (state.phase === 'playing') {
+        setStatus('🎵 No preview available — name the song!', false);
+        setWaveform(false, false);
+      }
+    }
+  } catch(err) {
+    console.warn('Audio fetch error:', err);
+    state.audioLoading = false;
+    if (state.phase === 'playing') {
+      setStatus('🎵 Buzz in when ready!', false);
+      setWaveform(false, false);
+    }
+  }
+}
+function updateTimerRing(val,max) { const circ=2*Math.PI*40; const arc=document.getElementById('timer-arc'); const num=document.getElementById('timer-num'); if(!arc||!num)return; const pct=val/max; arc.style.strokeDasharray=`${pct*circ} ${circ}`; const isLow=pct<=0.3; arc.style.stroke=isLow?'var(--pink)':'var(--teal)'; num.style.color=isLow?'var(--pink)':'var(--text)'; num.textContent=val; }
+function beginRound() { clearAllTimers(); const isBonusRound=state.songsPlayed===state.nextBonusAt&&state.bonusPool.length>0; if(isBonusRound){state.currentSong=state.bonusPool.shift(); state.nextBonusAt=state.songsPlayed+4+Math.floor(Math.random()*3);}else{state.currentSong=state.songs[state.songIdx%state.songs.length];} state.phase='playing'; state.buzzQueue=[]; state.buzzTimes={}; state.roundTimeAtBuzz=0; state.spokenText=''; state.micActive=false; state.skipVotes=[]; state.roundTime=20; state.answerTime=7; if(state.mode==='solo'){document.getElementById('round-tag').textContent=`SONG ${state.songsPlayed+1}/${soloSongLimit(state.targetScore)}`;}else{document.getElementById('round-tag').textContent='RND '+state.round;} updateTimerRing(20,20); updateInfoRow(); if(isBonusRound){showBonusBanner(state.currentSong); document.getElementById('screen-game').classList.add('bonus-active');}else{document.getElementById('screen-game').classList.remove('bonus-active');} setWaveform(false,true); setStatus('⏳ Loading preview…',false); renderActionArea(); if(state.mode==='party')scheduleAI(); tickRound(); fetchAndPlaySong(state.currentSong); }
+function tickRound() { if(state.phase!=='playing')return; if(state.roundTime<=0){endRound(null,null,null,true);return;} state.timers.round=setTimeout(()=>{state.roundTime--; updateTimerRing(state.roundTime,20); tickRound();},1000); }
+function scheduleAI() { const rates={easy:0.42,normal:0.70,legend:0.90}; const minT={easy:12,normal:7,legend:3}; const maxT={easy:26,normal:19,legend:9}; if(Math.random()>(rates[state.difficulty]||0.70))return; const delay=(minT[state.difficulty]+Math.random()*(maxT[state.difficulty]-minT[state.difficulty]))*1000; state.timers.ai=setTimeout(()=>{if(state.phase!=='playing')return; const aiIdx=state.players.findIndex(p=>p.avatar==='🤖'); if(aiIdx===-1)return; clearTimeout(state.timers.round); state.roundTimeAtBuzz=state.roundTime; state.buzzQueue=[aiIdx]; state.phase='answering'; pauseAudio(); setWaveform(false); setStatus('🤖 AI buzzed in!',false); renderActionArea(); state.timers.aianswer=setTimeout(()=>{const pts=state.currentSong.isBonus?5:3; endRound(aiIdx,{hasTitle:true,hasArtist:true,pts},state.currentSong);},1800);},delay); }
+function playerBuzz(playerIdx) { if(playerIdx===undefined)playerIdx=0; if(state.phase!=='playing')return; if(state.buzzQueue.includes(playerIdx))return; state.buzzTimes[playerIdx]=Date.now(); state.buzzQueue.push(playerIdx); if(state.buzzQueue.length===1){clearTimeout(state.timers.round); clearTimeout(state.timers.ai); state.roundTimeAtBuzz=state.roundTime; state.phase='answering'; state.answerTime=7; state.spokenText=''; pauseAudio(); setWaveform(false); startAnswerFor(playerIdx);}else{renderActionArea();} }
+function startAnswerFor(playerIdx) { state.answerTime=7; state.spokenText=''; stopMic(); const p=state.players[playerIdx]; setStatus(`🎙️ ${p?p.avatar+' '+p.name:'You'} — speak your answer now!`,true); renderActionArea(); startMic(); tickAnswer(); }
+function tickAnswer() { if(state.phase!=='answering')return; if(state.answerTime<=0){if(state.phase==='answering')handleAnswerTimeout();return;} state.timers.answer=setTimeout(()=>{if(state.phase!=='answering')return; state.answerTime--; renderActionArea(); tickAnswer();},1000); }
+function handleAnswerTimeout() { if(state.phase!=='answering')return; stopMic(); clearTimeout(state.timers.answer); const timedOutIdx=state.buzzQueue[0]; const timedOutName=state.players[timedOutIdx]?.name||'You'; const area=document.getElementById('action-area'); if(area){area.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;gap:10px;animation:popIn 0.3s ease;"><div style="font-size:52px;">⏱</div><div style="font-size:28px;font-weight:900;letter-spacing:3px;color:var(--pink);">TOO SLOW!</div><div style="font-size:13px;color:var(--muted);">${timedOutName} ran out of time</div></div>`;} setStatus('',false); state.timers.tooSlow=setTimeout(()=>{if(state.phase!=='answering')return; state.buzzQueue.shift(); if(state.buzzQueue.length>0){const nextIdx=state.buzzQueue[0]; const nextP=state.players[nextIdx]; setStatus(`🎙️ ${nextP?nextP.avatar+' '+nextP.name:'Next'} — your turn!`,true); startAnswerFor(nextIdx);}else{if(state.roundTimeAtBuzz>0){state.phase='playing'; state.roundTime=state.roundTimeAtBuzz; updateTimerRing(state.roundTime,20); if(audio.src){audio.play().catch(()=>{}); setWaveform(true,false);} setStatus('🎵 Song still playing — buzz in if you know it!',false); renderActionArea(); tickRound(); if(state.mode==='party')scheduleAI();}else{endRound(null,null,state.currentSong,true);}}},1600); }
+function submitAnswer() { if(state.phase!=='answering')return; state.phase='submitting'; stopMic(); clearTimeout(state.timers.answer); clearTimeout(state.timers.tooSlow); const playerIdx=state.buzzQueue[0]??0; const result=checkAnswer(state.spokenText,state.currentSong); endRound(playerIdx,result,state.currentSong); }
+function skipRound() { stopMic(); clearTimeout(state.timers.answer); clearTimeout(state.timers.tooSlow); if(state.mode==='solo')state.totalSkips++; state.buzzQueue.shift(); if(state.buzzQueue.length>0){const nextIdx=state.buzzQueue[0]; const nextP=state.players[nextIdx]; setStatus(`🎙️ ${nextP?nextP.avatar+' '+nextP.name:'Next'} — your turn!`,true); startAnswerFor(nextIdx);}else if(state.roundTimeAtBuzz>0){state.phase='playing'; state.roundTime=state.roundTimeAtBuzz; updateTimerRing(state.roundTime,20); if(audio.src){audio.play().catch(()=>{}); setWaveform(true,false);} setStatus('🎵 Song still playing — buzz in if you know it!',false); renderActionArea(); tickRound(); if(state.mode==='party')scheduleAI();}else{endRound(null,null,state.currentSong);} }
+function startMic() { const SR=window.SpeechRecognition||window.webkitSpeechRecognition; if(!SR){state.speechSupported=false; state.micActive=false; renderActionArea(); return;} if(state.recognition){try{state.recognition.stop();}catch(e){} state.recognition=null;} try{const rec=new SR(); state.recognition=rec; rec.continuous=true; rec.interimResults=true; rec.lang='en-US'; rec.onstart=()=>{state.micActive=true;renderActionArea();}; rec.onresult=(e)=>{let interim='',final=''; for(let i=0;i<e.results.length;i++){if(e.results[i].isFinal)final+=e.results[i][0].transcript; else interim+=e.results[i][0].transcript;} state.spokenText=(final+interim).trim(); renderActionArea();}; rec.onend=()=>{if(state.micActive&&state.phase==='answering'){try{rec.start();}catch(e){state.micActive=false;renderActionArea();}}else{state.micActive=false;renderActionArea();}}; rec.onerror=(e)=>{if(e.error==='no-speech')return; if(e.error==='not-allowed'||e.error==='service-not-allowed'){state.micPermission='denied';} state.micActive=false; state.recognition=null; renderActionArea();}; rec.start();}catch(e){state.micActive=false; state.speechSupported=false; renderActionArea();} }
+function clearAnswer() {
+  stopMic();
+  state.spokenText = '';
+  const inp = document.getElementById('typed-answer-input');
+  if (inp) inp.value = '';
+  renderActionArea();
+  setTimeout(() => { if (state.phase === 'answering') startMic(); }, 150);
+}
+function setTypedAnswer(val) { state.spokenText=(val||'').trim(); const btn=document.getElementById('typed-submit-btn'); if(btn){if(state.spokenText){btn.removeAttribute('disabled');btn.style.opacity='';}else{btn.setAttribute('disabled','');btn.style.opacity='0.35';}} }
+function stopMic() { state.micActive=false; if(state.recognition){try{state.recognition.stop();}catch(e){} state.recognition=null;} }
+function soloSkip() { if(state.phase!=='playing')return; clearAllTimers(); stopAudio(); state.totalSkips++; endRound(null,null,state.currentSong); }
+function partySkipVote(playerIdx) { if(state.phase!=='playing')return; if(state.skipVotes.includes(playerIdx))return; state.skipVotes.push(playerIdx); renderActionArea(); if(state.skipVotes.length>=state.players.length){clearAllTimers(); stopAudio(); endRound(null,null,state.currentSong);} }
+function endRound(playerIdx,result,song,timedOut=false) { clearAllTimers(); stopAudio(); stopMic(); state.phase='result'; const scored=result&&result.pts>0; if(scored){state.players[playerIdx].score+=result.pts; state.consecutiveNoScore=0;}else{state.consecutiveNoScore++; if(timedOut)state.totalSkips++;} showResult(playerIdx,result,song||state.currentSong,timedOut); }
+function showResult(playerIdx,result,song,timedOut=false) { goto('result'); const scored=result&&result.pts>0; const skipped=playerIdx===null&&!timedOut; const isBonus=!!song.isBonus; const screen=document.getElementById('screen-result'); if(isBonus&&scored){screen.style.background='radial-gradient(ellipse 70% 60% at 50% 50%, rgba(255,215,0,0.12), transparent 70%), var(--dark)';}else{screen.style.background='';} const typeInfo=isBonus?(BONUS_TYPE_LABELS[song.bonusType]||{label:'⚡ Bonus',color:'var(--neon)'}):null; document.getElementById('res-icon').textContent=timedOut?'⏰':isBonus?(scored?'⭐':skipped?'⏰':'💀'):(skipped?'⏩':scored?'🎯':'❌'); const vEl=document.getElementById('res-verdict'); if(isBonus&&scored){vEl.textContent='BONUS!';vEl.className='result-verdict correct';vEl.style.color='#FFD700';}else if(timedOut){vEl.textContent="TIME'S UP!";vEl.className='result-verdict wrong';vEl.style.color='var(--pink)';}else{vEl.style.color='';vEl.textContent=skipped?'SKIPPED':scored?'CORRECT!':'WRONG!';vEl.className='result-verdict '+(skipped?'skip':scored?'correct':'wrong');} const who=document.getElementById('res-who'); if(isBonus){const typeLabel=typeInfo?typeInfo.label:'⚡ Bonus Round'; who.innerHTML=`<span style="background:${typeInfo?.color||'var(--neon)'}22;border:1px solid ${typeInfo?.color||'var(--neon)'}44;color:${typeInfo?.color||'var(--neon)'};padding:3px 10px;border-radius:20px;font-size:10px;letter-spacing:2px;">${typeLabel}</span>`;}else{who.textContent=(playerIdx!==null&&state.players[playerIdx])?state.players[playerIdx].avatar+' '+state.players[playerIdx].name:''; who.innerHTML=who.textContent;} let ptsMsg=''; if(result&&result.pts>0){if(isBonus){if(result.hasTitle&&result.hasArtist)ptsMsg=`+${result.pts} pts · Theme + Source! 🌟`; else if(result.hasTitle)ptsMsg=`+${result.pts} pts · Got the theme!`; else ptsMsg=`+${result.pts} pts · Got the source!`;}else{if(result.hasTitle&&result.hasArtist)ptsMsg=`+${result.pts} pts · Song + Artist! 🎉`; else if(result.hasTitle)ptsMsg=`+${result.pts} pt · Song title!`; else ptsMsg=`+${result.pts} pt · Artist!`;}}else if(!skipped){ptsMsg=isBonus?'No bonus points this round':'Wrong answer — no points';} document.getElementById('res-pts').textContent=ptsMsg; const revLabel=document.querySelector('#screen-result .rev-label'); if(isBonus){if(revLabel)revLabel.textContent='The theme was'; document.getElementById('res-song').textContent='🎵 '+song.title; document.getElementById('res-artist').innerHTML=`<span style="color:${typeInfo?.color||'var(--teal)'}">${song.artist}</span>`;}else{if(revLabel)revLabel.textContent='The song was'; document.getElementById('res-song').textContent='🎵 '+song.title; document.getElementById('res-artist').textContent=song.artist; document.getElementById('res-artist').style.color='';} document.getElementById('res-year').textContent=song.year; document.getElementById('res-scores').innerHTML=state.players.map((p,i)=>`${i>0?'<div class="mini-sep">—</div>':''}<div class="mini-score"><div class="mini-num">${p.score}</div><div class="mini-name">${p.avatar} ${p.name}</div></div>`).join('');
+  if(state.mode==='solo'){state.songsPlayed++; const limit=soloSongLimit(state.targetScore); const youWon=state.players[0].score>=state.targetScore; const tooManySkips=!youWon&&state.totalSkips>=20; const outOfSongs=!youWon&&state.songsPlayed>=limit; const youLost=tooManySkips||outOfSongs; const hintEl=document.querySelector('#screen-result .next-hint'); if(youWon){if(hintEl)hintEl.textContent='🏆 You win! Calculating grade…';}else if(tooManySkips){if(hintEl)hintEl.textContent='💀 20 time-outs/skips — game over…';}else if(outOfSongs){if(hintEl)hintEl.textContent='💀 Out of songs — game over…';}else{const songsLeft=limit-state.songsPlayed; const ptsNeeded=state.targetScore-state.players[0].score; const skipsLeft=20-state.totalSkips; if(hintEl)hintEl.innerHTML=`${songsLeft} song${songsLeft!==1?'s':''} left · need ${ptsNeeded} more pt${ptsNeeded!==1?'s':''} · <span style="color:${skipsLeft<=5?'var(--pink)':'var(--muted)'}">missed: ${state.totalSkips}/20</span>`;} const resultActionsEl=document.getElementById('result-actions'); if(resultActionsEl)resultActionsEl.innerHTML=''; const delay=(youWon||youLost)?2400:3500; state.timers.next=setTimeout(()=>{if(youWon||youLost){showGameOver(youWon?state.players[0]:null);return;} state.round++; state.songIdx=(state.songIdx+1)%state.songs.length; if(state.songIdx===0)state.songs=shuffle(buildSongPool()); goto('game'); beginRound();},delay);}else{const winner=state.players.find(p=>p.score>=state.targetScore); const allLose=state.consecutiveNoScore>=10; const hintEl=document.querySelector('#screen-result .next-hint'); if(hintEl)hintEl.textContent=winner||allLose?'':'Next song loading...'; const resultActionsEl=document.getElementById('result-actions'); if(resultActionsEl)resultActionsEl.innerHTML=''; const delay=(winner||allLose)?2800:3500; state.timers.next=setTimeout(()=>{if(winner||allLose){showGameOver(winner);return;} state.round++; state.songIdx=(state.songIdx+1)%state.songs.length; if(state.songIdx===0)state.songs=shuffle(buildSongPool()); goto('game'); beginRound();},delay);}
+}
+function getSoloGrade(songsUsed,won) {
+  const t=state.targetScore;
+  const ratio=t/5;
+  const sMax=Math.max(1,Math.round(5*ratio));
+  const aMax=Math.max(sMax+1,Math.round(8*ratio));
+  const bMax=Math.max(aMax+1,Math.round(12*ratio));
+  const cMax=Math.max(bMax+1,Math.round(16*ratio));
+  const dMax=Math.max(cMax+1,Math.round(19*ratio));
+  const sStr=songsUsed===1?'1 song':songsUsed+' songs';
+  if(!won){
+    const reason=state.totalSkips>=20?'You missed 20 songs. The music stumped you.':`20 songs and you couldn't reach ${t} points. So close!`;
+    return{letter:'X',label:'Defeated', color:'var(--muted)',msg:reason};
+  }
+  if(songsUsed<=sMax) return{letter:'L',label:'Legendary', color:'#FFD700',     msg:`Unreal. You hit ${t} points in just ${sStr}. Pure music instinct.`};
+  if(songsUsed<=aMax) return{letter:'E',label:'Expert',    color:'var(--neon)',  msg:`You nailed ${t} points in ${sStr}. Sharp ears!`};
+  if(songsUsed<=bMax) return{letter:'S',label:'Solid',     color:'var(--teal)', msg:`${t} points in ${sStr}. Solid music knowledge.`};
+  if(songsUsed<=cMax) return{letter:'D',label:'Decent',    color:'#54A0FF',     msg:`Got there in ${sStr}. More practice needed.`};
+  return{letter:'C',label:'Close Call',color:'var(--pink)',msg:`Just scraped through in ${sStr}. Very close!`};
+}
+function showGameOver(winner) { saveGameResult(winner); state.stats.played++; const myScore=state.players.find(p=>p.name==='You')?.score||0; if(winner&&(winner.name==='You'||state.mode==='solo'))state.stats.wins++; state.stats.best=Math.max(state.stats.best,myScore); updateHomeStats(); goto('gameover'); if(state.mode==='solo'){const won=!!winner; const grade=getSoloGrade(state.songsPlayed,won); const elapsed=Math.round((Date.now()-state.gameStartTime)/1000); const mins=Math.floor(elapsed/60),secs=elapsed%60; const timeStr=mins>0?`${mins}m ${secs}s`:`${secs}s`; document.getElementById('go-trophy').textContent=won?grade.letter:'💀'; document.getElementById('go-trophy').style.cssText=won?`font-size:80px;font-weight:900;color:${grade.color};text-shadow:0 0 40px ${grade.color};font-family:'Segoe UI',system-ui,sans-serif;margin-bottom:4px;animation:trophyIn 0.6s cubic-bezier(0.175,0.885,0.32,1.275);`:''; document.getElementById('go-label').textContent=grade.label; document.getElementById('go-label').style.color=grade.color; document.getElementById('go-name').textContent=won?`${myScore} pts · ${state.songsPlayed} songs`:'GAME OVER'; document.getElementById('go-name').style.color=won?grade.color:'var(--pink)'; document.getElementById('go-sub').textContent=grade.msg; document.getElementById('go-cards').innerHTML=`<div class="final-card ${won?'win':''}"><div class="fc-name">⏱ Time</div><div class="fc-num" style="font-size:32px">${timeStr}</div></div><div class="final-card ${won?'win':''}"><div class="fc-name">🎵 Songs</div><div class="fc-num" style="font-size:32px">${state.songsPlayed}/${soloSongLimit(state.targetScore)}</div></div><div class="final-card ${won?'win':''}"><div class="fc-name">⭐ Score</div><div class="fc-num" style="font-size:32px">${myScore}/${state.targetScore}</div></div>`;}else{document.getElementById('go-trophy').textContent=winner?'🏆':'😤'; document.getElementById('go-trophy').style.cssText=''; document.getElementById('go-label').textContent=winner?'🎉 Winner!':'No Winner'; document.getElementById('go-label').style.color='var(--neon)'; document.getElementById('go-name').textContent=winner?winner.name:'Nobody'; document.getElementById('go-name').style.color=winner?'var(--neon)':'var(--muted)'; document.getElementById('go-sub').textContent=winner?`${winner.name} is the music master! 🎵`:"10 rounds with no points. Try a different genre!"; document.getElementById('go-cards').innerHTML=state.players.map((p,i)=>`<div class="final-card ${winner&&winner.name===p.name?'win':''}"><div class="fc-name">${p.avatar} ${p.name}</div><div class="fc-num">${p.score}</div></div>`).join('');} }
+function updateHomeStats() { const el1=document.getElementById('stat-played'); const el2=document.getElementById('stat-wins'); const el3=document.getElementById('stat-best'); if(el1)el1.textContent=state.stats.played; if(el2)el2.textContent=state.stats.wins; if(el3)el3.textContent=state.stats.best; }
+function renderScorePanel() { const panel=document.getElementById('score-panel'); panel.innerHTML=state.players.map((p,i)=>`${i>0?'<div class="score-vs">VS</div>':''}<div class="score-box" id="scorebox-${i}"><div class="score-player">${p.avatar} ${p.name}</div><div class="score-num" id="score-num-${i}">${p.score}</div></div>`).join(''); }
+function updateScorePanel() { state.players.forEach((p,i)=>{const el=document.getElementById('score-num-'+i); if(el)el.textContent=p.score;}); }
+function updateInfoRow() { const el=document.getElementById('info-row'); if(!el)return; const genreNames=state.genres.map(id=>{const g=GENRES.find(x=>x.id===id); return g?g.emoji+' '+g.name:id;}); const genreStr=state.genres.length===GENRES.length?'🌍 All Genres':genreNames.length<=2?genreNames.join(', '):genreNames.slice(0,2).join(', ')+` +${genreNames.length-2}`; if(state.mode==='solo'){const myScore=state.players[0]?.score||0; const limit=soloSongLimit(state.targetScore); const songsLeft=limit-state.songsPlayed; el.innerHTML=`Your pts: <b>${myScore}/${state.targetScore}</b><br><span style="color:${songsLeft<=5?'var(--pink)':'var(--muted)'}">Songs left: ${songsLeft}</span>`;}else{el.innerHTML=`Target: <b>${state.targetScore} pts</b><br>${genreStr}`;} }
+function setStatus(msg,hot) { const el=document.getElementById('status-msg'); if(!el)return; el.textContent=msg; el.classList.toggle('hot',!!hot); }
+function renderActionArea() { const area=document.getElementById('action-area'); if(!area)return;
+  if(state.phase==='playing'){if(state.mode==='solo'){const skipsLeft=20-state.totalSkips; const skipColor=skipsLeft<=3?'var(--pink)':'var(--muted)'; area.innerHTML=`<div style="display:flex;flex-direction:column;align-items:center;gap:14px;"><button class="buzzer-btn" onclick="playerBuzz(0)"><div class="bz-label">BUZZ IN</div><div class="bz-sub">tap when ready</div></button><div class="buzz-hint">🎙️ After buzzing — speak the song title + artist</div><button class="skip-btn" onclick="soloSkip()">⏭ Skip this song<span style="color:${skipColor};font-size:11px;margin-left:6px;">${skipsLeft} skip${skipsLeft!==1?'s':''} left</span></button></div>`;}else{// Party mode: one big buzzer + small player cards below
+    const myPlayer = state.players.find(p => p.isMe);
+    const buzzedPlayer = state.partyBuzzedPlayerId
+      ? state.players.find(p => p.id === state.partyBuzzedPlayerId)
+      : null;
+    const isBuzzed = !!state.partyBuzzedPlayerId;
+    const iMeBuzzed = state.partyBuzzedPlayerId === state.currentUser?.id;
+    const voted = state.skipVotes.length;
+    const totalP = state.players.length;
+
+    // Main buzzer
+    let mainBuzzer = '';
+    if (!isBuzzed) {
+      mainBuzzer = `<button class="buzzer-btn" onclick="partyBuzzIn()">
+        <div class="bz-label">BUZZ IN</div>
+        <div class="bz-sub">tap when you know it</div>
+      </button>
+      <div class="buzz-hint">🎙️ Buzz in first — then speak the song title + artist</div>`;
+    } else if (iMeBuzzed) {
+      mainBuzzer = `<button class="buzzer-btn teal" disabled>
+        <div class="bz-label">YOU BUZZED!</div>
+        <div class="bz-sub">speak your answer</div>
+      </button>`;
+    } else {
+      mainBuzzer = `<button class="buzzer-btn" disabled style="opacity:0.3;">
+        <div class="bz-label">BUZZ IN</div>
+        <div class="bz-sub">waiting…</div>
+      </button>
+      <div style="text-align:center;padding:8px 0;">
+        <div style="font-size:13px;font-weight:700;color:var(--neon);">${buzzedPlayer?.name || 'A player'} buzzed in!</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Waiting for their answer… <span id="party-wait-timer" style="color:var(--pink);font-weight:700;">${state.answerTime}s</span></div>
+      </div>`;
+    }
+
+    // Small player cards
+    const playerCards = state.players.map(p => {
+      const isBuzzedPlayer = p.id === state.partyBuzzedPlayerId;
+      const cardClass = p.isMe ? 'party-player-card you-card' : isBuzzedPlayer ? 'party-player-card answering' : 'party-player-card';
+      const avatarHtml = p.avatar && p.avatar.startsWith('http')
+        ? `<img src="${p.avatar}" style="width:28px;height:28px;border-radius:50%;object-fit:cover;">`
+        : `<div style="font-size:18px;">${p.avatar || '🎵'}</div>`;
+      return `<div class="${cardClass}">
+        <div class="pcard-avatar">${avatarHtml}</div>
+        <div class="pcard-name">${p.name}${p.isMe ? ' ★' : ''}</div>
+        <div class="pcard-score">${p.score}</div>
+        ${isBuzzedPlayer ? `<div class="pcard-timer" id="party-answer-timer">${state.answerTime}s</div>` : ''}
+        ${isBuzzedPlayer ? '<div class="pcard-status" style="color:var(--neon);">answering</div>' : ''}
+      </div>`;
+    }).join('');
+
+    // Skip row
+    const skipAvatars = state.players.map((p, i) => {
+      const hasVoted = state.skipVotes.includes(i);
+      return `<button class="skip-vote-btn ${hasVoted?'voted':''}" onclick="partySkipVote(${i})" ${hasVoted?'disabled':''}>${typeof p.avatar === 'string' && p.avatar.length <= 2 ? p.avatar : '🎵'} <span>${p.name}</span>${hasVoted?' ✓':''}</button>`;
+    }).join('');
+
+    area.innerHTML = `<div class="party-buzzer-wrap">
+      ${mainBuzzer}
+      <div class="party-player-cards">${playerCards}</div>
+      <div class="skip-party-wrap">
+        <div class="skip-party-label">⏭ Skip? All players must agree <span style="color:var(--neon)">${voted}/${totalP}</span></div>
+        <div class="skip-vote-row">${skipAvatars}</div>
+      </div>
+    </div>`;}}
+  else if(state.phase==='answering'){const currentIdx=state.buzzQueue[0]??0; const currentPlayer=state.players[currentIdx]; const hasAnswer=!!state.spokenText; let queueHtml=''; if(state.buzzQueue.length>1){const waiting=state.buzzQueue.slice(1).map(i=>{const p=state.players[i]; return`<span style="background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;padding:3px 10px;font-size:11px;">${p.avatar} ${p.name}</span>`;}).join(''); queueHtml=`<div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-align:center;margin-bottom:6px;">NEXT UP: ${waiting}</div>`;} let micBtnHtml; const useTextFallback=!state.speechSupported||state.micPermission==='denied'||state.micPermission==='unsupported'; if(useTextFallback){const reason=!state.speechSupported?'Voice answers aren\'t supported in this browser — type your answer:':'Mic blocked — type your answer:'; micBtnHtml=`<div class="mic-status" style="color:var(--muted);margin-bottom:8px;">${reason}</div><input id="typed-answer-input" class="add-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Song title + artist…" style="width:100%;font-size:15px;padding:12px 14px;margin-bottom:8px;text-align:center;" value="${(state.spokenText||'').replace(/"/g,'&quot;')}" oninput="setTypedAnswer(this.value)" onkeydown="if(event.key==='Enter' && state.spokenText){submitAnswer()}">`;}else if(state.micActive){micBtnHtml=`<button class="mic-btn active" onclick="stopMic()" title="Stop recording">🎙️</button><div class="mic-status" style="color:var(--pink);">● Listening… speak your answer</div>`;}else if(hasAnswer){micBtnHtml=`<button class="mic-btn" onclick="startMic()" title="Re-record">🔄</button><div class="mic-status">Tap to re-record</div>`;}else{micBtnHtml=`<button class="mic-btn" onclick="startMic()" title="Start speaking">🎤</button><div class="mic-status" style="color:var(--pink);">Tap to start recording</div>`;} area.innerHTML=`${queueHtml}<div class="answer-panel"><div class="answer-header"><div class="answer-title">${currentPlayer?currentPlayer.avatar+' '+currentPlayer.name:'🎙️ Your Answer'}</div><div style="position:relative;width:46px;height:46px;"><svg width="46" height="46" viewBox="0 0 100 100" style="transform:rotate(-90deg)"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="8"/><circle cx="50" cy="50" r="40" fill="none" stroke="${state.answerTime<=2?'var(--pink)':'var(--neon)'}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${(state.answerTime/7)*251.2} 251.2"/></svg><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:${state.answerTime<=2?'var(--pink)':'var(--text)'}"> ${state.answerTime}</div></div></div>${micBtnHtml}${useTextFallback?'':`<div class="answer-display ${hasAnswer?'':'empty'}">${state.spokenText||'Listening for your answer…'}</div>`}<div class="answer-btns" style="margin-top:8px;"><button class="btn-secondary" style="font-size:13px;padding:12px" onclick="clearAnswer()">Clear Answer</button><button id="typed-submit-btn" class="btn-primary" style="font-size:13px;padding:12px;${hasAnswer?'':'opacity:0.35;'}" onclick="submitAnswer()" ${hasAnswer?'':'disabled'}>✓ Submit</button></div></div>`; if(useTextFallback){requestAnimationFrame(()=>{const inp=document.getElementById('typed-answer-input'); if(inp&&document.activeElement!==inp)inp.focus();});}
+  }
+}
+updateHomeStats();
+</script>
+
+<!-- ─────────────── AUTH / REGISTER ─────────────── -->
+<div class="screen hidden" id="screen-register">
+  <div class="page-header">
+    <div class="back-btn" onclick="goto('home')">←</div>
+    <div><div class="page-title">Create Profile</div><div class="page-sub">Join to track your stats</div></div>
+  </div>
+  <div class="page-body" style="display:flex;flex-direction:column;gap:14px;">
+    <button class="btn-secondary" onclick="signInWithGoogle()" style="display:flex;align-items:center;justify-content:center;gap:10px;font-size:15px;">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Continue with Google
+    </button>
+    <div style="display:flex;align-items:center;gap:10px;margin:2px 0;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <span style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">or use email</span>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+    <input class="add-input" id="auth-nickname" placeholder="Player nickname" style="width:100%;padding:14px;font-size:15px;">
+    <input class="add-input" id="auth-email" type="email" placeholder="Email address" style="width:100%;padding:14px;font-size:15px;">
+    <input class="add-input" id="auth-password" type="password" placeholder="Password (min 6 chars)" style="width:100%;padding:14px;font-size:15px;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div id="avatar-preview" style="width:54px;height:54px;border-radius:50%;background:var(--mid);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">🎵</div>
+      <label style="flex:1;background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:12px 14px;cursor:pointer;font-size:13px;color:var(--muted);text-align:center;display:block;">
+        📷 Upload photo (optional)
+        <input type="file" accept="image/*" style="display:none" onchange="previewAvatar(this)">
+      </label>
+    </div>
+    <div id="auth-error" style="font-size:12px;color:var(--pink);min-height:16px;text-align:center;"></div>
+    <button class="btn-primary" onclick="signUpWithEmail()" style="font-size:17px;padding:18px;">Create Account →</button>
+    <button class="btn-secondary" onclick="showSignIn()" style="font-size:13px;">Already have an account? Sign in</button>
+  </div>
+</div>
+
+<!-- ─────────────── SIGN IN ─────────────── -->
+<div class="screen hidden" id="screen-signin">
+  <div class="page-header">
+    <div class="back-btn" onclick="goto('register')">←</div>
+    <div><div class="page-title">Sign In</div><div class="page-sub">Welcome back</div></div>
+  </div>
+  <div class="page-body" style="display:flex;flex-direction:column;gap:14px;">
+    <button class="btn-secondary" onclick="signInWithGoogle()" style="display:flex;align-items:center;justify-content:center;gap:10px;font-size:15px;">
+      <svg width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.08 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-3.59-13.46-8.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>
+      Continue with Google
+    </button>
+    <div style="display:flex;align-items:center;gap:10px;margin:2px 0;">
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+      <span style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;">or use email</span>
+      <div style="flex:1;height:1px;background:var(--border);"></div>
+    </div>
+    <input class="add-input" id="signin-email" type="email" placeholder="Email address" style="width:100%;padding:14px;font-size:15px;">
+    <input class="add-input" id="signin-password" type="password" placeholder="Password" style="width:100%;padding:14px;font-size:15px;">
+    <div id="signin-error" style="font-size:12px;color:var(--pink);min-height:16px;text-align:center;"></div>
+    <button class="btn-primary" onclick="signInWithEmail()" style="font-size:17px;padding:18px;">Sign In →</button>
+    <button class="btn-secondary" onclick="goto('register')" style="font-size:13px;">New player? Create account</button>
+  </div>
+</div>
+
+<!-- ─────────────── PROFILE ─────────────── -->
+<div class="screen hidden" id="screen-profile">
+  <div class="page-header">
+    <div class="back-btn" onclick="goto('home')">←</div>
+    <div><div class="page-title">My Profile</div></div>
+  </div>
+  <div class="page-body" id="profile-body">
+    <div style="text-align:center;color:var(--muted);font-size:14px;padding:40px 0;">Loading…</div>
+  </div>
+</div>
+
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ════════════════════════════════════
+// SUPABASE CONFIG
+// ════════════════════════════════════
+const SUPABASE_URL = 'https://sapzweofbomyqovacuyv.supabase.co'
+const SUPABASE_KEY = 'sb_publishable_wChsIFoft2bkLC5j1FVVUg_woS47oT0'
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
+
+// ════════════════════════════════════
+// AUTH STATE
+// ════════════════════════════════════
+async function initAuth() {
+  const { data: { session } } = await sb.auth.getSession()
+  if (session) {
+    state.currentUser = session.user
+    await loadProfile()
+  }
+  updateHomeUI()
+
+  sb.auth.onAuthStateChange(async (event, session) => {
+    state.currentUser = session?.user || null
+    if (state.currentUser) {
+      await loadProfile()
+    } else {
+      state.currentProfile = null
+    }
+    updateHomeUI()
+    // Handle OAuth redirect back to app
+    if (event === 'SIGNED_IN' && state.screen === 'home') {
+      goto('modeselect')
+    }
+  })
+}
+
+async function loadProfile() {
+  const { data } = await sb.from('profiles')
+    .select('*')
+    .eq('id', state.currentUser.id)
+    .single()
+  state.currentProfile = data
+}
+
+function updateHomeUI() {
+  const profileBtn = document.getElementById('profile-btn')
+  if (profileBtn) {
+    if (state.currentUser && state.currentProfile) {
+      profileBtn.textContent = state.currentProfile.avatar_url ? '' : '👤 ' + (state.currentProfile.nickname || 'Profile')
+      if (state.currentProfile.avatar_url) {
+        profileBtn.innerHTML = `<img src="${state.currentProfile.avatar_url}" style="width:22px;height:22px;border-radius:50%;object-fit:cover;margin-right:6px;"> ${state.currentProfile.nickname || 'Profile'}`
+      } else {
+        profileBtn.textContent = '👤 ' + (state.currentProfile.nickname || 'Profile')
+      }
+    } else {
+      profileBtn.textContent = '👤 Profile'
+    }
+  }
+}
+
+function showSignIn() {
+  document.getElementById('screen-register').classList.add('hidden')
+  document.getElementById('screen-signin').classList.remove('hidden')
+}
+
+// ════════════════════════════════════
+// SIGN UP / SIGN IN
+// ════════════════════════════════════
+async function signUpWithEmail() {
+  const nickname = document.getElementById('auth-nickname').value.trim()
+  const email = document.getElementById('auth-email').value.trim()
+  const password = document.getElementById('auth-password').value
+  const errorEl = document.getElementById('auth-error')
+  errorEl.textContent = ''
+
+  if (!nickname) { errorEl.textContent = 'Please enter a player nickname.'; return }
+  if (!email) { errorEl.textContent = 'Please enter your email.'; return }
+  if (!password || password.length < 6) { errorEl.textContent = 'Password must be at least 6 characters.'; return }
+
+  const btn = document.querySelector('#screen-register .btn-primary')
+  if (btn) { btn.textContent = 'Creating…'; btn.disabled = true }
+
+  const { data, error } = await sb.auth.signUp({
+    email, password,
+    options: { data: { nickname } }
+  })
+
+  if (error) {
+    errorEl.textContent = error.message
+    if (btn) { btn.textContent = 'Create Account →'; btn.disabled = false }
+    return
+  }
+
+  // Upload avatar if one was selected
+  if (state._pendingAvatarFile && data.user) {
+    await uploadAvatar(state._pendingAvatarFile, data.user.id)
+    state._pendingAvatarFile = null
+  }
+
+  goto('modeselect')
+}
+
+async function signInWithEmail() {
+  const email = document.getElementById('signin-email').value.trim()
+  const password = document.getElementById('signin-password').value
+  const errorEl = document.getElementById('signin-error')
+  errorEl.textContent = ''
+
+  if (!email || !password) { errorEl.textContent = 'Please fill in all fields.'; return }
+
+  const btn = document.querySelector('#screen-signin .btn-primary')
+  if (btn) { btn.textContent = 'Signing in…'; btn.disabled = true }
+
+  const { error } = await sb.auth.signInWithPassword({ email, password })
+  if (error) {
+    errorEl.textContent = error.message
+    if (btn) { btn.textContent = 'Sign In →'; btn.disabled = false }
+    return
+  }
+  goto('modeselect')
+}
+
+async function signInWithGoogle() {
+  await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.href }
+  })
+}
+
+async function signOut() {
+  await sb.auth.signOut()
+  state.currentUser = null
+  state.currentProfile = null
+  updateHomeUI()
+  goto('home')
+}
+
+// ════════════════════════════════════
+// AVATAR UPLOAD
+// ════════════════════════════════════
+function previewAvatar(input) {
+  const file = input.files[0]
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = e => {
+    const prev = document.getElementById('avatar-preview')
+    if (prev) prev.innerHTML = `<img src="${e.target.result}" style="width:54px;height:54px;border-radius:50%;object-fit:cover;">`
+  }
+  reader.readAsDataURL(file)
+  state._pendingAvatarFile = file
+}
+
+async function uploadAvatar(file, userId) {
+  try {
+    const uid = userId || state.currentUser?.id
+    if (!uid) return null
+    const ext = file.name.split('.').pop()
+    const path = `${uid}/avatar.${ext}`
+    const { error } = await sb.storage.from('avatars').upload(path, file, { upsert: true })
+    if (error) return null
+    const { data } = sb.storage.from('avatars').getPublicUrl(path)
+    await sb.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', uid)
+    if (state.currentProfile) state.currentProfile.avatar_url = data.publicUrl
+    return data.publicUrl
+  } catch(e) { return null }
+}
+
+// ════════════════════════════════════
+// SAVE GAME RESULTS TO SUPABASE
+// ════════════════════════════════════
+async function saveGameResult(winner) {
+  if (!state.currentUser) return
+  try {
+    if (state.mode === 'solo') {
+      const won = !!winner
+      const grade = getSoloGrade(state.songsPlayed, won)
+      await sb.from('solo_games').insert({
+        player_id: state.currentUser.id,
+        grade: grade.letter,
+        songs_played: state.songsPlayed,
+        final_score: state.players[0]?.score || 0,
+        target_score: state.targetScore,
+        elapsed_seconds: Math.round((Date.now() - state.gameStartTime) / 1000)
+      })
+    } else {
+      const myName = state.currentProfile?.nickname || 'You'
+      const myPlayer = state.players.find(p => p.name === myName || p.name === 'You')
+      const iWon = winner && (winner.name === myName || winner.name === 'You')
+      await sb.from('party_games').insert({
+        player_id: state.currentUser.id,
+        won: !!iWon,
+        final_score: myPlayer?.score || 0,
+        players_count: state.players.length
+      })
+    }
+  } catch(e) { console.warn('Could not save game result:', e) }
+}
+
+// ════════════════════════════════════
+// PROFILE SCREEN
+// ════════════════════════════════════
+async function renderProfileScreen() {
+  const body = document.getElementById('profile-body')
+  if (!body) return
+  body.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:14px;padding:40px 0;">Loading…</div>'
+
+  if (!state.currentUser) { goto('register'); return }
+
+  try {
+    const { data: soloGames } = await sb.from('solo_games')
+      .select('grade, final_score, songs_played, played_at')
+      .eq('player_id', state.currentUser.id)
+      .order('played_at', { ascending: false })
+
+    const { data: partyGames } = await sb.from('party_games')
+      .select('won, final_score, played_at')
+      .eq('player_id', state.currentUser.id)
+      .order('played_at', { ascending: false })
+
+    const gradeCounts = { L:0, E:0, S:0, D:0, C:0, X:0 }
+    ;(soloGames || []).forEach(g => { if (gradeCounts[g.grade] !== undefined) gradeCounts[g.grade]++ })
+
+    const partyPlayed = partyGames?.length || 0
+    const partyWon = partyGames?.filter(g => g.won).length || 0
+    const p = state.currentProfile
+
+    const avatarHtml = p?.avatar_url
+      ? `<img src="${p.avatar_url}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;border:2px solid var(--purple);">`
+      : `<div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,var(--purple),var(--teal));display:flex;align-items:center;justify-content:center;font-size:28px;">🎵</div>`
+
+    const memberSince = p?.created_at
+      ? new Date(p.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+      : ''
+
+    const gradeConfig = [
+      { letter:'L', label:'Legendary',  color:'#FFD700' },
+      { letter:'E', label:'Expert',     color:'var(--neon)' },
+      { letter:'S', label:'Solid',      color:'var(--teal)' },
+      { letter:'D', label:'Decent',     color:'#54A0FF' },
+      { letter:'C', label:'Close Call', color:'var(--pink)' },
+      { letter:'X', label:'Defeated',   color:'var(--muted)' },
+    ]
+
+    const gradeRows = gradeConfig.map(({ letter, label, color }) => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="width:30px;height:30px;border-radius:8px;background:${color}22;color:${color};border:1px solid ${color}44;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;flex-shrink:0;">${letter}</span>
+          <span style="font-size:14px;font-weight:600;">${label}</span>
+        </div>
+        <span style="font-size:22px;font-weight:900;color:${color};">${gradeCounts[letter]}</span>
+      </div>`).join('')
+
+    const winRate = partyPlayed > 0 ? Math.round((partyWon / partyPlayed) * 100) + '%' : '—'
+
+    body.innerHTML = `
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;background:var(--dark3);border:1px solid var(--border);border-radius:16px;padding:16px;">
+        ${avatarHtml}
+        <div>
+          <div style="font-size:22px;font-weight:900;letter-spacing:1px;">${p?.nickname || 'Player'}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:0.5px;">${memberSince ? 'Member since ' + memberSince : ''}</div>
+        </div>
+      </div>
+
+      <div style="font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;font-weight:600;">🎯 Solo Challenge</div>
+      <div style="background:var(--dark3);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:20px;">
+        <div style="font-size:13px;color:var(--muted);margin-bottom:14px;">Games played: <b style="color:var(--neon);font-size:22px;margin-left:6px;">${soloGames?.length || 0}</b></div>
+        ${gradeRows}
+      </div>
+
+      <div style="font-size:10px;letter-spacing:3px;color:var(--muted);text-transform:uppercase;margin-bottom:10px;font-weight:600;">🏠 Party Mode</div>
+      <div style="background:var(--dark3);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:24px;">
+        <div style="display:flex;gap:0;">
+          <div style="flex:1;text-align:center;padding:8px 0;">
+            <div style="font-size:34px;font-weight:900;color:var(--neon);line-height:1;">${partyPlayed}</div>
+            <div style="font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Played</div>
+          </div>
+          <div style="width:1px;background:var(--border);margin:8px 0;"></div>
+          <div style="flex:1;text-align:center;padding:8px 0;">
+            <div style="font-size:34px;font-weight:900;color:var(--teal);line-height:1;">${partyWon}</div>
+            <div style="font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Won</div>
+          </div>
+          <div style="width:1px;background:var(--border);margin:8px 0;"></div>
+          <div style="flex:1;text-align:center;padding:8px 0;">
+            <div style="font-size:34px;font-weight:900;color:var(--purple);line-height:1;">${winRate}</div>
+            <div style="font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Win Rate</div>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-secondary" onclick="signOut()" style="font-size:14px;color:var(--pink);border-color:rgba(255,58,140,0.3);">Sign Out</button>
+    `
+  } catch(e) {
+    body.innerHTML = '<div style="text-align:center;color:var(--pink);font-size:14px;padding:40px 0;">Could not load profile. Please try again.</div>'
+  }
+}
+
+
+// ════════════════════════════════════
+// LEADERBOARD
+// ════════════════════════════════════
+let lbCurrentTab = 'alltime';
+let lbCache = {};
+
+async function renderLeaderboard() {
+  lbCurrentTab = lbCurrentTab || 'alltime';
+  // Highlight correct tab
+  ['alltime','bestgame','weekly'].forEach(t => {
+    const el = document.getElementById('lb-tab-' + t);
+    if (el) el.classList.toggle('active', t === lbCurrentTab);
+  });
+  const subtitle = document.getElementById('lb-subtitle');
+  if (subtitle) {
+    subtitle.textContent = {
+      alltime:  'Ranked by Legendary grades, then score',
+      bestgame: 'Ranked by fewest songs to win',
+      weekly:   'Top players this week',
+    }[lbCurrentTab];
+  }
+  await loadLbTab(lbCurrentTab);
+}
+
+function switchLbTab(tab) {
+  lbCurrentTab = tab;
+  ['alltime','bestgame','weekly'].forEach(t => {
+    const el = document.getElementById('lb-tab-' + t);
+    if (el) el.classList.toggle('active', t === tab);
+  });
+  const subtitle = document.getElementById('lb-subtitle');
+  if (subtitle) {
+    subtitle.textContent = {
+      alltime:  'Ranked by Legendary grades, then score',
+      bestgame: 'Ranked by fewest songs to win',
+      weekly:   'Top players this week',
+    }[tab];
+  }
+  loadLbTab(tab);
+}
+
+async function loadLbTab(tab) {
+  const list = document.getElementById('lb-list');
+  if (!list) return;
+
+  list.innerHTML = `<div class="lb-loading">
+    <div style="font-size:13px;color:var(--muted);letter-spacing:1px;">Loading…</div>
+    <div><span class="lb-loading-dot"></span><span class="lb-loading-dot"></span><span class="lb-loading-dot"></span></div>
+  </div>`;
+
+  try {
+    const myId = state.currentUser?.id;
+    let rows = [];
+
+    // ── Query the server-side views — fast, no client aggregation needed ──
+    if (tab === 'alltime') {
+      const { data, error } = await sb
+        .from('leaderboard_alltime')
+        .select('*');
+      if (error) throw error;
+      // Map view columns to the shape renderLbRows expects
+      rows = (data || []).map(r => ({
+        id:          r.id,
+        nickname:    r.nickname || 'Unknown',
+        avatar_url:  r.avatar_url || null,
+        games:       Number(r.games_played) || 0,
+        legendary:   Number(r.legendary)    || 0,
+        expert:      Number(r.expert)       || 0,
+        solid:       Number(r.solid)        || 0,
+        decent:      Number(r.decent)       || 0,
+        close:       Number(r.close_call)   || 0,
+        defeated:    Number(r.defeated)     || 0,
+        best_score:  Number(r.best_score)   || 0,
+        top_grade:   topGradeFrom(r),
+      }));
+
+    } else if (tab === 'bestgame') {
+      const { data, error } = await sb
+        .from('leaderboard_bestgame')
+        .select('*');
+      if (error) throw error;
+      rows = (data || []).map(r => ({
+        id:         r.id,
+        nickname:   r.nickname   || 'Unknown',
+        avatar_url: r.avatar_url || null,
+        best_songs: Number(r.best_songs)  || 99,
+        best_score: Number(r.best_score)  || 0,
+        top_grade:  r.top_grade           || 'X',
+      }));
+
+    } else if (tab === 'weekly') {
+      const { data, error } = await sb
+        .from('leaderboard_weekly')
+        .select('*');
+      if (error) throw error;
+      rows = (data || []).map(r => ({
+        id:         r.id,
+        nickname:   r.nickname   || 'Unknown',
+        avatar_url: r.avatar_url || null,
+        games:      Number(r.games_played) || 0,
+        legendary:  Number(r.legendary)    || 0,
+        expert:     Number(r.expert)       || 0,
+        solid:      Number(r.solid)        || 0,
+        decent:     Number(r.decent)       || 0,
+        close:      Number(r.close_call)   || 0,
+        defeated:   Number(r.defeated)     || 0,
+        best_score: Number(r.best_score)   || 0,
+        top_grade:  topGradeFrom(r),
+      }));
+    }
+
+    renderLbRows(list, rows, tab, myId);
+
+  } catch(e) {
+    console.warn('Leaderboard error:', e);
+    // Fallback message — if views don't exist yet, tell user to run SQL
+    const isViewMissing = e.message && e.message.includes('does not exist');
+    list.innerHTML = `<div class="lb-empty">
+      <div style="font-size:32px;margin-bottom:12px;">${isViewMissing ? '🔧' : '😕'}</div>
+      <div>${isViewMissing ? 'Leaderboard views not set up yet.' : 'Could not load leaderboard.'}</div>
+      <div style="font-size:12px;margin-top:6px;">${isViewMissing ? 'Run the leaderboard SQL in your Supabase dashboard.' : 'Check your connection and try again.'}</div>
+    </div>`;
+  }
+}
+
+// Derives the top grade a player has achieved from a view row
+function topGradeFrom(r) {
+  if (Number(r.legendary)  > 0) return 'L';
+  if (Number(r.expert)     > 0) return 'E';
+  if (Number(r.solid)      > 0) return 'S';
+  if (Number(r.decent)     > 0) return 'D';
+  if (Number(r.close_call) > 0) return 'C';
+  return 'X';
+}
+
+// Legacy aggregation functions kept as fallback (not called by views path)
+function aggregateAllTime(games) {
+  const map = {};
+  for (const g of games) {
+    const pid = g.player_id;
+    const profile = g.profiles || {};
+    if (!map[pid]) {
+      map[pid] = { id:pid, nickname:profile.nickname||'Unknown', avatar_url:profile.avatar_url||null, games:0, legendary:0, expert:0, solid:0, decent:0, close:0, defeated:0, best_score:0, top_grade:'X' };
+    }
+    const p = map[pid]; p.games++;
+    if (g.grade==='L'){p.legendary++;p.top_grade='L';}
+    else if(g.grade==='E'){p.expert++;if(p.top_grade!=='L')p.top_grade='E';}
+    else if(g.grade==='S'){p.solid++;if(!['L','E'].includes(p.top_grade))p.top_grade='S';}
+    else if(g.grade==='D'){p.decent++;if(!['L','E','S'].includes(p.top_grade))p.top_grade='D';}
+    else if(g.grade==='C'){p.close++;if(!['L','E','S','D'].includes(p.top_grade))p.top_grade='C';}
+    else p.defeated++;
+    if((g.final_score||0)>p.best_score)p.best_score=g.final_score;
+  }
+  return Object.values(map).sort((a,b)=>b.legendary-a.legendary||b.expert-a.expert||b.solid-a.solid||b.best_score-a.best_score);
+}
+
+function aggregateBestGame(games) {
+  const map = {};
+  for (const g of games) {
+    const pid = g.player_id; const profile = g.profiles||{};
+    if (!map[pid]) { map[pid]={id:pid,nickname:profile.nickname||'Unknown',avatar_url:profile.avatar_url||null,best_songs:g.songs_played||99,best_score:g.final_score||0,top_grade:g.grade||'X'}; }
+    else { if((g.songs_played||99)<map[pid].best_songs||((g.songs_played||99)===map[pid].best_songs&&(g.final_score||0)>map[pid].best_score)){map[pid].best_songs=g.songs_played||99;map[pid].best_score=g.final_score||0;map[pid].top_grade=g.grade||'X';} }
+  }
+  return Object.values(map).sort((a,b)=>a.best_songs-b.best_songs||b.best_score-a.best_score);
+}
+
+function renderLbRows(list, rows, tab, myId) {
+  if (!rows.length) {
+    list.innerHTML = `<div class="lb-empty">
+      <div style="font-size:36px;margin-bottom:12px;">🎵</div>
+      <div style="font-weight:700;margin-bottom:6px;">No games yet</div>
+      <div style="font-size:12px;">Be the first on the board — play a solo game!</div>
+    </div>`;
+    return;
+  }
+
+  const gradeColors = {L:'#FFD700',E:'var(--neon)',S:'var(--teal)',D:'#54A0FF',C:'var(--pink)',X:'var(--muted)'};
+  const gradeLabels = {L:'Legendary',E:'Expert',S:'Solid',D:'Decent',C:'Close Call',X:'Defeated'};
+  const rankMedals = {1:'🥇',2:'🥈',3:'🥉'};
+
+  const MAX_SHOWN = 10;
+  const topRows = rows.slice(0, MAX_SHOWN);
+  const myIndex = myId ? rows.findIndex(r => r.id === myId) : -1;
+  const myInTop = myIndex >= 0 && myIndex < MAX_SHOWN;
+
+  let html = '';
+
+  topRows.forEach((row, i) => {
+    const rank = i + 1;
+    const isYou = row.id === myId;
+    const rowClass = isYou ? 'lb-row you' : rank === 1 ? 'lb-row top1' : rank === 2 ? 'lb-row top2' : rank === 3 ? 'lb-row top3' : 'lb-row';
+    const delay = i * 0.05;
+    const gradeColor = gradeColors[row.top_grade] || 'var(--muted)';
+    const gradeLabel = gradeLabels[row.top_grade] || '';
+
+    const avatarHtml = row.avatar_url
+      ? `<div class="lb-avatar"><img src="${row.avatar_url}" alt="${row.nickname}"></div>`
+      : `<div class="lb-avatar" style="background:linear-gradient(135deg,var(--purple),var(--teal));font-size:18px;">🎵</div>`;
+
+    const rankBadge = rankMedals[rank]
+      ? `<div class="lb-rank-badge">${rankMedals[rank]}</div>`
+      : `<div class="lb-rank-badge"><span class="lb-rank-num">#${rank}</span></div>`;
+
+    let statHtml = '';
+    if (tab === 'bestgame') {
+      statHtml = `<div class="lb-stat"><div class="lb-stat-val" style="color:var(--teal);">${row.best_songs}</div><div class="lb-stat-lbl">Songs</div></div>`;
+    } else {
+      statHtml = `<div class="lb-stat"><div class="lb-stat-val">${row.legendary || 0}</div><div class="lb-stat-lbl">Legendary</div></div>`;
+    }
+
+    const subLine = tab === 'bestgame'
+      ? `Best score: ${row.best_score} pts`
+      : `${row.games || 0} games · Best: ${row.best_score} pts`;
+
+    html += `<div class="${rowClass}" style="animation-delay:${delay}s;">
+      ${rankBadge}
+      ${avatarHtml}
+      <div class="lb-info">
+        <div class="lb-name">${row.nickname}${isYou ? ' <span style="font-size:10px;color:var(--neon);letter-spacing:1px;margin-left:4px;">YOU</span>' : ''}</div>
+        <div class="lb-sub">${subLine}</div>
+      </div>
+      <div class="lb-grade-badge" style="background:${gradeColor}22;color:${gradeColor};border:1px solid ${gradeColor}44;" title="${gradeLabel}">${row.top_grade}</div>
+      ${statHtml}
+    </div>`;
+  });
+
+  // If logged-in player is outside top 10, show divider + their row
+  if (myId && !myInTop && myIndex >= 0) {
+    const myRow = rows[myIndex];
+    const myRank = myIndex + 1;
+    const gradeColor = gradeColors[myRow.top_grade] || 'var(--muted)';
+    const gradeLabel = gradeLabels[myRow.top_grade] || '';
+    const avatarHtml = myRow.avatar_url
+      ? `<div class="lb-avatar"><img src="${myRow.avatar_url}" alt="${myRow.nickname}"></div>`
+      : `<div class="lb-avatar" style="background:linear-gradient(135deg,var(--purple),var(--teal));font-size:18px;">🎵</div>`;
+    const statVal = tab === 'bestgame' ? myRow.best_songs : (myRow.legendary || 0);
+    const statLbl = tab === 'bestgame' ? 'Songs' : 'Legendary';
+    const subLine = tab === 'bestgame'
+      ? `Best score: ${myRow.best_score} pts`
+      : `${myRow.games || 0} games · Best: ${myRow.best_score} pts`;
+
+    html += `<div class="lb-divider">
+      <div class="lb-divider-line"></div>
+      <div class="lb-divider-text">Your rank</div>
+      <div class="lb-divider-line"></div>
+    </div>
+    <div class="lb-row you">
+      <div class="lb-rank-badge"><span class="lb-rank-num">#${myRank}</span></div>
+      ${avatarHtml}
+      <div class="lb-info">
+        <div class="lb-name">${myRow.nickname} <span style="font-size:10px;color:var(--neon);letter-spacing:1px;margin-left:4px;">YOU</span></div>
+        <div class="lb-sub">${subLine}</div>
+      </div>
+      <div class="lb-grade-badge" style="background:${gradeColor}22;color:${gradeColor};border:1px solid ${gradeColor}44;" title="${gradeLabel}">${myRow.top_grade}</div>
+      <div class="lb-stat"><div class="lb-stat-val" style="color:var(--neon);">${statVal}</div><div class="lb-stat-lbl">${statLbl}</div></div>
+    </div>`;
+  }
+
+  // If not logged in, show a prompt at the bottom
+  if (!myId) {
+    html += `<div style="text-align:center;padding:16px 0 4px;font-size:12px;color:var(--muted);">
+      <a onclick="goto('register')" style="color:var(--neon);cursor:pointer;font-weight:700;">Sign in</a> to see your rank
+    </div>`;
+  }
+
+  list.innerHTML = html;
+}
+
+
+// ════════════════════════════════════
+// PARTY MODE — ROOM MANAGEMENT
+// ════════════════════════════════════
+
+function generateRoomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no ambiguous chars
+  let code = '';
+  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
+  return code;
+}
+
+async function createPartyRoom() {
+  if (!state.currentUser) { goto('register'); return; }
+  const btn = document.querySelector('#screen-settings .btn-primary:last-of-type');
+  if (btn) { btn.textContent = 'Creating room…'; btn.disabled = true; }
+
+  const resetBtn = () => { if (btn) { btn.textContent = '🎵  Start Game!'; btn.disabled = false; } };
+
+  // Check Supabase is ready
+  if (typeof sb === 'undefined') {
+    resetBtn();
+    alert('Game services not ready. Please wait a moment and try again.');
+    return;
+  }
+
+  try {
+    const code = generateRoomCode();
+    console.log('[createPartyRoom] attempting with code:', code, 'user:', state.currentUser.id);
+
+    const settings = {
+      genres: state.genres,
+      targetScore: state.targetScore,
+      difficulty: state.difficulty || 'normal',
+    };
+
+    // Insert room with a 10s timeout
+    const roomPromise = sb.from('game_rooms').insert({
+      code,
+      host_id: state.currentUser.id,
+      status: 'waiting',
+      settings,
+    }).select().single();
+
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Request timed out after 10 seconds')), 10000)
+    );
+
+    const { data: room, error } = await Promise.race([roomPromise, timeoutPromise]);
+    if (error) throw error;
+    if (!room) throw new Error('Room not returned from database');
+
+    console.log('[createPartyRoom] room created:', room.id);
+
+    // Add host as first player
+    const { error: playerErr } = await sb.from('room_players').insert({
+      room_id: room.id,
+      player_id: state.currentUser.id,
+      is_host: true,
+      mic_ready: state.micPermission === 'granted',
+      score: 0,
+    });
+    if (playerErr) console.warn('[createPartyRoom] player insert error (non-fatal):', playerErr);
+
+    state.partyRoom = room;
+    state.partyIsHost = true;
+    state.partyInvited = [];
+
+    const codeEl = document.getElementById('party-room-code');
+    if (codeEl) codeEl.textContent = code;
+
+    subscribeToRoom(room.id);
+    goto('party-setup');
+    await refreshPartyPlayers();
+
+  } catch(e) {
+    console.error('[createPartyRoom] error:', e);
+    resetBtn();
+    // Give a specific message for common issues
+    let msg = 'Could not create room.';
+    if (e.message && e.message.includes('timed out')) {
+      msg = 'Connection timed out. Check your internet and try again.';
+    } else if (e.message && e.message.includes('duplicate')) {
+      msg = 'Room code collision — please try again.';
+    } else if (e.code === '42501' || (e.message && e.message.includes('policy'))) {
+      msg = 'Permission error. Make sure you are logged in and try again.';
+    } else if (e.message) {
+      msg = 'Error: ' + e.message;
+    }
+    alert(msg);
+  }
+}
+
+async function joinRoomByCode() {
+  const codeEl = document.getElementById('join-code-input');
+  const errEl  = document.getElementById('join-error');
+  const code   = (codeEl?.value || '').trim().toUpperCase();
+  if (errEl) errEl.textContent = '';
+  if (!code || code.length !== 6) { if (errEl) errEl.textContent = 'Please enter a 6-letter room code.'; return; }
+  if (!state.currentUser) {
+    // Save code, redirect to register, come back
+    sessionStorage.setItem('pendingJoinCode', code);
+    goto('register');
+    return;
+  }
+  const btn = document.querySelector('#screen-join .btn-primary');
+  if (btn) { btn.textContent = 'Joining…'; btn.disabled = true; }
+  try {
+    // Find the room
+    const { data: room, error } = await sb.from('game_rooms').select('*').eq('code', code).eq('status', 'waiting').single();
+    if (error || !room) { if (errEl) errEl.textContent = 'Room not found or game already started.'; if (btn) { btn.textContent = 'Join Game →'; btn.disabled = false; } return; }
+
+    // Check player count
+    const { count } = await sb.from('room_players').select('*', {count:'exact',head:true}).eq('room_id', room.id);
+    if (count >= 6) { if (errEl) errEl.textContent = 'This room is full (6 players max).'; if (btn) { btn.textContent = 'Join Game →'; btn.disabled = false; } return; }
+
+    // Join
+    await sb.from('room_players').upsert({
+      room_id: room.id, player_id: state.currentUser.id,
+      is_host: false, mic_ready: false, score: 0,
+    }, { onConflict: 'room_id,player_id' });
+
+    state.partyRoom = room;
+    state.partyIsHost = false;
+    // Load settings from room
+    if (room.settings) {
+      state.genres = room.settings.genres || [];
+      state.targetScore = room.settings.targetScore || 5;
+    }
+    subscribeToRoom(room.id);
+    goto('waiting');
+    await refreshPartyPlayers();
+  } catch(e) {
+    console.error('Join room error:', e);
+    if (errEl) errEl.textContent = 'Error joining room. Try again.';
+    if (btn) { btn.textContent = 'Join Game →'; btn.disabled = false; }
+  }
+}
+
+function prefillJoinCode() {
+  const code = sessionStorage.getItem('pendingJoinCode');
+  if (code) {
+    const el = document.getElementById('join-code-input');
+    if (el) el.value = code;
+    sessionStorage.removeItem('pendingJoinCode');
+  }
+}
+
+async function refreshPartyPlayers() {
+  if (!state.partyRoom) return;
+  const { data } = await sb.from('room_players')
+    .select('*, profiles(nickname, avatar_url)')
+    .eq('room_id', state.partyRoom.id)
+    .order('joined_at');
+  state.partyPlayers = data || [];
+  renderPartySetupPlayers();
+  renderWaitingRoom();
+}
+
+async function kickPlayer(playerId) {
+  if (!state.partyIsHost || !state.partyRoom) return;
+  await sb.from('room_players').delete().eq('room_id', state.partyRoom.id).eq('player_id', playerId);
+  await refreshPartyPlayers();
+}
+
+async function leaveRoom() {
+  if (state.partyChannel) {
+    sb.removeChannel(state.partyChannel);
+    state.partyChannel = null;
+  }
+  if (state.partyRoom && state.currentUser) {
+    if (state.partyIsHost) {
+      // Host leaving — close the room
+      await sb.from('game_rooms').update({status: 'finished'}).eq('id', state.partyRoom.id);
+    } else {
+      await sb.from('room_players').delete().eq('room_id', state.partyRoom.id).eq('player_id', state.currentUser.id);
+    }
+  }
+  state.partyRoom = null;
+  state.partyPlayers = [];
+  state.partyIsHost = false;
+  goto('home');
+}
+
+// ── REALTIME SUBSCRIPTION ──
+function subscribeToRoom(roomId) {
+  if (state.partyChannel) sb.removeChannel(state.partyChannel);
+
+  state.partyChannel = sb.channel('room:' + roomId, {
+    config: { broadcast: { self: true }, presence: { key: state.currentUser.id } }
+  });
+
+  // Listen for room status changes (game start, etc.)
+  state.partyChannel
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'game_rooms', filter: `id=eq.${roomId}` }, payload => {
+      const room = payload.new;
+      state.partyRoom = room;
+      if (room.status === 'playing' && state.screen !== 'game') {
+        // Host pushed game start — all guests jump in
+        startPartyGame();
+      }
+      if (room.status === 'finished' && state.screen !== 'home') {
+        alert('The host ended the game.');
+        state.partyRoom = null; state.partyPlayers = []; state.partyIsHost = false;
+        goto('home');
+      }
+      // Sync buzzer state for non-host players
+      if (room.current_phase === 'answering' && room.buzzed_by) {
+        state.partyBuzzedPlayerId = room.buzzed_by;
+        renderPartyGameArea();
+      }
+      if (room.current_phase === 'playing') {
+        state.partyBuzzedPlayerId = null;
+        renderPartyGameArea();
+      }
+    })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'room_players', filter: `room_id=eq.${roomId}` }, payload => {
+      refreshPartyPlayers();
+    })
+    .subscribe();
+}
+
+// ── SHARE INVITE ──
+function shareInviteLink() {
+  if (!state.partyRoom) return;
+  const code = state.partyRoom.code;
+  const base = window.location.href.split('?')[0];
+  const url = `${base}?join=${code}`;
+  const text = `Join my Beat Master game! Room code: ${code}
+${url}`;
+
+  if (navigator.share) {
+    navigator.share({ title: 'Beat Master — Join My Game', text, url }).catch(() => {});
+  } else {
+    navigator.clipboard?.writeText(url).then(() => alert('Invite link copied to clipboard!\n\n' + url)).catch(() => prompt('Copy this invite link:', url));
+  }
+}
+
+function sendInvite() {
+  const inp = document.getElementById('invite-contact');
+  const val = inp?.value?.trim();
+  if (!val) return;
+  if (!state.partyInvited) state.partyInvited = [];
+  if (state.partyInvited.includes(val)) { inp.value = ''; return; }
+  state.partyInvited.push(val);
+  inp.value = '';
+  renderInvitedList();
+  // Open share sheet / mailto with the invite link
+  const code = state.partyRoom?.code || '';
+  const base = window.location.href.split('?')[0];
+  const url = `${base}?join=${code}`;
+  const isEmail = val.includes('@');
+  if (isEmail) {
+    window.open(`mailto:${val}?subject=Join my Beat Master game&body=Join my Beat Master game! Room code: ${code}%0A%0A${encodeURIComponent(url)}`);
+  } else {
+    window.open(`sms:${val}?body=Join my Beat Master game! Room code: ${code} — ${url}`);
+  }
+}
+
+function renderInvitedList() {
+  const el = document.getElementById('invited-list');
+  if (!el || !state.partyInvited?.length) return;
+  el.innerHTML = state.partyInvited.map(c => `
+    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px;">
+      <span style="font-size:13px;color:var(--muted);">✉️ ${c}</span>
+      <span style="font-size:11px;color:var(--teal);font-weight:700;">Invite sent</span>
+    </div>`).join('');
+}
+
+function renderPartySetupPlayers() {
+  const el = document.getElementById('party-setup-players');
+  const countEl = document.getElementById('party-joined-count');
+  if (!el) return;
+  const count = state.partyPlayers.length;
+  if (countEl) countEl.textContent = count;
+  el.innerHTML = state.partyPlayers.map(rp => {
+    const p = rp.profiles || {};
+    const isMe = rp.player_id === state.currentUser?.id;
+    const isHost = rp.is_host;
+    const avatarHtml = p.avatar_url
+      ? `<img src="${p.avatar_url}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">`
+      : `<div class="waiting-avatar">🎵</div>`;
+    return `<div class="waiting-player-row ${isMe ? 'you' : ''}">
+      <div class="waiting-avatar" style="overflow:hidden;">${avatarHtml}</div>
+      <div class="waiting-name">${p.nickname || 'Player'}${isHost ? ' 👑' : ''}${isMe ? ' (you)' : ''}</div>
+      ${state.partyIsHost && !isMe ? `<button class="kick-btn" onclick="kickPlayer('${rp.player_id}')">Remove</button>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function goToWaiting() {
+  goto('waiting');
+  setTimeout(refreshPartyPlayers, 200);
+}
+
+// ── WAITING ROOM ──
+function renderWaitingRoom() {
+  const codeEl = document.getElementById('waiting-room-code');
+  const badgeEl = document.getElementById('waiting-code-badge');
+  const countEl = document.getElementById('waiting-player-count');
+  const code = state.partyRoom?.code || '';
+  if (codeEl) codeEl.textContent = code;
+  if (badgeEl) badgeEl.textContent = code;
+  if (countEl) countEl.textContent = state.partyPlayers.length;
+
+  // Mic setup block
+  const micBlock = document.getElementById('waiting-mic-block');
+  if (micBlock) micBlock.innerHTML = renderWaitingMicBlock();
+
+  // Players list
+  const listEl = document.getElementById('waiting-players-list');
+  if (listEl) {
+    listEl.innerHTML = state.partyPlayers.map(rp => {
+      const p = rp.profiles || {};
+      const isMe = rp.player_id === state.currentUser?.id;
+      const isHost = rp.is_host;
+      const micReady = rp.mic_ready;
+      const avatarHtml = p.avatar_url
+        ? `<img src="${p.avatar_url}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">`
+        : `<div class="waiting-avatar">🎵</div>`;
+      return `<div class="waiting-player-row ${isMe ? 'you' : ''}">
+        <div class="waiting-avatar" style="overflow:hidden;">${avatarHtml}</div>
+        <div class="waiting-name">${p.nickname || 'Player'}${isHost ? ' 👑' : ''}${isMe ? ' (you)' : ''}</div>
+        <div class="waiting-mic-status ${micReady ? 'ready' : 'not-ready'}">${micReady ? '🎙️ Ready' : '⏳ Setting up'}</div>
+        ${state.partyIsHost && !isMe ? `<button class="kick-btn" onclick="kickPlayer('${rp.player_id}')">Remove</button>` : ''}
+      </div>`;
+    }).join('');
+  }
+
+  // Host controls or guest message
+  const hostCtrl = document.getElementById('waiting-host-controls');
+  const guestMsg = document.getElementById('waiting-guest-msg');
+  if (state.partyIsHost) {
+    if (guestMsg) guestMsg.style.display = 'none';
+    const allReady = state.partyPlayers.length >= 2 && state.partyPlayers.every(p => p.mic_ready);
+    const notReadyCount = state.partyPlayers.filter(p => !p.mic_ready).length;
+    if (hostCtrl) hostCtrl.innerHTML = `
+      <div style="margin-top:8px;">
+        ${notReadyCount > 0 ? `<div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:10px;">${notReadyCount} player${notReadyCount!==1?'s':''} still setting up mic</div>` : ''}
+        <button class="btn-primary" id="host-start-btn" onclick="hostStartGame()" style="font-size:16px;padding:16px;">
+          🎵 Start Game!
+        </button>
+        <button class="btn-secondary" onclick="goto('party-setup')" style="font-size:13px;margin-top:10px;">← Back to Invite</button>
+      </div>`;
+  } else {
+    if (hostCtrl) hostCtrl.innerHTML = '';
+    if (guestMsg) guestMsg.style.display = 'block';
+  }
+}
+
+function renderWaitingMicBlock() {
+  const perm = state.micPermission;
+  const myPlayer = state.partyPlayers.find(p => p.player_id === state.currentUser?.id);
+  const micReady = myPlayer?.mic_ready || false;
+
+  if (micReady) {
+    return `<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:24px;">✅</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--teal);">Microphone Ready</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">You're all set to speak your answers</div>
+      </div>
+    </div>`;
+  }
+  if (perm === 'granted') {
+    // Update DB that this player is mic-ready
+    markMicReady();
+    return `<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;">
+      <div style="font-size:13px;font-weight:700;color:var(--teal);">✅ Microphone Ready</div>
+    </div>`;
+  }
+  return `<div style="background:rgba(255,58,140,0.06);border:1px solid rgba(255,58,140,0.3);border-radius:14px;padding:16px;">
+    <div style="font-size:13px;font-weight:700;color:var(--pink);margin-bottom:6px;">🎙️ Enable Your Microphone</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">You need to allow microphone access to play. Tap below and then tap <b style="color:var(--text)">Allow</b> when your browser asks.</div>
+    <button onclick="waitingRoomEnableMic()" style="width:100%;background:var(--pink);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:13px;cursor:pointer;font-family:inherit;">Enable Microphone to Play</button>
+  </div>`;
+}
+
+async function waitingRoomEnableMic() {
+  await testMicrophone();
+  if (state.micPermission === 'granted') await markMicReady();
+  renderWaitingRoom();
+}
+
+async function markMicReady() {
+  if (!state.partyRoom || !state.currentUser) return;
+  await sb.from('room_players')
+    .update({ mic_ready: true })
+    .eq('room_id', state.partyRoom.id)
+    .eq('player_id', state.currentUser.id);
+}
+
+// ── HOST STARTS GAME ──
+async function hostStartGame() {
+  console.log('[hostStartGame] isHost:', state.partyIsHost, 'room:', state.partyRoom?.id, 'players:', state.partyPlayers.length);
+  if (!state.partyIsHost) { alert('Only the host can start the game.'); return; }
+  if (!state.partyRoom) { alert('Room not found — please go back and create a new room.'); return; }
+
+  const btn = document.getElementById('host-start-btn');
+  if (btn) { btn.textContent = 'Starting…'; btn.disabled = true; }
+
+  try {
+    const { error } = await sb.from('game_rooms').update({
+      status: 'playing',
+      current_phase: 'playing',
+      settings: { ...(state.partyRoom.settings || {}), startedAt: Date.now() }
+    }).eq('id', state.partyRoom.id);
+
+    if (error) throw error;
+    // Refresh players from DB one final time before starting
+    await refreshPartyPlayers();
+    startPartyGame();
+  } catch(e) {
+    console.error('[hostStartGame] error:', e);
+    alert('Could not start game: ' + (e.message || JSON.stringify(e)));
+    if (btn) { btn.textContent = '🎵 Start Game!'; btn.disabled = false; }
+  }
+}
+
+function buildPartySongList() {
+  return shuffle(buildSongPool()).slice(0, 40).map(s => s.title + '|||' + s.artist + '|||' + (s.year || ''));
+}
+
+function startPartyGame() {
+  // Build players from partyPlayers if available, otherwise use just the current user
+  if (state.partyPlayers && state.partyPlayers.length > 0) {
+    state.players = state.partyPlayers.map(rp => ({
+      id: rp.player_id,
+      name: rp.profiles?.nickname || rp.player_id?.slice(0,6) || 'Player',
+      avatar: rp.profiles?.avatar_url || '🎵',
+      score: 0,
+      isHost: rp.is_host,
+      isMe: rp.player_id === state.currentUser?.id,
+    }));
+  } else {
+    // Fallback: just the current user as a solo-style party game
+    const me = state.currentProfile;
+    state.players = [{
+      id: state.currentUser?.id,
+      name: me?.nickname || 'You',
+      avatar: me?.avatar_url || '🎵',
+      score: 0,
+      isHost: true,
+      isMe: true,
+    }];
+  }
+
+  // Ensure at least one player
+  if (!state.players.length) {
+    alert('No players loaded. Please try again.');
+    const btn = document.getElementById('host-start-btn');
+    if (btn) { btn.textContent = '🎵 Start Game!'; btn.disabled = false; }
+    return;
+  }
+
+  console.log('[startPartyGame] players:', state.players.map(p => p.name));
+
+  state.mode = 'party';
+  state.round = 1;
+  state.consecutiveNoScore = 0;
+  state.songsPlayed = 0;
+  state.totalSkips = 0;
+  state.gameStartTime = Date.now();
+  state.songs = shuffle(buildSongPool());
+  state.songIdx = 0;
+  state.bonusPool = shuffle([...BONUS_FLAT]);
+  state.nextBonusAt = 3 + Math.floor(Math.random() * 3);
+  state.partyBuzzedPlayerId = null;
+  goto('game');
+  beginRound();
+}
+
+// ── PARTY GAME BUZZER (realtime) ──
+async function partyBuzzIn() {
+  if (state.phase !== 'playing') return;
+  if (state.partyBuzzedPlayerId) return; // someone already buzzed
+  const myId = state.currentUser?.id;
+  if (!myId || !state.partyRoom) return;
+
+  state.partyBuzzedPlayerId = myId;
+  // Broadcast buzz to all players via room update
+  await sb.from('game_rooms').update({
+    current_phase: 'answering',
+    buzzed_by: myId,
+    buzz_time: new Date().toISOString(),
+  }).eq('id', state.partyRoom.id);
+
+  // Start local answer flow
+  clearTimeout(state.timers.round);
+  state.roundTimeAtBuzz = state.roundTime;
+  state.phase = 'answering';
+  state.answerTime = 7;
+  state.spokenText = '';
+  pauseAudio();
+  setWaveform(false);
+  startAnswerFor(0); // player 0 is always "me" in party realtime mode
+}
+
+async function submitPartyAnswer() {
+  if (state.phase !== 'answering') return;
+  state.phase = 'submitting';
+  stopMic();
+  clearTimeout(state.timers.answer);
+  const myPlayer = state.players.find(p => p.isMe);
+  const result = checkAnswer(state.spokenText, state.currentSong);
+  if (result.pts > 0 && myPlayer) myPlayer.score += result.pts;
+
+  // Sync score to DB
+  if (state.partyRoom && state.currentUser) {
+    await sb.from('room_players').update({ score: myPlayer?.score || 0 })
+      .eq('room_id', state.partyRoom.id)
+      .eq('player_id', state.currentUser.id);
+  }
+  // Clear buzz on room
+  await sb.from('game_rooms').update({ current_phase: 'playing', buzzed_by: null, buzz_time: null })
+    .eq('id', state.partyRoom.id);
+
+  endRound(0, result, state.currentSong);
+}
+
+function renderPartyGameArea() {
+  if (state.screen !== 'game') return;
+  renderActionArea();
+}
+
+// ── CHECK FOR JOIN CODE IN URL ──
+function checkUrlJoinCode() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('join');
+  if (code) {
+    // If already logged in, go straight to join screen
+    const el = document.getElementById('join-code-input');
+    if (el) el.value = code.toUpperCase();
+    goto('join');
+  }
+}
+
+// Boot auth on load
+initAuth();
+checkUrlJoinCode();
+</script>
+
+
+<!-- ─────────────── LEADERBOARD ─────────────── -->
+<div class="screen hidden" id="screen-leaderboard">
+  <div class="page-header">
+    <div class="back-btn" onclick="goto('home')">←</div>
+    <div>
+      <div class="page-title">🏆 Leaderboard</div>
+      <div class="page-sub" id="lb-subtitle">Top players globally</div>
+    </div>
+  </div>
+  <div class="page-body" style="padding-bottom:24px;">
+    <div class="lb-tabs">
+      <button class="lb-tab active" id="lb-tab-alltime" onclick="switchLbTab('alltime')">🏅 All-Time</button>
+      <button class="lb-tab" id="lb-tab-bestgame" onclick="switchLbTab('bestgame')">⚡ Best Game</button>
+      <button class="lb-tab" id="lb-tab-weekly" onclick="switchLbTab('weekly')">📅 This Week</button>
+    </div>
+    <div id="lb-list"></div>
+  </div>
+</div>
+
+
+<!-- ─────────────── PARTY SETUP (host creates room) ─────────────── -->
+<div class="screen hidden" id="screen-party-setup">
+  <div class="page-header">
+    <div class="back-btn" onclick="goto('settings')">←</div>
+    <div><div class="page-title">Invite Players</div><div class="page-sub">Share your room code or send a link</div></div>
+  </div>
+  <div class="page-body" style="display:flex;flex-direction:column;gap:14px;">
+    <!-- Room code -->
+    <div style="text-align:center;">
+      <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Your Room Code</div>
+      <div class="room-code-display" id="party-room-code">...</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Players can enter this code to join</div>
+    </div>
+
+    <!-- Share link button -->
+    <button class="btn-primary" onclick="shareInviteLink()" style="font-size:15px;padding:14px;display:flex;align-items:center;justify-content:center;gap:8px;">
+      📤 Share Invite Link
+    </button>
+
+    <!-- Manual email/phone invite -->
+    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:-6px;">Or invite directly</div>
+    <div class="invite-row">
+      <input class="invite-input" id="invite-contact" type="text" placeholder="Email or phone number..." onkeydown="if(event.key==='Enter')sendInvite()">
+      <button class="invite-send-btn" onclick="sendInvite()">Send</button>
+    </div>
+
+    <!-- Invited list -->
+    <div id="invited-list"></div>
+
+    <!-- Players joined so far -->
+    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;">Players Joined (<span id="party-joined-count">1</span>/6)</div>
+    <div id="party-setup-players"></div>
+
+    <button class="btn-primary" id="goto-waiting-btn" onclick="goToWaiting()" style="font-size:16px;padding:16px;margin-top:4px;">
+      Go to Waiting Room →
+    </button>
+  </div>
+</div>
+
+<!-- ─────────────── WAITING ROOM ─────────────── -->
+<div class="screen hidden" id="screen-waiting">
+  <div class="page-header" style="justify-content:space-between;">
+    <div style="display:flex;align-items:center;gap:12px;">
+      <div class="back-btn" onclick="leaveRoom()">←</div>
+      <div>
+        <div class="page-title">Waiting Room</div>
+        <div class="page-sub" id="waiting-room-sub">Room <span id="waiting-room-code"></span></div>
+      </div>
+    </div>
+    <div style="font-family:monospace;font-size:18px;font-weight:900;color:var(--neon);letter-spacing:4px;" id="waiting-code-badge"></div>
+  </div>
+  <div class="page-body" style="display:flex;flex-direction:column;gap:14px;">
+
+    <!-- How it works (collapsible hint) -->
+    <div style="background:rgba(123,79,255,0.08);border:1px solid rgba(123,79,255,0.25);border-radius:14px;padding:14px 16px;">
+      <div style="font-size:13px;font-weight:700;color:var(--purple);margin-bottom:8px;">🎵 How the game works</div>
+      <div style="font-size:12px;color:var(--muted);line-height:1.7;">
+        A song plays for everyone. Tap <b style="color:var(--text);">BUZZ IN</b> the moment you know it — first to buzz gets to answer. Speak the song title and artist. Get both right = <b style="color:var(--neon);">3 pts</b>. Just the song or just the artist = <b style="color:var(--neon);">1 pt</b>. First to reach the target score wins!
+      </div>
+    </div>
+
+    <!-- Mic setup for this player -->
+    <div id="waiting-mic-block"></div>
+
+    <!-- Players list -->
+    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;">Players (<span id="waiting-player-count">0</span>/6)</div>
+    <div id="waiting-players-list"></div>
+
+    <!-- Host controls -->
+    <div id="waiting-host-controls"></div>
+
+    <!-- Guest waiting message -->
+    <div id="waiting-guest-msg" style="display:none;text-align:center;padding:12px;font-size:13px;color:var(--muted);">
+      Waiting for the host to start the game…
+    </div>
+  </div>
+</div>
+
+<!-- ─────────────── JOIN ROOM (guest lands via invite link) ─────────────── -->
+<div class="screen hidden" id="screen-join">
+  <div class="page-header">
+    <div class="back-btn" onclick="goto('home')">←</div>
+    <div><div class="page-title">Join Game</div><div class="page-sub">Enter the room code to join</div></div>
+  </div>
+  <div class="page-body" style="display:flex;flex-direction:column;gap:14px;">
+    <div style="text-align:center;padding:16px 0;">
+      <div style="font-size:48px;margin-bottom:8px;">🏠</div>
+      <div style="font-size:16px;font-weight:700;">You've been invited to play!</div>
+      <div style="font-size:13px;color:var(--muted);margin-top:4px;">Enter the room code below to join</div>
+    </div>
+    <input class="add-input" id="join-code-input" type="text" maxlength="6"
+      placeholder="Enter 6-letter code…"
+      style="width:100%;padding:18px;font-size:24px;font-weight:900;text-align:center;letter-spacing:6px;text-transform:uppercase;font-family:monospace;"
+      oninput="this.value=this.value.toUpperCase()"
+      onkeydown="if(event.key==='Enter')joinRoomByCode()">
+    <div id="join-error" style="font-size:12px;color:var(--pink);text-align:center;min-height:16px;"></div>
+    <button class="btn-primary" onclick="joinRoomByCode()" style="font-size:17px;padding:18px;">Join Game →</button>
+  </div>
+</div>
+
+</body>
+</html>
