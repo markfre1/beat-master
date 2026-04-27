@@ -916,23 +916,24 @@ function startMic() {
     const rec = new SR();
     state.recognition = rec;
     rec.continuous = false;
-    rec.interimResults = true;
+    rec.interimResults = false; // final results only — no interim on mobile
     rec.lang = 'en-US';
     rec.maxAlternatives = 1;
+    let lastTranscript = ''; // deduplicate identical results
 
     rec.onstart = () => { state.micActive = true; renderActionArea(); };
 
     rec.onresult = (e) => {
-      let text = '';
-      for (let i = 0; i < e.results.length; i++) {
-        text += e.results[i][0].transcript;
+      // Take only the single final result from this utterance
+      const transcript = e.results[e.results.length - 1][0].transcript.trim();
+      // Ignore if identical to last (Android sometimes fires onresult twice)
+      if (transcript && transcript !== lastTranscript) {
+        lastTranscript = transcript;
+        state.spokenText = transcript;
+        renderActionArea();
       }
-      state.spokenText = text.trim();
-      renderActionArea();
     };
 
-    // NO auto-restart on end — prevents doubling on mobile
-    // User can tap mic button again if needed
     rec.onend = () => {
       state.micActive = false;
       state.recognition = null;
