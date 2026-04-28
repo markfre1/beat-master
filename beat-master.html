@@ -1164,6 +1164,24 @@ async function initAuth() {
   }
   updateHomeUI()
 
+  // Check for invite link AFTER we know auth state
+  // This runs once on page load with correct session info
+  const joinCode = new URLSearchParams(window.location.search).get('join');
+  if (joinCode) {
+    // Has invite link — handle join flow
+    sessionStorage.setItem('pendingJoinCode', joinCode.toUpperCase());
+    if (state.currentUser) {
+      goto('join');
+      setTimeout(() => {
+        const el = document.getElementById('join-code-input');
+        if (el) el.value = joinCode.toUpperCase();
+      }, 50);
+    } else {
+      goto('register');
+    }
+    return; // Don't set up onAuthStateChange redirect to home
+  }
+
   sb.auth.onAuthStateChange(async (event, session) => {
     state.currentUser = session?.user || null
     if (state.currentUser) {
@@ -1172,9 +1190,18 @@ async function initAuth() {
       state.currentProfile = null
     }
     updateHomeUI()
-    // Handle OAuth redirect back to app
-    if (event === 'SIGNED_IN' && state.screen === 'home') {
-      goto('modeselect')
+    // Only navigate on explicit sign-in events, not initial session load
+    if (event === 'SIGNED_IN') {
+      const pending = sessionStorage.getItem('pendingJoinCode');
+      if (pending) {
+        goto('join');
+        setTimeout(() => {
+          const el = document.getElementById('join-code-input');
+          if (el) el.value = pending;
+        }, 50);
+      } else {
+        goto('modeselect');
+      }
     }
   })
 }
@@ -1830,8 +1857,8 @@ function prefillJoinCode() {
   const code = sessionStorage.getItem('pendingJoinCode');
   if (code) {
     const el = document.getElementById('join-code-input');
-    if (el) el.value = code;
-    sessionStorage.removeItem('pendingJoinCode');
+    if (el) { el.value = code; }
+    // Don't remove yet — keep until they successfully join
   }
 }
 
@@ -2178,19 +2205,16 @@ function renderPartyGameArea() {
 
 // ── CHECK FOR JOIN CODE IN URL ──
 function checkUrlJoinCode() {
-  const params = new URLSearchParams(window.location.search);
-  const code = params.get('join');
+  // Now handled inside initAuth() — this is kept for compatibility
+  const code = sessionStorage.getItem('pendingJoinCode');
   if (code) {
-    // If already logged in, go straight to join screen
     const el = document.getElementById('join-code-input');
-    if (el) el.value = code.toUpperCase();
-    goto('join');
+    if (el) el.value = code;
   }
 }
 
-// Boot auth on load
+// Boot auth on load — checkUrlJoinCode called inside initAuth after session confirmed
 initAuth();
-checkUrlJoinCode();
 </script>
 
 
