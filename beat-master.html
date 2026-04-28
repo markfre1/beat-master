@@ -1765,45 +1765,60 @@ function generateRoomCode() {
 
 async function createPartyRoom() {
   if (!state.currentUser) { goto('register'); return; }
+  if (typeof sb === 'undefined') { alert('Game services not ready. Please wait a moment.'); return; }
+
   const btn = document.querySelector('#screen-settings .btn-primary:last-of-type');
+  const resetBtn = () => { if (btn) { btn.textContent = '🎵  Start Game!'; btn.disabled = false; } };
   if (btn) { btn.textContent = 'Creating room…'; btn.disabled = true; }
 
   try {
     const code = generateRoomCode();
-    const settings = {
-      genres: state.genres,
-      targetScore: state.targetScore,
-      difficulty: state.difficulty,
-    };
-    const { data: room, error } = await sb.from('game_rooms').insert({
-      code,
-      host_id: state.currentUser.id,
-      status: 'waiting',
-      settings,
-    }).select().single();
-    if (error) throw error;
+    console.log('[createPartyRoom] user:', state.currentUser.id, 'code:', code);
+
+    const settings = { genres: state.genres, targetScore: state.targetScore, difficulty: state.difficulty || 'normal' };
+
+    // 10 second timeout
+    const timeout = new Promise((_, rej) => setTimeout(() => rej(new Error('Timed out after 10s')), 10000));
+    const insert  = sb.from('game_rooms').insert({ code, host_id: state.currentUser.id, status: 'waiting', settings }).select().single();
+    const { data: room, error } = await Promise.race([insert, timeout]);
+
+    if (error) {
+      console.error('[createPartyRoom] insert error:', error);
+      // RLS policy error — most common cause
+      if (error.code === '42501' || error.message?.includes('policy') || error.message?.includes('permission')) {
+        resetBtn();
+        alert('Permission error creating room.\n\nMake sure you are logged in and the game_rooms RLS policies are set up in Supabase.\n\nError: ' + error.message);
+        return;
+      }
+      throw error;
+    }
+    if (!room) throw new Error('No room returned from database');
+
+    console.log('[createPartyRoom] room created:', room.id);
 
     // Add host as first player
-    await sb.from('room_players').insert({
-      room_id: room.id,
-      player_id: state.currentUser.id,
-      is_host: true,
-      mic_ready: false,
-      score: 0,
+    const { error: playerErr } = await sb.from('room_players').insert({
+      room_id: room.id, player_id: state.currentUser.id,
+      is_host: true, mic_ready: state.micPermission === 'granted', score: 0,
     });
+    if (playerErr) console.warn('[createPartyRoom] player insert warning:', playerErr.message);
 
     state.partyRoom = room;
     state.partyIsHost = true;
     state.partyInvited = [];
-    document.getElementById('party-room-code').textContent = code;
+
+    const codeEl = document.getElementById('party-room-code');
+    if (codeEl) codeEl.textContent = code;
+
     subscribeToRoom(room.id);
     goto('party-setup');
     await refreshPartyPlayers();
 
   } catch(e) {
-    console.error('Create room error:', e);
-    if (btn) { btn.textContent = '🎵  Start Game!'; btn.disabled = false; }
-    alert('Could not create room. Please try again.');
+    console.error('[createPartyRoom] error:', e);
+    resetBtn();
+    const msg = e.message || String(e);
+    alert('Could not create room.\n\n' + msg);
   }
 }
 
