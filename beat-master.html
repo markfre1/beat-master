@@ -32,6 +32,7 @@ button, input, textarea { font-family:inherit; color:inherit; }
 button { touch-action:manipulation; }
 .screen { position:fixed; inset:0; height:var(--vh); display:flex; flex-direction:column; background:var(--dark); overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; transition:opacity 0.2s; padding-top:var(--sat); padding-bottom:var(--sab); padding-left:var(--sal); padding-right:var(--sar); }
 .screen.hidden { display:none; }
+button, .btn-primary, .btn-secondary, .mode-card, .genre-card, .buzzer-btn, .pill { touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
 .btn-primary { background:var(--neon); color:#000; border:none; border-radius:14px; padding:16px 32px; font-size:17px; font-weight:700; cursor:pointer; width:100%; transition:transform 0.1s, opacity 0.1s; box-shadow:0 0 30px rgba(232,255,58,0.3); }
 .btn-primary:hover { opacity:0.9; transform:translateY(-1px); }
 .btn-primary:active { transform:scale(0.97); }
@@ -57,7 +58,7 @@ button { touch-action:manipulation; }
 .page-sub { font-size:12px; color:var(--muted); }
 .page-body { padding:16px; flex:1; }
 .mode-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
-.mode-card { background:var(--dark3); border:2px solid var(--border); border-radius:18px; padding: clamp(28px, 6vw, 42px) 16px; cursor:pointer; transition:all 0.15s; text-align:center; position:relative; }
+.mode-card { background:var(--dark3); border:2px solid var(--border); border-radius:18px; padding: clamp(28px, 6vw, 42px) 16px; cursor:pointer; transition:all 0.15s; text-align:center; position:relative; touch-action:manipulation; -webkit-tap-highlight-color:transparent; user-select:none; }
 .mode-card:not(.disabled):hover { border-color:var(--purple); background:rgba(123,79,255,0.08); transform:translateY(-2px); }
 .mode-card:active { transform:scale(0.97); }
 .mode-card.disabled { opacity:0.4; cursor:not-allowed; }
@@ -483,7 +484,7 @@ function handleProfileBtn() {
   }
 }
 
-function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting')renderWaitingRoom(); if(name==='join')prefillJoinCode(); if(name==='party-setup'){
+function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='modeselect')setTimeout(initTouchHandlers,50); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting')renderWaitingRoom(); if(name==='join')prefillJoinCode(); if(name==='party-setup'){
     renderPartySetupPlayers();
     renderInvitedList();
     // Show/hide contact picker based on API support
@@ -520,6 +521,19 @@ function selectMode(m) {
   state.mode = m;
   if (!state.targetScore) state.targetScore = 5;
   goto('genreselect');
+}
+
+// Add touchstart to mode cards for instant mobile response
+function initTouchHandlers() {
+  document.querySelectorAll('.mode-card:not(.disabled)').forEach(card => {
+    card.addEventListener('touchstart', function(e) {
+      const onclick = card.getAttribute('onclick');
+      if (onclick) {
+        e.preventDefault();
+        try { eval(onclick); } catch(err) { console.warn(err); }
+      }
+    }, { passive: false });
+  });
 }
 
 function genreContinue() {
