@@ -463,7 +463,18 @@ const state = {
 
 function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s,genre:gid}))); }); return pool; }
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
-function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting')renderWaitingRoom(); if(name==='join')prefillJoinCode(); if(name==='party-setup')renderPartySetupPlayers(); }
+function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting')renderWaitingRoom(); if(name==='join')prefillJoinCode(); if(name==='party-setup'){
+    renderPartySetupPlayers();
+    renderInvitedList();
+    // Show/hide contact picker based on API support
+    setTimeout(()=>{
+      const btn = document.getElementById('contact-picker-btn');
+      if(btn){
+        const supported = 'contacts' in navigator && 'select' in navigator.contacts;
+        btn.style.display = supported ? 'flex' : 'none';
+      }
+    }, 50);
+  } }
 function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function clearAllTimers() { Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
 function norm(s) { return (s||'').toLowerCase().replace(/[''`]/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
@@ -1985,12 +1996,27 @@ function sendInvite() {
 
 function renderInvitedList() {
   const el = document.getElementById('invited-list');
-  if (!el || !state.partyInvited?.length) return;
-  el.innerHTML = state.partyInvited.map(c => `
-    <div style="display:flex;align-items:center;justify-content:space-between;background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px;">
-      <span style="font-size:13px;color:var(--muted);">✉️ ${c}</span>
-      <span style="font-size:11px;color:var(--teal);font-weight:700;">Invite sent</span>
-    </div>`).join('');
+  if (!el) return;
+  if (!state.partyInvited?.length) { el.innerHTML = ''; return; }
+  el.innerHTML = '<div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;">Invited</div>' +
+    state.partyInvited.map((p, i) => {
+      const label = p.name !== p.contact ? p.name + ' (' + p.contact + ')' : p.contact;
+      return '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--dark3);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:6px;">' +
+        '<span style="font-size:13px;">📱 ' + label + '</span>' +
+        '<div style="display:flex;align-items:center;gap:8px;">' +
+          '<span style="font-size:11px;color:var(--teal);font-weight:700;">Sent</span>' +
+          '<button onclick="resendInvite(' + i + ')" style="background:transparent;border:1px solid var(--border);border-radius:6px;color:var(--muted);font-size:10px;padding:3px 8px;cursor:pointer;font-family:inherit;">Resend</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+}
+
+function resendInvite(idx) {
+  const p = state.partyInvited[idx];
+  if (!p) return;
+  const { code, url } = getInviteDetails();
+  const smsBody = 'Join my Beat Master game! Room code: ' + code + ' — ' + url;
+  window.open('sms:' + p.contact + '?body=' + encodeURIComponent(smsBody));
 }
 
 function renderPartySetupPlayers() {
@@ -1999,18 +2025,57 @@ function renderPartySetupPlayers() {
   if (!el) return;
   const count = state.partyPlayers.length;
   if (countEl) countEl.textContent = count;
+  if (count === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--muted);font-size:13px;">No players yet — share the invite link!</div>';
+    return;
+  }
+  el.innerHTML = state.partyPlayers.map(rp => {
+    const p = rp.profiles || {};
+    const isMe = rp.player_id === state.currentUser?.id;
+    const isHost = rp.is_host;
+    const avatar = p.avatar_url
+      ? '<img src="' + p.avatar_url + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">'
+      : '<div class="waiting-avatar">🎵</div>';
+    const removeBtn = (state.partyIsHost && !isMe)
+      ? '<button class="kick-btn" data-pid="' + rp.player_id + '" style="margin-left:auto;flex-shrink:0;">✕ Remove</button>'
+      : '';
+    return '<div class="waiting-player-row ' + (isMe?'you':'') + '">' +
+      '<div class="waiting-avatar" style="overflow:hidden;">' + avatar + '</div>' +
+      '<div class="waiting-name">' + (p.nickname||'Player') + (isHost?' 👑':'') + (isMe?' (you)':'') + '</div>' +
+      removeBtn + '</div>';
+  }).join('');
+  // Attach kick handlers via data attribute to avoid quote issues
+  el.querySelectorAll('.kick-btn[data-pid]').forEach(btn => {
+    btn.addEventListener('click', () => kickPlayer(btn.dataset.pid));
+  });
+}
+
+function renderPartySetupPlayers() {
+  const el = document.getElementById('party-setup-players');
+  const countEl = document.getElementById('party-joined-count');
+  if (!el) return;
+  const count = state.partyPlayers.length;
+  if (countEl) countEl.textContent = count;
+
+  if (count === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--muted);font-size:13px;">No players yet — share the invite link!</div>';
+    return;
+  }
+
   el.innerHTML = state.partyPlayers.map(rp => {
     const p = rp.profiles || {};
     const isMe = rp.player_id === state.currentUser?.id;
     const isHost = rp.is_host;
     const avatarHtml = p.avatar_url
-      ? `<img src="${p.avatar_url}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">`
-      : `<div class="waiting-avatar">🎵</div>`;
-    return `<div class="waiting-player-row ${isMe ? 'you' : ''}">
-      <div class="waiting-avatar" style="overflow:hidden;">${avatarHtml}</div>
-      <div class="waiting-name">${p.nickname || 'Player'}${isHost ? ' 👑' : ''}${isMe ? ' (you)' : ''}</div>
-      ${state.partyIsHost && !isMe ? `<button class="kick-btn" onclick="kickPlayer('${rp.player_id}')">Remove</button>` : ''}
-    </div>`;
+      ? '<img src="' + p.avatar_url + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">'
+      : '<div class="waiting-avatar">🎵</div>';
+    return '<div class="waiting-player-row ' + (isMe ? 'you' : '') + '" style="position:relative;">' +
+      '<div class="waiting-avatar" style="overflow:hidden;">' + avatarHtml + '</div>' +
+      '<div class="waiting-name">' + (p.nickname || 'Player') + (isHost ? ' 👑' : '') + (isMe ? ' (you)' : '') + '</div>' +
+      (state.partyIsHost && !isMe
+      ? '<button class="kick-btn" data-pid="' + rp.player_id + '" style="margin-left:auto;flex-shrink:0;">✕ Remove</button>'
+        : '') +
+    '</div>';
   }).join('');
 }
 
@@ -2255,6 +2320,7 @@ initAuth();
     <div><div class="page-title">Invite Players</div><div class="page-sub">Share your room code or send a link</div></div>
   </div>
   <div class="page-body" style="display:flex;flex-direction:column;gap:14px;">
+
     <!-- Room code -->
     <div style="text-align:center;">
       <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Your Room Code</div>
@@ -2262,26 +2328,34 @@ initAuth();
       <div style="font-size:11px;color:var(--muted);margin-top:4px;">Players can enter this code to join</div>
     </div>
 
-    <!-- Share link button -->
-    <button class="btn-primary" onclick="shareInviteLink()" style="font-size:15px;padding:14px;display:flex;align-items:center;justify-content:center;gap:8px;">
-      📤 Share Invite Link
-    </button>
-
-    <!-- Manual email/phone invite -->
-    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:-6px;">Or invite directly</div>
-    <div class="invite-row">
-      <input class="invite-input" id="invite-contact" type="text" placeholder="Email or phone number..." onkeydown="if(event.key==='Enter')sendInvite()">
-      <button class="invite-send-btn" onclick="sendInvite()">Send</button>
+    <!-- Invite buttons -->
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <!-- Contact picker (mobile) + Share sheet -->
+      <button class="btn-primary" onclick="pickContactAndInvite()" id="contact-picker-btn" style="font-size:15px;padding:14px;display:flex;align-items:center;justify-content:center;gap:8px;">
+        📱 Pick from Contacts
+      </button>
+      <button class="btn-secondary" onclick="shareInviteLink()" style="font-size:14px;padding:12px;display:flex;align-items:center;justify-content:center;gap:8px;">
+        📤 Share Invite Link
+      </button>
     </div>
 
-    <!-- Invited list -->
+    <!-- Manual phone input -->
+    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:-4px;">Or type a number</div>
+    <div class="invite-row">
+      <input class="invite-input" id="invite-contact" type="tel" placeholder="Mobile number..." onkeydown="if(event.key==='Enter')sendManualInvite()">
+      <button class="invite-send-btn" onclick="sendManualInvite()">Send</button>
+    </div>
+
+    <!-- Sent invites list -->
     <div id="invited-list"></div>
 
     <!-- Players joined so far -->
-    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;">Players Joined (<span id="party-joined-count">1</span>/6)</div>
+    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">
+      Players in Room (<span id="party-joined-count">1</span>/6)
+    </div>
     <div id="party-setup-players"></div>
 
-    <button class="btn-primary" id="goto-waiting-btn" onclick="goToWaiting()" style="font-size:16px;padding:16px;margin-top:4px;">
+    <button class="btn-primary" onclick="goToWaiting()" style="font-size:16px;padding:16px;margin-top:4px;">
       Go to Waiting Room →
     </button>
   </div>
