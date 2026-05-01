@@ -1928,6 +1928,28 @@ function subscribeToRoom(roomId) {
 }
 
 // ── SHARE INVITE ──
+function getInviteDetails() {
+  var code = state.partyRoom ? state.partyRoom.code : '';
+  var base = window.location.href.split('?')[0];
+  var url = base + '?join=' + code;
+  var text = 'Join my Beat Master game! Room code: ' + code + '\nTap to join: ' + url;
+  return { code: code, url: url, text: text };
+}
+
+function sendManualInvite() {
+  var inp = document.getElementById('invite-contact');
+  var val = inp ? inp.value.trim() : '';
+  if (!val) { alert('Please enter a phone number.'); return; }
+  if (!state.partyRoom) { alert('No room created yet.'); return; }
+  var d = getInviteDetails();
+  var smsBody = 'Join my Beat Master game! Room code: ' + d.code + ' — ' + d.url;
+  if (!state.partyInvited) state.partyInvited = [];
+  state.partyInvited.push({ name: val, contact: val });
+  if (inp) inp.value = '';
+  renderInvitedList();
+  window.open('sms:' + val + '?body=' + encodeURIComponent(smsBody));
+}
+
 function shareInviteLink() {
   if (!state.partyRoom) return;
   var details = getInviteDetails();
