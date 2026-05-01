@@ -477,7 +477,7 @@ function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfi
   } }
 function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function clearAllTimers() { Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
-function norm(s) { return (s||'').toLowerCase().replace(/[''`]/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
+function norm(s) { return (s||'').toLowerCase().replace(/[\u2018\u2019']/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
 function wordMatch(answer,target) { const aw=norm(answer).split(' ').filter(w=>w.length>1); const tw=norm(target).split(' ').filter(w=>w.length>1); if(!tw.length)return norm(answer).includes(norm(target)); const hits=tw.filter(t=>aw.some(a=>a.includes(t)||t.includes(a))); return hits.length/tw.length>=0.55; }
 function checkAnswer(spoken,song) { const hasTitle=wordMatch(spoken,song.title); const hasArtist=wordMatch(spoken,song.artist); if(song.isBonus){const pts=(hasTitle&&hasArtist)?5:(hasTitle||hasArtist)?2:0; return{hasTitle,hasArtist,pts,isBonus:true};} const pts=(hasTitle&&hasArtist)?3:(hasTitle||hasArtist)?1:0; return{hasTitle,hasArtist,pts}; }
 function renderGenres() { const grid=document.getElementById('genre-grid'); const allGenreIds=GENRES.map(g=>g.id); const allSelected=allGenreIds.every(id=>state.genres.includes(id)); const noneSelected=state.genres.length===0; const actionsRow=document.getElementById('genre-actions-row'); actionsRow.innerHTML=`<button class="genre-action-btn ${allSelected?'active':''}" onclick="toggleSelectAll()">${allSelected?'✓ All Selected':'🌍 Select All'}</button><button class="genre-action-btn" onclick="clearGenreSelection()" ${noneSelected?'disabled style="opacity:0.4;cursor:not-allowed"':''}>✕ Clear</button>`; grid.innerHTML=GENRES.map(g=>{const sel=state.genres.includes(g.id); return`<div class="genre-card ${sel?'selected':''}" style="${sel?`border-color:${g.color};background:${g.color}08`:''}" onclick="toggleGenre('${g.id}')"><div class="genre-check">${sel?'✓':''}</div><div class="genre-emoji">${g.emoji}</div><div class="genre-name" style="color:${sel?g.color:'var(--text)'}">${g.name}</div><div class="genre-count" style="color:${g.color}">${SONGS[g.id]?.length||0} songs</div></div>`;}).join(''); const summary=document.getElementById('genre-summary'); if(state.genres.length===0){summary.innerHTML='Select at least one genre to continue';}else if(allSelected){summary.innerHTML=`<b>All genres</b> selected — <b>${totalSongCount()}</b> songs in the mix 🔥`;}else{const names=state.genres.map(id=>{const g=GENRES.find(x=>x.id===id); return g?g.emoji+' '+g.name:id;}); summary.innerHTML=`<b>${state.genres.length}</b> genre${state.genres.length>1?'s':''} · <b>${totalSongCount()}</b> songs — ${names.join(', ')}`;} document.getElementById('genre-continue-btn').disabled=state.genres.length===0; }
@@ -1247,13 +1247,6 @@ function updateHomeUI() {
   }
 }
 
-function requireAuth() {
-  if (state.currentUser) {
-    goto('modeselect')
-  } else {
-    goto('register')
-  }
-}
 
 function handleProfileBtn() {
   if (state.currentUser) {
