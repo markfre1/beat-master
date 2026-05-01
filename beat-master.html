@@ -504,6 +504,17 @@ function renderGenres() { const grid=document.getElementById('genre-grid'); cons
 function toggleGenre(id) { const idx=state.genres.indexOf(id); if(idx===-1){state.genres.push(id);}else{state.genres.splice(idx,1);} renderGenres(); }
 function toggleSelectAll() { const allGenreIds=GENRES.map(g=>g.id); const allSelected=allGenreIds.every(id=>state.genres.includes(id)); if(allSelected){state.genres=[];}else{state.genres=[...allGenreIds];} renderGenres(); }
 function clearGenreSelection() { state.genres=[]; renderGenres(); }
+function unlockAudio() {
+  if (state.audioUnlocked) return;
+  const silence = new Audio();
+  silence.volume = 0;
+  silence.src = 'data:audio/mpeg;base64,SUQzBAAAAAAAI1RTU0UAAAAPAAADTGF2ZjU4LjI5LjEwMAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDV1dXV1dXV1dXV1dXV1dXV1dXV1dXV1dXV6urq6urq6urq6urq6urq6urq6urq6urq6v////////////////////////////////8AAAAATGF2YzU4LjU0AAAAAAAAAAAAAAAAJAAAAAAAAAAAASDs90hvAAAAAAAAAAAAAAAAAAAA//OEAAAAAAAAAAAAAAAAAAAAAAAASW5mbwAAAA8AAAAEAAABIADAwMDAwA==';
+  silence.play().then(() => {
+    state.audioUnlocked = true;
+    console.log('[audio] Unlocked');
+  }).catch(() => {});
+}
+
 function selectMode(m) {
   unlockAudio();
   state.mode = m;
