@@ -466,20 +466,6 @@ function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) 
 function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting')renderWaitingRoom(); if(name==='join')prefillJoinCode(); if(name==='party-setup'){
     renderPartySetupPlayers();
     renderInvitedList();
-    setTimeout(function(){
-      var wire = function(id, fn) {
-        var btn = document.getElementById(id);
-        if (!btn) return;
-        // Remove any old listeners by cloning
-        var newBtn = btn.cloneNode(true);
-        btn.parentNode.replaceChild(newBtn, btn);
-        newBtn.addEventListener('touchend', function(e){ e.preventDefault(); fn(); }, {passive:false});
-        newBtn.addEventListener('click', function(e){ e.preventDefault(); fn(); });
-      };
-      wire('share-invite-btn', shareInviteLink);
-      wire('manual-invite-btn', sendManualInvite);
-      wire('goto-waiting-btn', goToWaiting);
-    }, 150);
   } }
 function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function clearAllTimers() { Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
@@ -2259,20 +2245,14 @@ checkUrlJoinCode();
     <div><div class="page-title">Invite Players</div><div class="page-sub">Send the link, then go to waiting room</div></div>
   </div>
   <div class="page-body" style="display:flex;flex-direction:column;gap:16px;">
-
-    <!-- Room code -->
     <div style="text-align:center;">
       <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Room Code</div>
       <div class="room-code-display" id="party-room-code">...</div>
       <div style="font-size:12px;color:var(--muted);margin-top:6px;">Share this code or tap below to invite</div>
     </div>
-
-    <!-- Primary action: Share (works on ALL phones via native share sheet) -->
-    <button id="share-invite-btn" style="background:var(--neon);color:#000;border:none;border-radius:14px;padding:18px;font-size:16px;font-weight:900;cursor:pointer;touch-action:manipulation;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;">
+    <button onclick="shareInviteLink()" style="background:var(--neon);color:#000;border:none;border-radius:14px;padding:18px;font-size:16px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;">
       📤 Send Invite to Friends
     </button>
-
-    <!-- Manual phone number fallback -->
     <div style="display:flex;align-items:center;gap:10px;">
       <div style="flex:1;height:1px;background:var(--border);"></div>
       <span style="font-size:11px;color:var(--muted);letter-spacing:1px;">OR TYPE A NUMBER</span>
@@ -2280,20 +2260,12 @@ checkUrlJoinCode();
     </div>
     <div class="invite-row">
       <input class="invite-input" id="invite-contact" type="tel" placeholder="Mobile number..." style="font-size:16px;padding:14px;">
-      <button id="manual-invite-btn" class="invite-send-btn" style="touch-action:manipulation;padding:14px 20px;font-size:15px;">Send</button>
+      <button onclick="sendManualInvite()" style="background:var(--neon);color:#000;border:none;border-radius:10px;padding:14px 20px;font-size:15px;font-weight:800;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;flex-shrink:0;">Send</button>
     </div>
-
-    <!-- Invited list -->
     <div id="invited-list"></div>
-
-    <!-- Players joined -->
-    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;">
-      Players in Room (<span id="party-joined-count">1</span>/6)
-    </div>
+    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;">Players in Room (<span id="party-joined-count">1</span>/6)</div>
     <div id="party-setup-players"></div>
-
-    <!-- Go to waiting room -->
-    <button id="goto-waiting-btn" style="background:var(--purple);color:#fff;border:none;border-radius:14px;padding:18px;font-size:17px;font-weight:900;cursor:pointer;touch-action:manipulation;width:100%;margin-top:4px;">
+    <button onclick="goToWaiting()" style="background:var(--purple);color:#fff;border:none;border-radius:14px;padding:18px;font-size:17px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;margin-top:4px;">
       Go to Waiting Room →
     </button>
   </div>
