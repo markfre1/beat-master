@@ -1188,12 +1188,9 @@ async function initAuth() {
     const upperCode = joinCode.toUpperCase()
     sessionStorage.setItem('pendingJoinCode', upperCode)
     if (state.currentUser) {
-      // Already logged in - go straight to join screen
-      goto('join')
-      setTimeout(() => {
-        const el = document.getElementById('join-code-input')
-        if (el) el.value = upperCode
-      }, 100)
+      // Already logged in - auto join the room directly
+      sessionStorage.removeItem('pendingJoinCode')
+      autoJoinRoom(upperCode)
     } else {
       // Not logged in - go to register, join code saved in sessionStorage
       goto('register')
@@ -1206,11 +1203,12 @@ async function initAuth() {
       if (event === 'SIGNED_IN') {
         const pending = sessionStorage.getItem('pendingJoinCode')
         if (pending) {
-          goto('join')
-          setTimeout(() => {
-            const el = document.getElementById('join-code-input')
-            if (el) el.value = pending
-          }, 100)
+          // Auto-join the room after login
+          sessionStorage.removeItem('pendingJoinCode')
+          autoJoinRoom(pending)
+        } else {
+          // Normal login - go to mode select
+          goto('modeselect')
         }
       }
     })
@@ -1832,6 +1830,49 @@ async function createPartyRoom() {
   }
 }
 
+async function autoJoinRoom(code) {
+  // Called when user arrives via invite link and is (or just became) logged in
+  // Automatically joins the room and goes to waiting room
+  if (!code || !state.currentUser) return;
+  try {
+    const { data: room, error } = await sb.from('game_rooms')
+      .select('*').eq('code', code.toUpperCase()).eq('status', 'waiting').single();
+    if (error || !room) {
+      // Room not found - show join screen so user can try manually
+      goto('join');
+      setTimeout(() => {
+        const el = document.getElementById('join-code-input');
+        if (el) el.value = code.toUpperCase();
+        const errEl = document.getElementById('join-error');
+        if (errEl) errEl.textContent = 'Room not found or game already started.';
+      }, 100);
+      return;
+    }
+    // Join the room
+    await sb.from('room_players').upsert({
+      room_id: room.id, player_id: state.currentUser.id,
+      is_host: false, mic_ready: false, score: 0,
+    }, { onConflict: 'room_id,player_id' });
+
+    state.partyRoom = room;
+    state.partyIsHost = false;
+    if (room.settings) {
+      state.genres = room.settings.genres || [];
+      state.targetScore = room.settings.targetScore || 5;
+    }
+    subscribeToRoom(room.id);
+    await refreshPartyPlayers();
+    goto('waiting');
+  } catch(e) {
+    console.error('[autoJoinRoom]', e);
+    goto('join');
+    setTimeout(() => {
+      const el = document.getElementById('join-code-input');
+      if (el) el.value = code.toUpperCase();
+    }, 100);
+  }
+}
+
 async function joinRoomByCode() {
   const codeEl = document.getElementById('join-code-input');
   const errEl  = document.getElementById('join-error');
@@ -2043,6 +2084,26 @@ function sendManualInvite() {
   addInvitePerson();
 }
 
+function shareAndGoWait() {
+  if (!state.partyRoom) return;
+  var d = getInviteDetails();
+  if (navigator.share) {
+    navigator.share({ title: 'Join my Beat Master Game!', text: d.text, url: d.url })
+      .catch(function(e) { if (e.name !== 'AbortError') prompt('Copy invite link:', d.url); });
+  } else {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(d.url)
+        .then(function() { alert('Invite link copied!\n\n' + d.url); })
+        .catch(function() { prompt('Copy invite link:', d.url); });
+    } else {
+      prompt('Copy invite link:', d.url);
+    }
+  }
+  // Go to waiting room immediately after sharing
+  goto('waiting');
+  refreshPartyPlayers();
+}
+
 function getInviteDetails() {
   var code = state.partyRoom ? state.partyRoom.code : '';
   var base = window.location.href.split('?')[0];
@@ -2144,58 +2205,79 @@ function goToWaiting() {
 
 // ── WAITING ROOM ──
 function renderWaitingRoom() {
+  const code = state.partyRoom?.code || '';
   const codeEl = document.getElementById('waiting-room-code');
   const badgeEl = document.getElementById('waiting-code-badge');
   const countEl = document.getElementById('waiting-player-count');
-  const code = state.partyRoom?.code || '';
   if (codeEl) codeEl.textContent = code;
   if (badgeEl) badgeEl.textContent = code;
   if (countEl) countEl.textContent = state.partyPlayers.length;
 
-  // Mic setup block
+  // Mic setup
   const micBlock = document.getElementById('waiting-mic-block');
   if (micBlock) micBlock.innerHTML = renderWaitingMicBlock();
 
-  // Players list
+  // Live player list
   const listEl = document.getElementById('waiting-players-list');
   if (listEl) {
-    listEl.innerHTML = state.partyPlayers.map(rp => {
-      const p = rp.profiles || {};
-      const isMe = rp.player_id === state.currentUser?.id;
-      const isHost = rp.is_host;
-      const micReady = rp.mic_ready;
-      const avatarHtml = p.avatar_url
-        ? `<img src="${p.avatar_url}" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">`
-        : `<div class="waiting-avatar">🎵</div>`;
-      return `<div class="waiting-player-row ${isMe ? 'you' : ''}">
-        <div class="waiting-avatar" style="overflow:hidden;">${avatarHtml}</div>
-        <div class="waiting-name">${p.nickname || 'Player'}${isHost ? ' 👑' : ''}${isMe ? ' (you)' : ''}</div>
-        <div class="waiting-mic-status ${micReady ? 'ready' : 'not-ready'}">${micReady ? '🎙️ Ready' : '⏳ Setting up'}</div>
-        ${state.partyIsHost && !isMe ? `<button class="kick-btn" onclick="kickPlayer('${rp.player_id}')">Remove</button>` : ''}
-      </div>`;
-    }).join('');
+    if (state.partyPlayers.length === 0) {
+      listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Waiting for players to join…<br><span style="font-size:11px;opacity:0.6;">Share the invite link so they can join</span></div>';
+    } else {
+      listEl.innerHTML = state.partyPlayers.map(rp => {
+        const p = rp.profiles || {};
+        const isMe = rp.player_id === state.currentUser?.id;
+        const isHost = rp.is_host;
+        const micReady = rp.mic_ready;
+        const avatarHtml = p.avatar_url
+          ? '<img src="' + p.avatar_url + '" style="width:40px;height:40px;border-radius:50%;object-fit:cover;">'
+          : '<div class="waiting-avatar">🎵</div>';
+        const kickBtn = (state.partyIsHost && !isMe)
+          ? '<button class="kick-btn" data-pid="' + rp.player_id + '" style="margin-left:auto;touch-action:manipulation;">✕</button>'
+          : '';
+        return '<div class="waiting-player-row ' + (isMe?'you':'') + '">' +
+          '<div class="waiting-avatar" style="overflow:hidden;">' + avatarHtml + '</div>' +
+          '<div style="flex:1;min-width:0;">' +
+            '<div class="waiting-name">' + (p.nickname||'Player') + (isHost?' 👑':'') + (isMe?' (you)':'') + '</div>' +
+            '<div class="waiting-mic-status ' + (micReady?'ready':'not-ready') + '">' + (micReady?'🎙️ Mic ready':'⏳ Setting up mic') + '</div>' +
+          '</div>' + kickBtn + '</div>';
+      }).join('');
+      listEl.querySelectorAll('.kick-btn[data-pid]').forEach(btn => {
+        btn.addEventListener('click', () => kickPlayer(btn.dataset.pid));
+      });
+    }
   }
 
-  // Host controls or guest message
+  // Host vs guest controls
   const hostCtrl = document.getElementById('waiting-host-controls');
   const guestMsg = document.getElementById('waiting-guest-msg');
+  const hasEnough = state.partyPlayers.length >= 2;
+
   if (state.partyIsHost) {
     if (guestMsg) guestMsg.style.display = 'none';
-    const allReady = state.partyPlayers.length >= 2 && state.partyPlayers.every(p => p.mic_ready);
-    const notReadyCount = state.partyPlayers.filter(p => !p.mic_ready).length;
-    if (hostCtrl) hostCtrl.innerHTML = `
-      <div style="margin-top:8px;">
-        ${!allReady ? `<div style="font-size:12px;color:var(--muted);text-align:center;margin-bottom:10px;">${notReadyCount} player${notReadyCount!==1?'s':''} still setting up microphone</div>` : ''}
-        <button class="btn-primary" onclick="hostStartGame()" style="font-size:16px;padding:16px;" ${state.partyPlayers.length < 2 ? 'disabled style="opacity:0.4;"' : ''}>
-          🎵 Start Game${state.partyPlayers.length < 2 ? ' (need 2+ players)' : '!'}
-        </button>
-        <button class="btn-secondary" onclick="goto('party-setup')" style="font-size:13px;margin-top:10px;">← Back to Invite</button>
-      </div>`;
+    if (hostCtrl) {
+      hostCtrl.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">' +
+        (hasEnough
+          ? '<button id="host-start-btn" onclick="hostStartGame()" style="background:var(--neon);color:#000;border:none;border-radius:14px;padding:18px;font-size:17px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">🎵 Start Game!</button>'
+          : '<div style="background:var(--dark3);border:1px dashed var(--border);border-radius:14px;padding:16px;text-align:center;">' +
+              '<div style="font-size:13px;color:var(--muted);">Waiting for players to join…</div>' +
+              '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Need at least 2 players to start</div>' +
+            '</div>') +
+        '<button onclick="shareInviteLink()" style="background:transparent;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation;width:100%;">📤 Invite More Players</button>' +
+        '</div>';
+    }
   } else {
     if (hostCtrl) hostCtrl.innerHTML = '';
-    if (guestMsg) guestMsg.style.display = 'block';
+    if (guestMsg) {
+      guestMsg.style.display = 'block';
+      guestMsg.innerHTML = '<div style="text-align:center;padding:16px;background:var(--dark3);border:1px solid var(--border);border-radius:14px;">' +
+        '<div style="font-size:22px;margin-bottom:8px;">⏳</div>' +
+        '<div style="font-size:14px;font-weight:700;color:var(--text);">Get Ready!</div>' +
+        '<div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.6;">The host will start the game soon.<br>Make sure your mic is enabled above.</div>' +
+        '</div>';
+    }
   }
 }
+
 
 function renderWaitingMicBlock() {
   const perm = state.micPermission;
@@ -2376,7 +2458,7 @@ initAuth();
 <div class="screen hidden" id="screen-party-setup">
   <div class="page-header">
     <div class="back-btn" onclick="goto('genreselect')">←</div>
-    <div><div class="page-title">Invite Players</div><div class="page-sub">Add people to your game</div></div>
+    <div><div class="page-title">Invite Players</div><div class="page-sub">Share the link then wait for players</div></div>
   </div>
   <div class="page-body" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px;">
 
@@ -2386,41 +2468,14 @@ initAuth();
       <div class="room-code-display" id="party-room-code">...</div>
     </div>
 
-    <!-- Primary: Share via iMessage/WhatsApp (opens contacts natively) -->
-    <div style="background:var(--dark3);border:1px solid var(--border);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;">
-      <div style="font-size:13px;font-weight:700;">📱 Send via iMessage or WhatsApp</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.6;">Tap below — your phone opens iMessage or WhatsApp where you can pick contacts from your address book.</div>
-      <button onclick="shareInviteLink()" style="background:var(--neon);color:#000;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">
-        📤 Share Invite Link
-      </button>
-    </div>
-
-    <!-- Secondary: Type number directly -->
-    <div style="background:var(--dark3);border:1px solid var(--border);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;">
-      <div style="font-size:13px;font-weight:700;">⌨️ Or type a number directly</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <input id="invite-name" type="text" placeholder="Name (optional)" autocomplete="off"
-          style="background:var(--dark);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;font-family:inherit;width:100%;box-sizing:border-box;">
-        <div style="display:flex;gap:8px;">
-          <input id="invite-phone" type="tel" placeholder="Phone number" autocomplete="off"
-            style="flex:1;background:var(--dark);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;font-family:inherit;">
-          <button onclick="addInvitePerson()" style="background:var(--purple);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-size:15px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;flex-shrink:0;">+ Add</button>
-        </div>
-      </div>
-      <div id="invite-people-list" style="display:none;flex-direction:column;gap:6px;"></div>
-      <button id="send-all-btn" onclick="sendAllInvites()" style="display:none;background:var(--teal);color:#000;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">
-        📤 Send SMS to All
-      </button>
-    </div>
-
-    <!-- Players in room -->
-    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;">Players in Room (<span id="party-joined-count">1</span>/6)</div>
-    <div id="party-setup-players"></div>
-
-    <!-- Go to waiting room -->
-    <button onclick="goToWaiting()" style="background:var(--neon);color:#000;border:none;border-radius:14px;padding:18px;font-size:17px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">
-      Go to Waiting Room →
+    <!-- Share button -->
+    <button onclick="shareAndGoWait()" style="background:var(--neon);color:#000;border:none;border-radius:14px;padding:18px;font-size:17px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;">
+      📤 Share Invite &amp; Go to Waiting Room
     </button>
+
+    <div style="font-size:12px;color:var(--muted);text-align:center;line-height:1.6;">
+      Tap above to share via iMessage, WhatsApp, or any app.<br>You'll go to the waiting room where you can see players join live.
+    </div>
   </div>
 </div>
 
