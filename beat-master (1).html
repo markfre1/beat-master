@@ -465,7 +465,24 @@ function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
 function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting')renderWaitingRoom(); if(name==='join')prefillJoinCode(); if(name==='party-setup'){
     renderPartySetupPlayers();
-    renderInvitePeopleList();
+    // Wire touch+click handlers for all party setup buttons
+    setTimeout(function(){
+      var wire = function(id, fn) {
+        var btn = document.getElementById(id);
+        if (!btn) return;
+        btn.addEventListener('touchstart', function(e){ e.preventDefault(); fn(); }, {passive:false});
+        btn.addEventListener('click', fn);
+      };
+      wire('contact-picker-btn', pickContactAndInvite);
+      wire('share-invite-btn', shareInviteLink);
+      wire('manual-invite-btn', sendManualInvite);
+      wire('goto-waiting-btn', goToWaiting);
+      var contactBtn = document.getElementById('contact-picker-btn');
+      if (contactBtn) {
+        var supported = ('contacts' in navigator) && navigator.contacts && (typeof navigator.contacts.select === 'function');
+        contactBtn.style.display = supported ? 'flex' : 'none';
+      }
+    }, 100);
   } }
 function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function clearAllTimers() { Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
@@ -1182,41 +1199,6 @@ async function initAuth() {
   }
   updateHomeUI()
 
-  // Check for invite link AFTER auth is confirmed
-  const joinCode = new URLSearchParams(window.location.search).get('join')
-  if (joinCode) {
-    const upperCode = joinCode.toUpperCase()
-    sessionStorage.setItem('pendingJoinCode', upperCode)
-    if (state.currentUser) {
-      // Already logged in - go straight to join screen
-      goto('join')
-      setTimeout(() => {
-        const el = document.getElementById('join-code-input')
-        if (el) el.value = upperCode
-      }, 100)
-    } else {
-      // Not logged in - go to register, join code saved in sessionStorage
-      goto('register')
-    }
-    // Don't set up the normal onAuthStateChange navigation
-    sb.auth.onAuthStateChange(async (event, session) => {
-      state.currentUser = session?.user || null
-      if (state.currentUser) { await loadProfile() } else { state.currentProfile = null }
-      updateHomeUI()
-      if (event === 'SIGNED_IN') {
-        const pending = sessionStorage.getItem('pendingJoinCode')
-        if (pending) {
-          goto('join')
-          setTimeout(() => {
-            const el = document.getElementById('join-code-input')
-            if (el) el.value = pending
-          }, 100)
-        }
-      }
-    })
-    return
-  }
-
   sb.auth.onAuthStateChange(async (event, session) => {
     state.currentUser = session?.user || null
     if (state.currentUser) {
@@ -1225,6 +1207,7 @@ async function initAuth() {
       state.currentProfile = null
     }
     updateHomeUI()
+    // Handle OAuth redirect back to app
     if (event === 'SIGNED_IN' && state.screen === 'home') {
       goto('modeselect')
     }
@@ -1962,129 +1945,20 @@ function subscribeToRoom(roomId) {
 }
 
 // ── SHARE INVITE ──
-// ── PARTY INVITE MANAGEMENT ──
-function addInvitePerson() {
-  var nameEl = document.getElementById('invite-name');
-  var phoneEl = document.getElementById('invite-phone');
-  var phone = phoneEl ? phoneEl.value.trim() : '';
-  var name = nameEl ? nameEl.value.trim() : '';
-  if (!phone) { alert('Please enter a phone number.'); return; }
-  if (!name) name = phone;
-  if (!state.partyInvited) state.partyInvited = [];
-  // Check duplicate
-  if (state.partyInvited.find(function(p){ return p.contact === phone; })) {
-    alert('This number is already added.'); return;
-  }
-  state.partyInvited.push({ name: name, contact: phone, sent: false });
-  if (nameEl) nameEl.value = '';
-  if (phoneEl) phoneEl.value = '';
-  renderInvitePeopleList();
-}
-
-function removeInvitePerson(idx) {
-  if (!state.partyInvited) return;
-  state.partyInvited.splice(idx, 1);
-  renderInvitePeopleList();
-}
-
-function renderInvitePeopleList() {
-  var el = document.getElementById('invite-people-list');
-  var sendBtn = document.getElementById('send-all-btn');
-  if (!el) return;
-  if (!state.partyInvited || state.partyInvited.length === 0) {
-    el.style.display = 'none';
-    if (sendBtn) sendBtn.style.display = 'none';
-    return;
-  }
-  el.style.display = 'flex';
-  if (sendBtn) sendBtn.style.display = 'block';
-  el.innerHTML = state.partyInvited.map(function(p, i) {
-    return '<div style="display:flex;align-items:center;justify-content:space-between;background:var(--dark);border:1px solid var(--border);border-radius:10px;padding:10px 12px;">' +
-      '<div>' +
-        '<div style="font-size:14px;font-weight:700;">' + p.name + '</div>' +
-        '<div style="font-size:11px;color:var(--muted);">' + p.contact + '</div>' +
-      '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;">' +
-        (p.sent ? '<span style="font-size:11px;color:var(--teal);font-weight:700;">✓ Sent</span>' : '') +
-        '<button onclick="removeInvitePerson(' + i + ')" style="background:rgba(255,58,140,0.1);border:1px solid rgba(255,58,140,0.3);border-radius:6px;color:var(--pink);font-size:12px;font-weight:700;padding:4px 10px;cursor:pointer;touch-action:manipulation;">✕</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
-}
-
-function sendAllInvites() {
-  if (!state.partyInvited || state.partyInvited.length === 0) return;
-  if (!state.partyRoom) { alert('Room not ready yet.'); return; }
-  var d = getInviteDetails();
-  var smsBody = 'Join my Beat Master game! Room code: ' + d.code + ' — ' + d.url;
-  var unsent = state.partyInvited.filter(function(p){ return !p.sent; });
-  if (unsent.length === 0) { alert('All invites already sent!'); return; }
-  // Send to first unsent person - user taps back and sends next
-  var person = unsent[0];
-  person.sent = true;
-  renderInvitePeopleList();
-  // Open SMS
-  var smsUrl = 'sms:' + person.contact + '?body=' + encodeURIComponent(smsBody);
-  window.location.href = smsUrl;
-  // After returning, if more unsent, remind user
-  setTimeout(function() {
-    var remaining = state.partyInvited.filter(function(p){ return !p.sent; });
-    if (remaining.length > 0) {
-      var btn = document.getElementById('send-all-btn');
-      if (btn) btn.textContent = '📤 Send Next Invite (' + remaining.length + ' left)';
-    } else {
-      var btn = document.getElementById('send-all-btn');
-      if (btn) { btn.textContent = '✓ All Invites Sent!'; btn.style.background = 'var(--teal)'; btn.style.color = '#000'; }
-    }
-  }, 1000);
-}
-
-function sendManualInvite() {
-  addInvitePerson();
-}
-
-function getInviteDetails() {
-  var code = state.partyRoom ? state.partyRoom.code : '';
-  var base = window.location.href.split('?')[0];
-  var url = base + '?join=' + code;
-  var text = 'Join my Beat Master game! Room code: ' + code + '\nTap to join: ' + url;
-  return { code: code, url: url, text: text };
-}
-
-function sendManualInvite() {
-  var inp = document.getElementById('invite-contact');
-  var val = inp ? inp.value.trim() : '';
-  if (!val) { alert('Please enter a phone number.'); return; }
-  if (!state.partyRoom) { alert('No room created yet.'); return; }
-  var d = getInviteDetails();
-  var smsBody = 'Join my Beat Master game! Room code: ' + d.code + ' — ' + d.url;
-  if (!state.partyInvited) state.partyInvited = [];
-  state.partyInvited.push({ name: val, contact: val });
-  if (inp) inp.value = '';
-  renderInvitedList();
-  window.open('sms:' + val + '?body=' + encodeURIComponent(smsBody));
-}
-
 function shareInviteLink() {
   if (!state.partyRoom) return;
-  var details = getInviteDetails();
-  var url = details.url;
-  var code = details.code;
-  var text = 'Join my Beat Master game! Room code: ' + code + '\nTap to join: ' + url;
+  const code = state.partyRoom.code;
+  const base = window.location.href.split('?')[0];
+  const url = `${base}?join=${code}`;
+  const text = `Join my Beat Master game! Room code: ${code}
+${url}`;
+
   if (navigator.share) {
-    navigator.share({ title: 'Join my Beat Master Game!', text: text, url: url })
-      .catch(function(e) { if (e.name !== 'AbortError') prompt('Copy invite link:', url); });
+    navigator.share({ title: 'Beat Master — Join My Game', text, url }).catch(() => {});
   } else {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(url)
-        .then(function() { alert('Invite link copied!\n\n' + url); })
-        .catch(function() { prompt('Copy invite link:', url); });
-    } else {
-      prompt('Copy invite link:', url);
-    }
+    navigator.clipboard?.writeText(url).then(() => alert('Invite link copied to clipboard!\n\n' + url)).catch(() => prompt('Copy this invite link:', url));
   }
 }
-
 
 function sendInvite() {
   const inp = document.getElementById('invite-contact');
@@ -2339,16 +2213,19 @@ function renderPartyGameArea() {
 
 // ── CHECK FOR JOIN CODE IN URL ──
 function checkUrlJoinCode() {
-  // Now handled inside initAuth() after session is confirmed
-  const code = sessionStorage.getItem('pendingJoinCode')
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('join');
   if (code) {
-    const el = document.getElementById('join-code-input')
-    if (el) el.value = code
+    // If already logged in, go straight to join screen
+    const el = document.getElementById('join-code-input');
+    if (el) el.value = code.toUpperCase();
+    goto('join');
   }
 }
 
 // Boot auth on load
 initAuth();
+checkUrlJoinCode();
 </script>
 
 
@@ -2376,51 +2253,27 @@ initAuth();
 <div class="screen hidden" id="screen-party-setup">
   <div class="page-header">
     <div class="back-btn" onclick="goto('genreselect')">←</div>
-    <div><div class="page-title">Invite Players</div><div class="page-sub">Add people to your game</div></div>
+    <div><div class="page-title">Invite Players</div><div class="page-sub">Add people, then go to waiting room</div></div>
   </div>
-  <div class="page-body" style="display:flex;flex-direction:column;gap:14px;padding-bottom:24px;">
-
-    <!-- Room code -->
+  <div class="page-body" style="display:flex;flex-direction:column;gap:14px;">
     <div style="text-align:center;">
-      <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Room Code</div>
+      <div style="font-size:11px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Your Room Code</div>
       <div class="room-code-display" id="party-room-code">...</div>
+      <div style="font-size:11px;color:var(--muted);margin-top:4px;">Players enter this code to join</div>
     </div>
-
-    <!-- Primary: Share via iMessage/WhatsApp (opens contacts natively) -->
-    <div style="background:var(--dark3);border:1px solid var(--border);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;">
-      <div style="font-size:13px;font-weight:700;">📱 Send via iMessage or WhatsApp</div>
-      <div style="font-size:12px;color:var(--muted);line-height:1.6;">Tap below — your phone opens iMessage or WhatsApp where you can pick contacts from your address book.</div>
-      <button onclick="shareInviteLink()" style="background:var(--neon);color:#000;border:none;border-radius:12px;padding:16px;font-size:16px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">
-        📤 Share Invite Link
-      </button>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button id="contact-picker-btn" style="background:var(--neon);color:#000;border:none;border-radius:14px;padding:16px;font-size:15px;font-weight:800;cursor:pointer;touch-action:manipulation;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;">📱 Pick from Contacts</button>
+      <button id="share-invite-btn" style="background:transparent;color:var(--text);border:1px solid var(--border);border-radius:14px;padding:14px;font-size:14px;font-weight:700;cursor:pointer;touch-action:manipulation;width:100%;display:flex;align-items:center;justify-content:center;gap:10px;">📤 Share Invite Link</button>
     </div>
-
-    <!-- Secondary: Type number directly -->
-    <div style="background:var(--dark3);border:1px solid var(--border);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:10px;">
-      <div style="font-size:13px;font-weight:700;">⌨️ Or type a number directly</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        <input id="invite-name" type="text" placeholder="Name (optional)" autocomplete="off"
-          style="background:var(--dark);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;font-family:inherit;width:100%;box-sizing:border-box;">
-        <div style="display:flex;gap:8px;">
-          <input id="invite-phone" type="tel" placeholder="Phone number" autocomplete="off"
-            style="flex:1;background:var(--dark);border:1px solid var(--border);border-radius:10px;padding:12px 14px;color:var(--text);font-size:15px;outline:none;font-family:inherit;">
-          <button onclick="addInvitePerson()" style="background:var(--purple);color:#fff;border:none;border-radius:10px;padding:12px 20px;font-size:15px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;flex-shrink:0;">+ Add</button>
-        </div>
-      </div>
-      <div id="invite-people-list" style="display:none;flex-direction:column;gap:6px;"></div>
-      <button id="send-all-btn" onclick="sendAllInvites()" style="display:none;background:var(--teal);color:#000;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">
-        📤 Send SMS to All
-      </button>
+    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;">Or type a number</div>
+    <div class="invite-row">
+      <input class="invite-input" id="invite-contact" type="tel" placeholder="Mobile number..." style="font-size:16px;">
+      <button id="manual-invite-btn" class="invite-send-btn" style="touch-action:manipulation;">Send</button>
     </div>
-
-    <!-- Players in room -->
-    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;">Players in Room (<span id="party-joined-count">1</span>/6)</div>
+    <div id="invited-list"></div>
+    <div style="font-size:11px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">Players in Room (<span id="party-joined-count">1</span>/6)</div>
     <div id="party-setup-players"></div>
-
-    <!-- Go to waiting room -->
-    <button onclick="goToWaiting()" style="background:var(--neon);color:#000;border:none;border-radius:14px;padding:18px;font-size:17px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">
-      Go to Waiting Room →
-    </button>
+    <button id="goto-waiting-btn" style="background:var(--neon);color:#000;border:none;border-radius:14px;padding:18px;font-size:17px;font-weight:900;cursor:pointer;touch-action:manipulation;width:100%;margin-top:4px;">Go to Waiting Room →</button>
   </div>
 </div>
 

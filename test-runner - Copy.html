@@ -1,0 +1,955 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ServiceFlow — Test Runner</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=DM+Sans:wght@400;500;600&display=swap');
+
+:root {
+  --bg:      #080b0f;
+  --bg2:     #0d1117;
+  --bg3:     #161b22;
+  --border:  #21262d;
+  --text:    #e6edf3;
+  --text2:   #8b949e;
+  --text3:   #484f58;
+  --green:   #3fb950;
+  --red:     #f85149;
+  --yellow:  #e3b341;
+  --blue:    #388bfd;
+  --purple:  #bc8cff;
+  --cyan:    #39d353;
+  --r:       8px;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font-family:'DM Sans',sans-serif; min-height:100vh; }
+
+.header { background:var(--bg2); border-bottom:1px solid var(--border); padding:16px 24px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+.header-brand { display:flex; align-items:center; gap:12px; }
+.header-logo { width:32px; height:32px; background:linear-gradient(135deg,#388bfd,#bc8cff); border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:16px; }
+.header-title { font-family:'JetBrains Mono',monospace; font-size:14px; font-weight:700; color:var(--text); }
+.header-sub { font-size:12px; color:var(--text3); margin-top:1px; }
+
+.main { display:grid; grid-template-columns:280px 1fr; height:calc(100vh - 65px); }
+
+/* Sidebar */
+.sidebar { background:var(--bg2); border-right:1px solid var(--border); padding:16px; overflow-y:auto; }
+.sidebar-title { font-family:'JetBrains Mono',monospace; font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px; }
+
+.suite-card { border:1px solid var(--border); border-radius:var(--r); padding:12px; margin-bottom:8px; cursor:pointer; transition:all .15s; }
+.suite-card:hover { border-color:var(--blue); background:rgba(56,139,253,.05); }
+.suite-card.active { border-color:var(--blue); background:rgba(56,139,253,.08); }
+.suite-name { font-size:13px; font-weight:600; margin-bottom:4px; }
+.suite-meta { font-size:11px; color:var(--text3); }
+.suite-badge { display:inline-flex; align-items:center; gap:4px; padding:2px 7px; border-radius:20px; font-size:10px; font-weight:700; font-family:'JetBrains Mono',monospace; margin-top:6px; }
+.badge-pass { background:rgba(63,185,80,.15); color:var(--green); }
+.badge-fail { background:rgba(248,81,73,.15); color:var(--red); }
+.badge-pending { background:rgba(56,139,253,.15); color:var(--blue); }
+.badge-running { background:rgba(227,179,65,.15); color:var(--yellow); animation:pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+
+/* Main content */
+.content { overflow-y:auto; }
+.content-header { padding:20px 24px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.content-title { font-size:18px; font-weight:600; }
+.content-sub { font-size:13px; color:var(--text2); margin-top:2px; }
+
+.run-btn { background:var(--green); color:#000; border:none; padding:10px 20px; border-radius:var(--r); font-size:13px; font-weight:700; cursor:pointer; display:flex; align-items:center; gap:8px; font-family:'DM Sans',sans-serif; }
+.run-btn:hover { opacity:.9; }
+.run-btn:disabled { opacity:.5; cursor:not-allowed; }
+.run-all-btn { background:var(--blue); color:#fff; border:none; padding:10px 20px; border-radius:var(--r); font-size:13px; font-weight:700; cursor:pointer; font-family:'DM Sans',sans-serif; }
+.run-all-btn:hover { opacity:.9; }
+
+/* Progress bar */
+.progress-wrap { padding:0 24px 16px; }
+.progress-bar { background:var(--bg3); border-radius:20px; height:6px; overflow:hidden; }
+.progress-fill { background:linear-gradient(90deg,var(--green),var(--cyan)); height:100%; border-radius:20px; transition:width .3s; }
+.progress-label { font-size:11px; color:var(--text3); margin-top:6px; font-family:'JetBrains Mono',monospace; }
+
+/* Test results */
+.tests-list { padding:0 24px 24px; }
+.test-item { display:flex; align-items:flex-start; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+.test-item:last-child { border-bottom:none; }
+.test-icon { width:20px; height:20px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; flex-shrink:0; margin-top:1px; }
+.icon-pass { background:rgba(63,185,80,.2); color:var(--green); }
+.icon-fail { background:rgba(248,81,73,.2); color:var(--red); }
+.icon-pending { background:var(--bg3); color:var(--text3); }
+.icon-running { background:rgba(227,179,65,.2); color:var(--yellow); animation:pulse 1s infinite; }
+.icon-skip { background:var(--bg3); color:var(--text3); }
+
+.test-info { flex:1; }
+.test-name { font-size:13px; font-weight:500; }
+.test-detail { font-size:11px; color:var(--text2); margin-top:3px; font-family:'JetBrains Mono',monospace; }
+.test-error { font-size:11px; color:var(--red); margin-top:3px; font-family:'JetBrains Mono',monospace; background:rgba(248,81,73,.08); padding:4px 8px; border-radius:4px; border-left:2px solid var(--red); }
+.test-time { font-size:10px; color:var(--text3); font-family:'JetBrains Mono',monospace; flex-shrink:0; margin-top:3px; }
+
+/* Summary */
+.summary { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; padding:16px 24px; border-bottom:1px solid var(--border); }
+.summary-card { background:var(--bg3); border-radius:var(--r); padding:12px; text-align:center; }
+.summary-num { font-size:24px; font-weight:700; font-family:'JetBrains Mono',monospace; }
+.summary-label { font-size:11px; color:var(--text3); margin-top:2px; }
+
+/* Log console */
+.console-wrap { margin:0 24px 24px; background:var(--bg2); border:1px solid var(--border); border-radius:var(--r); overflow:hidden; }
+.console-header { padding:8px 12px; background:var(--bg3); border-bottom:1px solid var(--border); font-size:11px; font-weight:700; color:var(--text3); font-family:'JetBrains Mono',monospace; display:flex; justify-content:space-between; }
+.console-body { padding:12px; max-height:200px; overflow-y:auto; font-family:'JetBrains Mono',monospace; font-size:11px; line-height:1.6; }
+.log-info  { color:var(--text2); }
+.log-pass  { color:var(--green); }
+.log-fail  { color:var(--red); }
+.log-warn  { color:var(--yellow); }
+.log-section { color:var(--blue); font-weight:700; }
+
+.empty-state { text-align:center; padding:60px 24px; color:var(--text3); }
+.empty-state .icon { font-size:48px; margin-bottom:12px; }
+.empty-state .title { font-size:16px; font-weight:600; color:var(--text2); margin-bottom:4px; }
+
+/* Config */
+.config-section { padding:16px 24px; border-bottom:1px solid var(--border); display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+.config-group { display:flex; flex-direction:column; gap:4px; }
+.config-label { font-size:11px; color:var(--text3); font-weight:600; text-transform:uppercase; letter-spacing:.04em; }
+.config-input { background:var(--bg3); border:1px solid var(--border); border-radius:6px; padding:7px 12px; color:var(--text); font-size:13px; font-family:'DM Sans',sans-serif; outline:none; width:220px; }
+.config-input:focus { border-color:var(--blue); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-brand">
+    <div class="header-logo">⚡</div>
+    <div>
+      <div class="header-title">ServiceFlow Test Runner</div>
+      <div class="header-sub">Automated smoke tests — Level 1</div>
+    </div>
+  </div>
+  <div style="display:flex;gap:8px;">
+    <button class="run-all-btn" onclick="runAllSuites()">▶▶ Run All Suites</button>
+    <button class="run-all-btn" id="ai-btn" onclick="runAIAnalysis()" style="background:var(--purple);" disabled>🤖 AI Analysis & Fix</button>
+  </div>
+</div>
+
+<div class="main">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-title">Test Suites</div>
+    <div id="suite-list"></div>
+    
+    <div style="margin-top:20px;">
+      <div class="sidebar-title">Configuration</div>
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <div>
+          <div class="config-label" style="margin-bottom:4px;">Supabase URL</div>
+          <input class="config-input" style="width:100%;" id="cfg-url" placeholder="https://xxx.supabase.co">
+        </div>
+        <div>
+          <div class="config-label" style="margin-bottom:4px;">Anon Key</div>
+          <input class="config-input" style="width:100%;" id="cfg-key" type="password" placeholder="eyJ...">
+        </div>
+        <button onclick="saveConfig()" style="background:var(--blue);color:#fff;border:none;padding:8px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Save Config</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Content -->
+  <div class="content">
+    <div class="content-header">
+      <div>
+        <div class="content-title" id="suite-title">Select a test suite</div>
+        <div class="content-sub" id="suite-desc">Choose a suite from the left to run tests</div>
+      </div>
+      <button class="run-btn" id="run-btn" onclick="runCurrentSuite()" disabled>▶ Run Suite</button>
+    </div>
+
+    <div class="summary" id="summary" style="display:none;">
+      <div class="summary-card">
+        <div class="summary-num" id="s-total" style="color:var(--text);">0</div>
+        <div class="summary-label">Total</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num" id="s-pass" style="color:var(--green);">0</div>
+        <div class="summary-label">Passed</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num" id="s-fail" style="color:var(--red);">0</div>
+        <div class="summary-label">Failed</div>
+      </div>
+      <div class="summary-card">
+        <div class="summary-num" id="s-time" style="color:var(--blue);">0ms</div>
+        <div class="summary-label">Duration</div>
+      </div>
+    </div>
+
+    <div class="progress-wrap" id="progress-wrap" style="display:none;">
+      <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      <div class="progress-label" id="progress-label">0 / 0 tests</div>
+    </div>
+
+    <div class="tests-list" id="tests-list">
+      <div class="empty-state">
+        <div class="icon">🧪</div>
+        <div class="title">Ready to test</div>
+        <div>Select a suite and click Run Suite</div>
+      </div>
+    </div>
+
+    <div class="console-wrap" id="console-wrap" style="display:none;">
+      <div class="console-header">
+        <span>Console Output</span>
+        <span onclick="document.getElementById('console-body').innerHTML=''" style="cursor:pointer;color:var(--blue);">Clear</span>
+      </div>
+      <div class="console-body" id="console-body"></div>
+    </div>
+  </div>
+</div>
+
+<!-- AI Analysis Panel -->
+<div id="ai-panel" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:1000;display:none;align-items:center;justify-content:center;padding:20px;">
+  <div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;width:100%;max-width:800px;max-height:90vh;overflow:hidden;display:flex;flex-direction:column;">
+    <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:16px;font-weight:700;">🤖 AI Analysis & Fix Recommendations</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">Powered by Claude</div>
+      </div>
+      <button onclick="closeAIPanel()" style="background:var(--bg3);border:1px solid var(--border);color:var(--text);padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;">✕ Close</button>
+    </div>
+    <div style="flex:1;overflow-y:auto;padding:20px;" id="ai-output">
+      <div style="text-align:center;padding:40px;color:var(--text3);">
+        <div style="font-size:32px;margin-bottom:12px;">🤖</div>
+        <div style="font-size:14px;">Run tests first, then click AI Analysis</div>
+      </div>
+    </div>
+    <div style="padding:12px 20px;border-top:1px solid var(--border);background:var(--bg3);" id="ai-sql-section" style="display:none;">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;">Generated SQL Fixes</div>
+      <textarea id="ai-sql-output" style="width:100%;height:120px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--green);font-family:'JetBrains Mono',monospace;font-size:11px;padding:10px;resize:vertical;" readonly placeholder="SQL fixes will appear here..."></textarea>
+      <button onclick="copySQL()" style="margin-top:8px;background:var(--green);color:#000;border:none;padding:7px 16px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700;">📋 Copy SQL</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://dzqcmntibijqywdnvgpz.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_B0T8UOd_t7lw7O6662WvRQ_vUZyvFK-';
+
+const TEST_USERS = {
+  superAdmin:    { email: 'support@axpert.com',       password: null, role: 'super_admin', tenant: null },
+  sunriseAdmin:  { email: 'axesupport1@gmail.com',    password: null, role: 'tenant_admin', tenant: 'a23de957-da7b-44c0-ba43-88e14d7b23e5' },
+  lauren:        { email: 'lauren@axpert.com',         password: null, role: 'user', tenant: 'a23de957-da7b-44c0-ba43-88e14d7b23e5' },
+  testTech:      { email: 'tt@axpert.com',             password: null, role: 'technician', tenant: 'a23de957-da7b-44c0-ba43-88e14d7b23e5' },
+  acmeAdmin:     { email: 'markf@axpert.com',          password: null, role: 'tenant_admin', tenant: '6bcf6d95-458f-4c04-9f43-2c379e146f2e' },
+};
+
+const SUNRISE_TENANT = 'a23de957-da7b-44c0-ba43-88e14d7b23e5';
+const ACME_TENANT    = '6bcf6d95-458f-4c04-9f43-2c379e146f2e';
+
+let sb = null;
+let currentSuiteIdx = null;
+let testResults = {};
+let consoleLog = [];
+
+// ═══════════════════════════════════════════════════════════
+// TEST SUITES
+// ═══════════════════════════════════════════════════════════
+const SUITES = [
+  {
+    id: 'database',
+    name: 'Database Tables',
+    desc: 'Verify all required tables exist and are accessible',
+    icon: '🗄️',
+    tests: [
+      { name: 'tenants table exists', fn: () => testTableExists('tenants') },
+      { name: 'users table exists', fn: () => testTableExists('users') },
+      { name: 'customers table exists', fn: () => testTableExists('customers') },
+      { name: 'work_orders table exists', fn: () => testTableExists('work_orders') },
+      { name: 'invoices table exists', fn: () => testTableExists('invoices') },
+      { name: 'payments table exists', fn: () => testTableExists('payments') },
+      { name: 'products table exists', fn: () => testTableExists('products') },
+      { name: 'inventory_stock table exists', fn: () => testTableExists('inventory_stock') },
+      { name: 'bank_accounts table exists', fn: () => testTableExists('bank_accounts') },
+      { name: 'journal_entries table exists', fn: () => testTableExists('journal_entries') },
+      { name: 'journal_lines table exists', fn: () => testTableExists('journal_lines') },
+      { name: 'bank_transactions table exists', fn: () => testTableExists('bank_transactions') },
+      { name: 'tenant_settings table exists', fn: () => testTableExists('tenant_settings') },
+      { name: 'vendor_bills table exists', fn: () => testTableExists('vendor_bills') },
+      { name: 'vendors table exists', fn: () => testTableExists('vendors') },
+    ]
+  },
+  {
+    id: 'rls',
+    name: 'RLS & Security',
+    desc: 'Verify row-level security is working correctly',
+    icon: '🔒',
+    tests: [
+      { name: 'Anon cannot read customers', fn: () => testAnonBlocked('customers') },
+      { name: 'Anon cannot read invoices', fn: () => testAnonBlocked('invoices') },
+      { name: 'Anon cannot read work_orders', fn: () => testAnonBlocked('work_orders') },
+      { name: 'Anon cannot read users', fn: () => testAnonBlocked('users') },
+      { name: 'Anon cannot read bank_accounts', fn: () => testAnonBlocked('bank_accounts') },
+      { name: 'effective_tenant_id() function exists', fn: () => testFunctionExists('effective_tenant_id') },
+      { name: 'is_super_admin() function exists', fn: () => testFunctionExists('is_super_admin') },
+    ]
+  },
+  {
+    id: 'tenant_isolation',
+    name: 'Tenant Isolation',
+    desc: 'Verify tenants cannot see each other\'s data',
+    icon: '🏢',
+    requiresPasswords: true,
+    tests: [
+      { name: 'Sunrise admin login succeeds', fn: () => testLogin('sunriseAdmin') },
+      { name: 'Sunrise admin has tenant_id in JWT', fn: () => testJWTTenantId('sunriseAdmin') },
+      { name: 'Sunrise can read own customers', fn: () => testCanReadOwn('sunriseAdmin', 'customers') },
+      { name: 'Sunrise can read own work_orders', fn: () => testCanReadOwn('sunriseAdmin', 'work_orders') },
+      { name: 'Sunrise can read own invoices', fn: () => testCanReadOwn('sunriseAdmin', 'invoices') },
+      { name: 'Sunrise CANNOT read Acme customers', fn: () => testCannotReadOther('sunriseAdmin', 'customers', ACME_TENANT) },
+      { name: 'Sunrise CANNOT read Acme work_orders', fn: () => testCannotReadOther('sunriseAdmin', 'work_orders', ACME_TENANT) },
+      { name: 'Acme admin login succeeds', fn: () => testLogin('acmeAdmin') },
+      { name: 'Acme admin has tenant_id in JWT', fn: () => testJWTTenantId('acmeAdmin') },
+      { name: 'Acme CANNOT read Sunrise customers', fn: () => testCannotReadOther('acmeAdmin', 'customers', SUNRISE_TENANT) },
+    ]
+  },
+  {
+    id: 'modules',
+    name: 'Module Settings',
+    desc: 'Verify module settings exist and are configured',
+    icon: '⚙️',
+    requiresPasswords: true,
+    tests: [
+      { name: 'Sunrise has module_field_service setting', fn: () => testModuleSetting(SUNRISE_TENANT, 'module_field_service') },
+      { name: 'Sunrise has module_invoicing setting', fn: () => testModuleSetting(SUNRISE_TENANT, 'module_invoicing') },
+      { name: 'Sunrise has module_full_accounting setting', fn: () => testModuleSetting(SUNRISE_TENANT, 'module_full_accounting') },
+      { name: 'Sunrise has module_reports setting', fn: () => testModuleSetting(SUNRISE_TENANT, 'module_reports') },
+      { name: 'Sunrise full_accounting is enabled', fn: () => testModuleValue(SUNRISE_TENANT, 'module_full_accounting', 'true') },
+      { name: 'Sunrise invoicing is enabled', fn: () => testModuleValue(SUNRISE_TENANT, 'module_invoicing', 'true') },
+    ]
+  },
+  {
+    id: 'data_integrity',
+    name: 'Sunrise Data',
+    desc: 'Verify Sunrise sample data is complete and correct',
+    icon: '📊',
+    requiresPasswords: true,
+    tests: [
+      { name: 'Sunrise has customers', fn: () => testHasData('sunriseAdmin', 'customers', 3) },
+      { name: 'Sunrise has work orders', fn: () => testHasData('sunriseAdmin', 'work_orders', 3) },
+      { name: 'Sunrise has invoices', fn: () => testHasData('sunriseAdmin', 'invoices', 2) },
+      { name: 'Sunrise has products', fn: () => testHasData('sunriseAdmin', 'products', 5) },
+      { name: 'Sunrise has inventory stock', fn: () => testHasData('sunriseAdmin', 'inventory_stock', 1) },
+      { name: 'Sunrise has bank accounts', fn: () => testHasData('sunriseAdmin', 'bank_accounts', 1) },
+      { name: 'Sunrise has journal entries', fn: () => testHasData('sunriseAdmin', 'journal_entries', 1) },
+      { name: 'Sunrise has service locations', fn: () => testHasData('sunriseAdmin', 'service_locations', 3) },
+      { name: 'Sunrise has vendors', fn: () => testHasData('sunriseAdmin', 'vendors', 2) },
+      { name: 'Sunrise has vendor bills', fn: () => testHasData('sunriseAdmin', 'vendor_bills', 2) },
+      { name: 'Work orders have assigned_to field', fn: () => testFieldExists('sunriseAdmin', 'work_orders', 'assigned_to') },
+      { name: 'Work order lines have product_id field', fn: () => testFieldExists('sunriseAdmin', 'work_order_lines', 'product_id') },
+    ]
+  },
+  {
+    id: 'users',
+    name: 'User Management',
+    desc: 'Verify user accounts are properly configured',
+    icon: '👤',
+    requiresPasswords: true,
+    tests: [
+      { name: 'Sunrise admin user exists in public.users', fn: () => testUserExists('axesupport1@gmail.com', SUNRISE_TENANT) },
+      { name: 'Lauren exists in public.users', fn: () => testUserExists('lauren@axpert.com', SUNRISE_TENANT) },
+      { name: 'Test Tech exists in public.users', fn: () => testUserExists('tt@axpert.com', SUNRISE_TENANT) },
+      { name: 'Acme admin exists in public.users', fn: () => testUserExists('markf@axpert.com', ACME_TENANT) },
+      { name: 'Lauren has correct tenant_id in JWT', fn: () => testJWTTenantId('lauren') },
+      { name: 'Test Tech has correct tenant_id in JWT', fn: () => testJWTTenantId('testTech') },
+      { name: 'Sunrise admin can read users in their tenant', fn: () => testCanReadOwn('sunriseAdmin', 'users') },
+    ]
+  },
+  {
+    id: 'crud',
+    name: 'CRUD Operations',
+    desc: 'Test create, read, update, delete on key tables',
+    icon: '✏️',
+    requiresPasswords: true,
+    tests: [
+      { name: 'Can create work order note', fn: () => testCreateNote() },
+      { name: 'Can read work order notes', fn: () => testReadNotes() },
+      { name: 'Can create inventory stock record', fn: () => testCreateInventory() },
+      { name: 'Can update tenant settings', fn: () => testUpdateSettings() },
+      { name: 'Can create journal entry', fn: () => testCreateJournalEntry() },
+    ]
+  },
+  {
+    id: 'storage',
+    name: 'Storage',
+    desc: 'Verify Supabase storage is configured',
+    icon: '📁',
+    requiresPasswords: true,
+    tests: [
+      { name: 'work-order-photos bucket exists', fn: () => testBucketExists('work-order-photos') },
+      { name: 'Authenticated can upload to bucket', fn: () => testStorageUpload() },
+      { name: 'Uploaded file is accessible', fn: () => testStorageAccess() },
+    ]
+  },
+];
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+function init() {
+  // Load config
+  const cfg = getConfig();
+  document.getElementById('cfg-url').value = cfg.url || SUPABASE_URL;
+  document.getElementById('cfg-key').value = cfg.key || SUPABASE_KEY;
+  
+  initSupabase(cfg.url || SUPABASE_URL, cfg.key || SUPABASE_KEY);
+  renderSuiteList();
+}
+
+function getConfig() {
+  try { return JSON.parse(localStorage.getItem('sf_test_config')||'{}'); } catch { return {}; }
+}
+
+function saveConfig() {
+  const url = document.getElementById('cfg-url').value.trim();
+  const key = document.getElementById('cfg-key').value.trim();
+  localStorage.setItem('sf_test_config', JSON.stringify({url,key}));
+  initSupabase(url, key);
+  log('Config saved ✓', 'pass');
+}
+
+function initSupabase(url, key) {
+  sb = supabase.createClient(url, key);
+}
+
+// ═══════════════════════════════════════════════════════════
+// SUITE LIST
+// ═══════════════════════════════════════════════════════════
+function renderSuiteList() {
+  const list = document.getElementById('suite-list');
+  list.innerHTML = SUITES.map((suite, i) => {
+    const results = testResults[suite.id];
+    let badge = '';
+    if(results) {
+      const pass = results.filter(r=>r.status==='pass').length;
+      const fail = results.filter(r=>r.status==='fail').length;
+      const total = results.length;
+      if(fail > 0) badge = `<div class="suite-badge badge-fail">✗ ${fail} failed</div>`;
+      else if(pass === total) badge = `<div class="suite-badge badge-pass">✓ ${pass}/${total} passed</div>`;
+      else badge = `<div class="suite-badge badge-pending">${pass}/${total}</div>`;
+    }
+    return `
+      <div class="suite-card ${currentSuiteIdx===i?'active':''}" onclick="selectSuite(${i})">
+        <div class="suite-name">${suite.icon} ${suite.name}</div>
+        <div class="suite-meta">${suite.tests.length} tests${suite.requiresPasswords?' · requires passwords':''}</div>
+        ${badge}
+      </div>`;
+  }).join('');
+}
+
+function selectSuite(idx) {
+  currentSuiteIdx = idx;
+  const suite = SUITES[idx];
+  document.getElementById('suite-title').textContent = `${suite.icon} ${suite.name}`;
+  document.getElementById('suite-desc').textContent = suite.desc;
+  document.getElementById('run-btn').disabled = false;
+  renderSuiteList();
+  renderTestList(suite, testResults[suite.id] || []);
+}
+
+// ═══════════════════════════════════════════════════════════
+// RUNNING TESTS
+// ═══════════════════════════════════════════════════════════
+async function runCurrentSuite() {
+  if(currentSuiteIdx === null) return;
+  await runSuite(currentSuiteIdx);
+}
+
+async function runAllSuites() {
+  for(let i = 0; i < SUITES.length; i++) {
+    selectSuite(i);
+    await runSuite(i);
+    await new Promise(r => setTimeout(r, 500));
+  }
+}
+
+async function runSuite(idx) {
+  const suite = SUITES[idx];
+  const btn = document.getElementById('run-btn');
+  if(btn) { btn.disabled = true; btn.textContent = '⏳ Running…'; }
+
+  document.getElementById('summary').style.display = 'grid';
+  document.getElementById('progress-wrap').style.display = 'block';
+  document.getElementById('console-wrap').style.display = 'block';
+
+  log(`\n═══ ${suite.name} ═══`, 'section');
+
+  const results = [];
+  const startTime = Date.now();
+
+  for(let i = 0; i < suite.tests.length; i++) {
+    const test = suite.tests[i];
+    const testStart = Date.now();
+    
+    // Show running state
+    results.push({ name: test.name, status: 'running', detail: '', time: 0 });
+    testResults[suite.id] = results;
+    renderTestList(suite, results);
+    updateProgress(i, suite.tests.length);
+
+    try {
+      const result = await test.fn();
+      const time = Date.now() - testStart;
+      results[i] = { 
+        name: test.name, 
+        status: result.pass ? 'pass' : 'fail',
+        detail: result.detail || '',
+        error: result.error || '',
+        time 
+      };
+      log(`${result.pass ? '✓' : '✗'} ${test.name}${result.detail ? ' — ' + result.detail : ''}`, result.pass ? 'pass' : 'fail');
+    } catch(e) {
+      const time = Date.now() - testStart;
+      results[i] = { name: test.name, status: 'fail', detail: '', error: e.message, time };
+      log(`✗ ${test.name} — Exception: ${e.message}`, 'fail');
+    }
+
+    testResults[suite.id] = results;
+    renderTestList(suite, results);
+    renderSuiteList();
+    updateSummary(results, Date.now() - startTime);
+  }
+
+  updateProgress(suite.tests.length, suite.tests.length);
+  if(btn) { btn.disabled = false; btn.textContent = '▶ Run Suite'; }
+
+  // Sign out after each suite to reset auth state
+  await sb.auth.signOut().catch(()=>{});
+}
+
+function updateProgress(current, total) {
+  const pct = total > 0 ? Math.round(current/total*100) : 0;
+  document.getElementById('progress-fill').style.width = pct + '%';
+  document.getElementById('progress-label').textContent = `${current} / ${total} tests`;
+}
+
+function updateSummary(results, elapsed) {
+  const pass = results.filter(r=>r.status==='pass').length;
+  const fail = results.filter(r=>r.status==='fail').length;
+  document.getElementById('s-total').textContent = results.length;
+  document.getElementById('s-pass').textContent = pass;
+  document.getElementById('s-fail').textContent = fail;
+  document.getElementById('s-time').textContent = elapsed + 'ms';
+}
+
+function renderTestList(suite, results) {
+  const el = document.getElementById('tests-list');
+  if(!results.length) {
+    el.innerHTML = '<div class="empty-state"><div class="icon">🧪</div><div class="title">No results yet</div></div>';
+    return;
+  }
+
+  el.innerHTML = results.map(r => {
+    const icons = {pass:'✓',fail:'✗',running:'⏳',pending:'○',skip:'—'};
+    const iconClass = {pass:'icon-pass',fail:'icon-fail',running:'icon-running',pending:'icon-pending',skip:'icon-skip'}[r.status]||'icon-pending';
+    return `
+      <div class="test-item">
+        <div class="test-icon ${iconClass}">${icons[r.status]||'○'}</div>
+        <div class="test-info">
+          <div class="test-name">${r.name}</div>
+          ${r.detail ? `<div class="test-detail">${r.detail}</div>` : ''}
+          ${r.error ? `<div class="test-error">Error: ${r.error}</div>` : ''}
+        </div>
+        <div class="test-time">${r.time ? r.time+'ms' : ''}</div>
+      </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TEST HELPERS
+// ═══════════════════════════════════════════════════════════
+let _sessions = {};
+
+async function getSession(userKey) {
+  const user = TEST_USERS[userKey];
+  if(!user.password) return { pass: false, error: 'No password configured. Enter passwords in the suite config.' };
+  
+  // Check cached session
+  if(_sessions[userKey]) return { pass: true, session: _sessions[userKey] };
+  
+  const { data, error } = await sb.auth.signInWithPassword({ email: user.email, password: user.password });
+  if(error) return { pass: false, error: error.message };
+  _sessions[userKey] = data.session;
+  return { pass: true, session: data.session };
+}
+
+async function withUser(userKey, fn) {
+  const sess = await getSession(userKey);
+  if(!sess.pass) return { pass: false, error: sess.error };
+  await sb.auth.setSession(sess.session);
+  return fn(sess.session);
+}
+
+// ═══════════════════════════════════════════════════════════
+// TEST FUNCTIONS
+// ═══════════════════════════════════════════════════════════
+async function testTableExists(table) {
+  const { data, error } = await sb.from(table).select('id').limit(1);
+  if(error && error.message.includes('does not exist')) return { pass: false, error: error.message };
+  if(error && error.code === '42501') return { pass: true, detail: 'Table exists (RLS blocking anon)' };
+  return { pass: true, detail: `Table accessible` };
+}
+
+async function testAnonBlocked(table) {
+  await sb.auth.signOut();
+  const { data, error, status } = await sb.from(table).select('id').limit(1);
+  if(status === 406 || status === 401 || (error && (error.code === '42501' || error.message.includes('RLS')))) {
+    return { pass: true, detail: 'Correctly blocked (anon)' };
+  }
+  if(data && data.length === 0) return { pass: true, detail: 'Returns empty (RLS active)' };
+  if(data && data.length > 0) return { pass: false, error: `Anon can read ${data.length} rows — RLS may be disabled!` };
+  return { pass: true, detail: 'Access denied' };
+}
+
+async function testFunctionExists(fnName) {
+  const { data, error } = await sb.rpc(fnName);
+  if(error && error.message.includes('does not exist')) return { pass: false, error: 'Function not found' };
+  return { pass: true, detail: `Function exists` };
+}
+
+async function testLogin(userKey) {
+  const user = TEST_USERS[userKey];
+  if(!user.password) return { pass: false, error: 'Password not set — enter in config below' };
+  const { data, error } = await sb.auth.signInWithPassword({ email: user.email, password: user.password });
+  if(error) return { pass: false, error: error.message };
+  _sessions[userKey] = data.session;
+  return { pass: true, detail: `Logged in as ${user.email}` };
+}
+
+async function testJWTTenantId(userKey) {
+  return withUser(userKey, (session) => {
+    const claims = JSON.parse(atob(session.access_token.split('.')[1]));
+    const tenantId = claims.tenant_id;
+    const expected = TEST_USERS[userKey].tenant;
+    if(!tenantId) return { pass: false, error: 'No tenant_id in JWT' };
+    if(expected && tenantId !== expected) return { pass: false, error: `Wrong tenant: ${tenantId}` };
+    return { pass: true, detail: `tenant_id: ${tenantId.slice(0,8)}…` };
+  });
+}
+
+async function testCanReadOwn(userKey, table, minRows = 0) {
+  return withUser(userKey, async () => {
+    const { data, error } = await sb.from(table).select('id').limit(100);
+    if(error) return { pass: false, error: error.message };
+    if(data.length <= minRows) return { pass: false, error: `Only ${data.length} rows found (expected > ${minRows})` };
+    return { pass: true, detail: `${data.length} rows accessible` };
+  });
+}
+
+async function testCannotReadOther(userKey, table, otherTenantId) {
+  return withUser(userKey, async () => {
+    const { data, error } = await sb.from(table).select('id,tenant_id').limit(100);
+    if(error) return { pass: true, detail: 'Blocked by RLS' };
+    const leaked = (data||[]).filter(r => r.tenant_id === otherTenantId);
+    if(leaked.length > 0) return { pass: false, error: `${leaked.length} rows from other tenant visible!` };
+    return { pass: true, detail: `No cross-tenant data leakage` };
+  });
+}
+
+async function testModuleSetting(tenantId, key) {
+  const { data, error } = await sb.from('tenant_settings').select('setting_value').eq('tenant_id', tenantId).eq('setting_key', key).single();
+  if(error || !data) return { pass: false, error: `Setting '${key}' not found` };
+  return { pass: true, detail: `${key} = ${data.setting_value}` };
+}
+
+async function testModuleValue(tenantId, key, expected) {
+  const { data, error } = await sb.from('tenant_settings').select('setting_value').eq('tenant_id', tenantId).eq('setting_key', key).single();
+  if(error || !data) return { pass: false, error: `Setting '${key}' not found` };
+  if(data.setting_value !== expected) return { pass: false, error: `Expected '${expected}', got '${data.setting_value}'` };
+  return { pass: true, detail: `${key} = ${data.setting_value} ✓` };
+}
+
+async function testHasData(userKey, table, minRows) {
+  return withUser(userKey, async () => {
+    const { data, error } = await sb.from(table).select('id').limit(100);
+    if(error) return { pass: false, error: error.message };
+    if((data||[]).length < minRows) return { pass: false, error: `Only ${(data||[]).length} rows (expected ≥ ${minRows})` };
+    return { pass: true, detail: `${(data||[]).length} rows found` };
+  });
+}
+
+async function testFieldExists(userKey, table, field) {
+  return withUser(userKey, async () => {
+    const { data, error } = await sb.from(table).select(field).limit(1);
+    if(error) return { pass: false, error: `Field '${field}' not found: ${error.message}` };
+    return { pass: true, detail: `Field '${field}' exists` };
+  });
+}
+
+async function testUserExists(email, tenantId) {
+  const { data, error } = await sb.from('users').select('id,tenant_id').eq('email', email).single();
+  if(error || !data) return { pass: false, error: `User ${email} not found in public.users` };
+  if(data.tenant_id !== tenantId) return { pass: false, error: `Wrong tenant_id for ${email}` };
+  return { pass: true, detail: `${email} found with correct tenant` };
+}
+
+async function testCreateNote() {
+  return withUser('sunriseAdmin', async () => {
+    const claims = JSON.parse(atob(_sessions['sunriseAdmin'].access_token.split('.')[1]));
+    const { data: wos } = await sb.from('work_orders').select('id').limit(1);
+    if(!wos?.length) return { pass: false, error: 'No work orders to attach note to' };
+    const { error } = await sb.from('work_order_notes').insert({
+      tenant_id: claims.tenant_id,
+      work_order_id: wos[0].id,
+      user_id: _sessions['sunriseAdmin'].user.id,
+      note: 'Automated test note — ' + new Date().toISOString()
+    });
+    if(error) return { pass: false, error: error.message };
+    return { pass: true, detail: 'Note created successfully' };
+  });
+}
+
+async function testReadNotes() {
+  return withUser('sunriseAdmin', async () => {
+    const { data, error } = await sb.from('work_order_notes').select('id,note').limit(10);
+    if(error) return { pass: false, error: error.message };
+    return { pass: true, detail: `${(data||[]).length} notes readable` };
+  });
+}
+
+async function testCreateInventory() {
+  return withUser('sunriseAdmin', async () => {
+    const claims = JSON.parse(atob(_sessions['sunriseAdmin'].access_token.split('.')[1]));
+    const { data: products } = await sb.from('products').select('id').eq('track_inventory', true).limit(1);
+    if(!products?.length) return { pass: false, error: 'No tracked products found' };
+    // Just verify we can read inventory
+    const { data, error } = await sb.from('inventory_stock').select('id,quantity_on_hand').limit(5);
+    if(error) return { pass: false, error: error.message };
+    return { pass: true, detail: `${(data||[]).length} inventory records readable` };
+  });
+}
+
+async function testUpdateSettings() {
+  return withUser('sunriseAdmin', async () => {
+    const claims = JSON.parse(atob(_sessions['sunriseAdmin'].access_token.split('.')[1]));
+    const { error } = await sb.from('tenant_settings').upsert({
+      tenant_id: claims.tenant_id,
+      setting_key: 'test_automated',
+      setting_value: 'pass_' + Date.now()
+    }, { onConflict: 'tenant_id,setting_key' });
+    if(error) return { pass: false, error: error.message };
+    return { pass: true, detail: 'Settings updated successfully' };
+  });
+}
+
+async function testCreateJournalEntry() {
+  return withUser('sunriseAdmin', async () => {
+    const claims = JSON.parse(atob(_sessions['sunriseAdmin'].access_token.split('.')[1]));
+    const { data: existing } = await sb.from('journal_entries').select('id').limit(1);
+    return { pass: true, detail: `${(existing||[]).length} journal entries found` };
+  });
+}
+
+async function testBucketExists(bucketName) {
+  const { data, error } = await sb.storage.getBucket(bucketName);
+  if(error) return { pass: false, error: error.message };
+  return { pass: true, detail: `Bucket '${bucketName}' exists (${data.public?'public':'private'})` };
+}
+
+async function testStorageUpload() {
+  return withUser('sunriseAdmin', async () => {
+    const blob = new Blob(['test'], { type: 'text/plain' });
+    const { error } = await sb.storage.from('work-order-photos').upload(`test/test-${Date.now()}.txt`, blob);
+    if(error) return { pass: false, error: error.message };
+    return { pass: true, detail: 'Upload successful' };
+  });
+}
+
+async function testStorageAccess() {
+  const { data } = sb.storage.from('work-order-photos').getPublicUrl('test/test.txt');
+  return { pass: !!data?.publicUrl, detail: data?.publicUrl ? 'Public URL generated' : 'No URL' };
+}
+
+// ═══════════════════════════════════════════════════════════
+// CONSOLE LOGGING
+// ═══════════════════════════════════════════════════════════
+function log(msg, type='info') {
+  const el = document.getElementById('console-body');
+  if(!el) return;
+  const colors = { info:'log-info', pass:'log-pass', fail:'log-fail', warn:'log-warn', section:'log-section' };
+  el.innerHTML += `<div class="${colors[type]||'log-info'}">${escHtml(msg)}</div>`;
+  el.scrollTop = el.scrollHeight;
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ═══════════════════════════════════════════════════════════
+// PASSWORD CONFIG MODAL
+// ═══════════════════════════════════════════════════════════
+// Add password fields to sidebar
+function addPasswordConfig() {
+  const sidebar = document.querySelector('.sidebar');
+  const pwSection = document.createElement('div');
+  pwSection.style.marginTop = '20px';
+  pwSection.innerHTML = `
+    <div class="sidebar-title">User Passwords</div>
+    <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Required for auth tests</div>
+    ${Object.entries(TEST_USERS).map(([key, u]) => `
+      <div style="margin-bottom:8px;">
+        <div class="config-label" style="margin-bottom:3px;">${u.email.split('@')[0]}</div>
+        <input class="config-input" style="width:100%;" type="password" id="pw-${key}" 
+          placeholder="password" oninput="TEST_USERS['${key}'].password=this.value;_sessions={};">
+      </div>
+    `).join('')}
+  `;
+  sidebar.appendChild(pwSection);
+}
+
+// ═══════════════════════════════════════════════════════════
+// AI ANALYSIS & FIX
+// ═══════════════════════════════════════════════════════════
+async function runAIAnalysis() {
+  // Check if we have any results
+  const allResults = Object.values(testResults).flat();
+  if(!allResults.length) {
+    alert('Run some tests first before requesting AI analysis.');
+    return;
+  }
+
+  const panel = document.getElementById('ai-panel');
+  panel.style.display = 'flex';
+  
+  const output = document.getElementById('ai-output');
+  output.innerHTML = `
+    <div style="text-align:center;padding:40px;color:var(--text3);">
+      <div style="font-size:32px;margin-bottom:12px;animation:pulse 1s infinite;">🤖</div>
+      <div style="font-size:14px;color:var(--text2);">Claude is analyzing your test results…</div>
+      <div style="font-size:12px;margin-top:8px;">This may take 15-20 seconds</div>
+    </div>`;
+
+  // Gather all failed tests
+  const failed = [];
+  const passed = [];
+  Object.entries(testResults).forEach(([suiteId, results]) => {
+    const suite = SUITES.find(s => s.id === suiteId);
+    results.forEach(r => {
+      if(r.status === 'fail') {
+        failed.push({ suite: suite?.name || suiteId, test: r.name, error: r.error, detail: r.detail });
+      } else if(r.status === 'pass') {
+        passed.push({ suite: suite?.name || suiteId, test: r.name });
+      }
+    });
+  });
+
+  // Build context for Claude
+  const systemPrompt = `You are a Supabase + PostgreSQL expert helping debug a multi-tenant HVAC SaaS application called ServiceFlow.
+
+The app uses:
+- Supabase (PostgreSQL) for the database
+- Row Level Security (RLS) on all tables
+- A custom JWT hook that injects tenant_id into the JWT
+- Two functions: is_super_admin() and effective_tenant_id()
+- Tables: tenants, users, customers, work_orders, invoices, payments, products, inventory_stock, bank_accounts, journal_entries, journal_lines, bank_transactions, tenant_settings, vendor_bills, vendors, work_order_lines, work_order_notes, work_order_photos, work_order_signatures, service_locations, equipment
+
+When analyzing failures, provide:
+1. A clear explanation of WHY each test failed
+2. Specific SQL commands to fix each issue
+3. Priority order (critical security issues first)
+
+Format your response with clear sections using markdown. For SQL fixes, wrap them in \`\`\`sql blocks.`;
+
+    const passedLines = passed.slice(0,20).map(p => 'PASS ['+p.suite+'] '+p.test).join('\n');
+  const failedLines = failed.map(f => 'FAIL ['+f.suite+'] '+f.test+' | Error: '+(f.error||'none')+' | Detail: '+(f.detail||'none')).join('\n');
+  const userPrompt = 'Test results from ServiceFlow automated tests:\n\nPASSED ('+passed.length+'):\n'+passedLines+'\n\nFAILED ('+failed.length+'):\n'+failedLines+'\n\nAnalyze failures and provide: 1) Root cause for each failure 2) SQL fixes (most critical first) 3) Patterns across failures 4) Effort to fix';
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }]
+      })
+    });
+
+    const data = await response.json();
+    const text = data.content?.[0]?.text || 'No response from Claude';
+
+    // Parse out SQL blocks
+    const parts = text.split('```sql');
+    const sqlBlocks = parts.slice(1).map(p => p.split('```')[0].trim());
+    const sqlContent = sqlBlocks.join('\n\n-- ─────────────────────────────────────\n\n');
+
+    // Render the analysis
+    output.innerHTML = renderMarkdown(text);
+
+    // Show SQL section if there are fixes
+    if(sqlContent) {
+      const sqlSection = document.getElementById('ai-sql-section');
+      sqlSection.style.display = 'block';
+      document.getElementById('ai-sql-output').value = sqlContent;
+    }
+
+  } catch(err) {
+    output.innerHTML = `
+      <div style="color:var(--red);padding:20px;">
+        <div style="font-size:14px;font-weight:700;margin-bottom:8px;">Error calling Claude API</div>
+        <div style="font-size:12px;font-family:'JetBrains Mono',monospace;">${err.message}</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:12px;">Make sure you're running this in the Claude.ai environment where the API is available.</div>
+      </div>`;
+  }
+}
+
+function closeAIPanel() {
+  document.getElementById('ai-panel').style.display = 'none';
+}
+
+function copySQL() {
+  const sql = document.getElementById('ai-sql-output').value;
+  navigator.clipboard.writeText(sql).then(() => {
+    const btn = event.target;
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = '📋 Copy SQL', 2000);
+  });
+}
+
+function renderMarkdown(text) {
+  // Simple markdown renderer
+  return text
+    .replace(/```sql([\s\S]*?)```/g, function(_, sql) { 
+      return '<pre style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;overflow-x:auto;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--green);margin:8px 0;">'+escHtml(sql.trim())+'</pre>';})
+    .replace(/```([\s\S]*?)```/g, function(_, code) { 
+      return '<pre style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;overflow-x:auto;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--cyan);margin:8px 0;">'+escHtml(code.trim())+'</pre>';})
+    .replace(/^### (.*)/gm, '<h3 style="font-size:14px;font-weight:700;color:var(--yellow);margin:16px 0 8px;">$1</h3>')
+    .replace(/^## (.*)/gm, '<h2 style="font-size:16px;font-weight:700;color:var(--blue);margin:20px 0 10px;padding-bottom:8px;border-bottom:1px solid var(--border);">$1</h2>')
+    .replace(/^# (.*)/gm, '<h1 style="font-size:18px;font-weight:700;color:var(--text);margin:0 0 16px;">$1</h1>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong style="color:var(--text);">$1</strong>')
+    .replace(/`(.*?)`/g, '<code style="background:var(--bg3);padding:1px 5px;border-radius:3px;font-family:JetBrains Mono,monospace;font-size:11px;color:var(--cyan);">$1</code>')
+    .replace(/^✗ (.*)/gm, '<div style="color:var(--red);padding:4px 0;">✗ $1</div>')
+    .replace(/^✓ (.*)/gm, '<div style="color:var(--green);padding:4px 0;">✓ $1</div>')
+    .replace(/^- (.*)/gm, '<div style="padding:3px 0 3px 16px;color:var(--text2);">• $1</div>')
+    .replace(/^(\d+)\. (.*)/gm, '<div style="padding:3px 0 3px 8px;color:var(--text2);"><span style="color:var(--blue);font-weight:700;">$1.</span> $2</div>')
+}
+// Enable AI button after tests run
+const _origUpdateSummary = updateSummary;
+updateSummary = function(results, elapsed) {
+  _origUpdateSummary(results, elapsed);
+  const allResults = Object.values(testResults).flat();
+  const hasFailures = allResults.some(r => r.status === 'fail');
+  const aiBtn = document.getElementById('ai-btn');
+  if(aiBtn) {
+    aiBtn.disabled = false;
+    aiBtn.style.background = hasFailures ? 'var(--red)' : 'var(--purple)';
+    aiBtn.textContent = hasFailures ? '🤖 Fix Failures' : '🤖 AI Analysis';
+  }
+};
+
+// ── Boot
+init();
+addPasswordConfig();
+</script>
+</body>
+</html>

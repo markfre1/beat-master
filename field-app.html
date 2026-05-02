@@ -1,0 +1,1826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>ServiceFlow Field</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg:       #0f1117;
+  --bg2:      #1a1d27;
+  --bg3:      #22263a;
+  --border:   #2e3350;
+  --text:     #e8eaf0;
+  --text2:    #b0b8d0;
+  --text3:    #6b7599;
+  --accent:   #4f8ef7;
+  --green:    #34d17a;
+  --yellow:   #f5a623;
+  --red:      #f25555;
+  --purple:   #9b6dff;
+  --r:        12px;
+  --r2:       8px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; min-height: 100vh; }
+
+/* Login */
+#login-screen { display:none; min-height:100vh; align-items:center; justify-content:center; padding:20px; }
+.login-box { background:var(--bg2); border:1px solid var(--border); border-radius:var(--r); padding:32px 24px; width:100%; max-width:360px; }
+.login-logo { display:flex; align-items:center; gap:12px; margin-bottom:28px; }
+.login-logo-icon { font-size:32px; }
+.login-logo-text { font-size:20px; font-weight:700; color:var(--text); }
+.login-logo-sub { font-size:12px; color:var(--text3); }
+
+/* App Shell */
+#app { display:none; flex-direction:column; min-height:100vh; }
+.topbar { background:var(--bg2); border-bottom:1px solid var(--border); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:100; }
+.topbar-title { font-size:16px; font-weight:700; }
+.topbar-sub { font-size:11px; color:var(--text3); margin-top:1px; }
+.content { flex:1; padding:16px; max-width:600px; margin:0 auto; width:100%; }
+.bottom-nav { background:var(--bg2); border-top:1px solid var(--border); display:flex; position:sticky; bottom:0; }
+.bottom-nav-item { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:10px 4px; font-size:10px; color:var(--text3); cursor:pointer; gap:4px; border:none; background:none; }
+.bottom-nav-item.active { color:var(--accent); }
+.bottom-nav-item span { font-size:20px; }
+
+/* Cards */
+.card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--r); margin-bottom:12px; overflow:hidden; }
+.card-header { padding:14px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; }
+.card-title { font-size:14px; font-weight:600; }
+.card-body { padding:16px; }
+
+/* Job Cards */
+.job-card { background:var(--bg2); border:1px solid var(--border); border-radius:var(--r); margin-bottom:12px; cursor:pointer; overflow:hidden; transition:border-color .15s; }
+.job-card:active { border-color:var(--accent); }
+.job-card-header { padding:14px 16px 10px; display:flex; align-items:flex-start; justify-content:space-between; gap:8px; }
+.job-card-body { padding:0 16px 14px; }
+.job-number { font-size:11px; font-family:monospace; color:var(--text3); }
+.job-customer { font-size:15px; font-weight:600; margin:2px 0; }
+.job-desc { font-size:13px; color:var(--text2); }
+.job-meta { font-size:12px; color:var(--text3); margin-top:8px; display:flex; gap:12px; flex-wrap:wrap; }
+
+/* Badges */
+.badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:20px; font-size:11px; font-weight:600; white-space:nowrap; }
+.badge-green  { background:#1a3d2b; color:var(--green); }
+.badge-yellow { background:#3d3010; color:var(--yellow); }
+.badge-red    { background:#3d1515; color:var(--red); }
+.badge-blue   { background:#152040; color:var(--accent); }
+.badge-gray   { background:var(--bg3); color:var(--text3); }
+.badge-purple { background:#1e1540; color:var(--purple); }
+
+/* Forms */
+.form-group { margin-bottom:16px; }
+.form-label { display:block; font-size:12px; font-weight:600; color:var(--text3); margin-bottom:6px; text-transform:uppercase; letter-spacing:.04em; }
+.form-input { width:100%; background:var(--bg3); border:1px solid var(--border); border-radius:var(--r2); padding:11px 14px; color:var(--text); font-size:15px; outline:none; -webkit-appearance:none; }
+.form-input:focus { border-color:var(--accent); }
+textarea.form-input { resize:none; min-height:100px; }
+.form-label .req { color:#ef4444; margin-left:2px; font-weight:700; }
+.form-input.field-error { border-color:#ef4444!important; background:rgba(239,68,68,.08); }
+.field-error-msg { font-size:12px; color:#ef4444; margin-top:4px; display:none; }
+.field-error-msg.show { display:block; }
+
+/* Buttons */
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:8px; padding:12px 20px; border-radius:var(--r2); font-size:15px; font-weight:600; border:none; cursor:pointer; width:100%; transition:opacity .15s; }
+.btn:active { opacity:.8; }
+.btn-primary { background:var(--accent); color:#fff; }
+.btn-success { background:var(--green); color:#000; }
+.btn-warning { background:var(--yellow); color:#000; }
+.btn-danger  { background:var(--red); color:#fff; }
+.btn-ghost   { background:var(--bg3); color:var(--text); border:1px solid var(--border); }
+.btn-sm { padding:8px 14px; font-size:13px; width:auto; }
+.btn-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.btn-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+
+/* Detail rows */
+.detail-row { display:flex; gap:8px; margin-bottom:10px; align-items:flex-start; }
+.detail-icon { font-size:16px; width:24px; flex-shrink:0; margin-top:1px; }
+.detail-label { font-size:11px; color:var(--text3); }
+.detail-value { font-size:14px; color:var(--text); margin-top:2px; }
+
+/* Notes */
+.note-item { background:var(--bg3); border-radius:var(--r2); padding:12px; margin-bottom:8px; }
+.note-text { font-size:14px; color:var(--text); margin-bottom:4px; }
+.note-meta { font-size:11px; color:var(--text3); }
+
+/* Photos */
+.photo-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:12px; }
+.photo-thumb { aspect-ratio:1; border-radius:var(--r2); overflow:hidden; background:var(--bg3); cursor:pointer; }
+.photo-thumb img { width:100%; height:100%; object-fit:cover; }
+
+/* Signature pad */
+#sig-canvas { width:100%; border:2px dashed var(--border); border-radius:var(--r2); background:#fff; touch-action:none; display:block; }
+
+/* Status bar */
+.status-bar { background:var(--bg3); border-radius:var(--r2); padding:10px 14px; margin-bottom:16px; display:flex; align-items:center; gap:10px; }
+
+/* Empty state */
+.empty { text-align:center; padding:48px 20px; color:var(--text3); }
+.empty-icon { font-size:48px; margin-bottom:12px; }
+.empty-title { font-size:16px; font-weight:600; color:var(--text2); margin-bottom:4px; }
+.empty-sub { font-size:13px; }
+
+/* Toast */
+#toast { position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:var(--bg3); border:1px solid var(--border); border-radius:var(--r2); padding:10px 20px; font-size:14px; z-index:9999; display:none; white-space:nowrap; box-shadow:0 4px 20px rgba(0,0,0,.4); }
+
+/* Loading */
+.spinner { width:32px; height:32px; border:3px solid var(--bg3); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; margin:40px auto; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* Modal overlay */
+#modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:500; align-items:flex-end; }
+#modal.open { display:flex; }
+.modal-box { background:var(--bg2); border-radius:var(--r) var(--r) 0 0; padding:20px; width:100%; max-height:90vh; overflow-y:auto; }
+.modal-title { font-size:16px; font-weight:700; margin-bottom:16px; }
+
+/* Config screen */
+#config-screen { display:none; min-height:100vh; align-items:center; justify-content:center; padding:20px; }
+
+.err { color:var(--red); font-size:13px; margin-top:8px; display:none; }
+.w-full { width:100%; }
+.mt-8 { margin-top:8px; }
+.mt-16 { margin-top:16px; }
+.mb-8 { margin-bottom:8px; }
+.text-sm { font-size:13px; }
+.text-dim { color:var(--text3); }
+.divider { height:1px; background:var(--border); margin:16px 0; }
+</style>
+</head>
+<body>
+
+<!-- Config Screen -->
+<div id="config-screen" style="display:none;min-height:100vh;align-items:center;justify-content:center;padding:20px;">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-icon">⚙️</div>
+      <div>
+        <div class="login-logo-text">Setup</div>
+        <div class="login-logo-sub">Connect to Supabase</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Supabase URL</label>
+      <input class="form-input" id="cfg-url" type="url" placeholder="https://xxx.supabase.co">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Anon Key</label>
+      <input class="form-input" id="cfg-key" type="password" placeholder="eyJ...">
+    </div>
+    <button class="btn btn-primary" onclick="saveConfig()">Save & Connect</button>
+  </div>
+</div>
+
+<!-- Login Screen -->
+<div id="login-screen" style="display:none;min-height:100vh;display:none;align-items:center;justify-content:center;padding:20px;">
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-icon">🔧</div>
+      <div>
+        <div class="login-logo-text">ServiceFlow</div>
+        <div class="login-logo-sub">Field Technician</div>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input class="form-input" id="login-email" type="email" placeholder="you@company.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input class="form-input" id="login-password" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" id="login-btn" onclick="doLogin()">Sign In</button>
+    <div id="login-err" class="err"></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:12px;">
+      <input type="checkbox" id="remember-me" style="width:16px;height:16px;accent-color:var(--accent);">
+      <label for="remember-me" style="font-size:13px;color:var(--text2);">Remember my email</label>
+    </div>
+    <div style="text-align:center;margin-top:16px;">
+      <a href="#" onclick="showForgotPassword();return false;" style="font-size:13px;color:var(--accent);text-decoration:none;">Forgot password?</a>
+    </div>
+    <div id="forgot-area" style="display:none;margin-top:16px;padding:14px;background:var(--bg3);border-radius:var(--r2);">
+      <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Reset Password</div>
+      <input class="form-input mb-8" id="reset-email" type="email" placeholder="your@email.com">
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-primary btn-sm" style="flex:1;" onclick="sendReset()">Send Link</button>
+        <button class="btn btn-ghost btn-sm" onclick="hideForgotPassword()">Cancel</button>
+      </div>
+      <div id="reset-msg" style="font-size:12px;margin-top:8px;display:none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Main App -->
+<div id="app" style="display:none;flex-direction:column;min-height:100vh;">
+  <div class="topbar">
+    <div>
+      <div class="topbar-title" id="topbar-title">My Jobs</div>
+      <div class="topbar-sub" id="topbar-sub"></div>
+      <div id="topbar-company" style="font-size:10px;color:var(--text3);margin-top:1px;"></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <div id="topbar-actions"></div>
+    </div>
+  </div>
+  <div class="content" id="content">
+    <div class="spinner"></div>
+  </div>
+  <div class="bottom-nav">
+    <button class="bottom-nav-item active" id="nav-jobs" onclick="navTo('jobs')">
+      <span>🔧</span>My Jobs
+    </button>
+    <button class="bottom-nav-item" id="nav-today" onclick="navTo('today')">
+      <span>📅</span>Today
+    </button>
+    <button class="bottom-nav-item" id="nav-invoices" onclick="navTo('invoices')">
+      <span>🧾</span>Invoices
+    </button>
+    <button class="bottom-nav-item" id="nav-settings" onclick="navTo('settings')">
+      <span>⚙️</span>Settings
+    </button>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title"></div>
+    <div id="modal-body"></div>
+    <div id="modal-footer" style="margin-top:16px;"></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// GLOBALS
+// ═══════════════════════════════════════════════════════════
+let sb = null;
+let currentUser = null;
+let currentPage = 'jobs';
+let currentJob = null;
+
+// ═══════════════════════════════════════════════════════════
+// CONFIG & INIT
+// ═══════════════════════════════════════════════════════════
+function getConfig() {
+  const defaults = {url:'https://dzqcmntibijqywdnvgpz.supabase.co',key:'sb_publishable_B0T8UOd_t7lw7O6662WvRQ_vUZyvFK-'};
+  try {
+    const stored = JSON.parse(localStorage.getItem('sf_field_config')||'{}');
+    return (stored.url && stored.key) ? stored : defaults;
+  } catch { return defaults; }
+}
+
+function saveConfig() {
+  const url = document.getElementById('cfg-url').value.trim();
+  const key = document.getElementById('cfg-key').value.trim();
+  if(!url||!key){ toast('Enter both URL and key'); return; }
+  localStorage.setItem('sf_field_config', JSON.stringify({url,key}));
+  initSupabase({url,key});
+  document.getElementById('config-screen').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+}
+
+function initSupabase(cfg) {
+  try {
+    sb = supabase.createClient(cfg.url, cfg.key);
+    return true;
+  } catch(e) { return false; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// BOOT
+// ═══════════════════════════════════════════════════════════
+// ── Field Validation Helpers
+function fieldErr(inputId, msg) {
+  const el = document.getElementById(inputId);
+  if(el) {
+    el.classList.add('field-error');
+    let errEl = el.parentElement.querySelector('.field-error-msg');
+    if(!errEl) { errEl = document.createElement('div'); errEl.className='field-error-msg'; el.parentElement.appendChild(errEl); }
+    errEl.textContent = msg;
+    errEl.classList.add('show');
+    el.addEventListener('input', () => { el.classList.remove('field-error'); errEl.classList.remove('show'); }, {once:true});
+  }
+  toast(msg, 'error');
+}
+function clearAllFieldErrors() {
+  document.querySelectorAll('.field-error').forEach(el => el.classList.remove('field-error'));
+  document.querySelectorAll('.field-error-msg.show').forEach(el => el.classList.remove('show'));
+}
+
+async function boot() {
+  const cfg = getConfig();
+  if(!cfg.url||!cfg.key) {
+    document.getElementById('config-screen').style.display='flex';
+    return;
+  }
+  initSupabase(cfg);
+
+  // Check for password reset link
+  const hashParams = new URLSearchParams(window.location.hash.replace('#','?'));
+  const accessToken = hashParams.get('access_token');
+  if(accessToken && hashParams.get('type') === 'recovery') {
+    await sb.auth.setSession({access_token:accessToken, refresh_token:hashParams.get('refresh_token')||''});
+    showPasswordResetForm();
+    return;
+  }
+
+  const {data:{session}} = await sb.auth.getSession();
+  if(session) {
+    currentUser = session.user;
+    showApp();
+  } else {
+    document.getElementById('login-screen').style.display='flex';
+    // Pre-fill remembered email
+    const rememberedEmail = localStorage.getItem('sf_remembered_email');
+    if(rememberedEmail) {
+      const emailInput = document.getElementById('login-email');
+      if(emailInput) {
+        emailInput.value = rememberedEmail;
+        document.getElementById('remember-me').checked = true;
+        // Focus password field since email is already filled
+        setTimeout(() => document.getElementById('login-password')?.focus(), 100);
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════════
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim();
+  const pass  = document.getElementById('login-password').value;
+  const btn   = document.getElementById('login-btn');
+  const err   = document.getElementById('login-err');
+  if(!email||!pass){ err.textContent='Enter email and password'; err.style.display='block'; return; }
+  btn.textContent='Signing in…'; btn.disabled=true;
+  const {data,error} = await sb.auth.signInWithPassword({email,password:pass});
+  btn.textContent='Sign In'; btn.disabled=false;
+  if(error){ err.textContent=error.message; err.style.display='block'; return; }
+
+  // Remember email if checkbox checked
+  const rememberMe = document.getElementById('remember-me');
+  if(rememberMe?.checked) {
+    localStorage.setItem('sf_remembered_email', email);
+  } else {
+    localStorage.removeItem('sf_remembered_email');
+  }
+
+  currentUser = data.user;
+  document.getElementById('login-screen').style.display='none';
+  showApp();
+}
+
+async function doLogout() {
+  await sb.auth.signOut();
+  currentUser = null;
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  // Keep remembered email so it's pre-filled on next login
+  const rememberedEmail = localStorage.getItem('sf_remembered_email');
+  if(rememberedEmail) {
+    const emailInput = document.getElementById('login-email');
+    if(emailInput) {
+      emailInput.value = rememberedEmail;
+      document.getElementById('remember-me').checked = true;
+    }
+  }
+}
+
+function showForgotPassword() {
+  document.getElementById('forgot-area').style.display='block';
+  const e = document.getElementById('login-email').value.trim();
+  if(e) document.getElementById('reset-email').value = e;
+}
+function hideForgotPassword() {
+  document.getElementById('forgot-area').style.display='none';
+}
+async function sendReset() {
+  const email = document.getElementById('reset-email').value.trim();
+  const msg = document.getElementById('reset-msg');
+  if(!email){ msg.style.color='var(--red)'; msg.textContent='Enter your email'; msg.style.display='block'; return; }
+  const {error} = await sb.auth.resetPasswordForEmail(email, {redirectTo: window.location.href});
+  msg.style.color = error ? 'var(--red)' : 'var(--green)';
+  msg.textContent = error ? error.message : '✓ Reset link sent! Check your email.';
+  msg.style.display='block';
+}
+
+function showPasswordResetForm() {
+  document.getElementById('login-screen').style.display='flex';
+  document.querySelector('.login-box').innerHTML = `
+    <div class="login-logo">
+      <div class="login-logo-icon">🔑</div>
+      <div><div class="login-logo-text">New Password</div></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">New Password</label>
+      <input class="form-input" id="np1" type="password" placeholder="Min 8 characters">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Confirm Password</label>
+      <input class="form-input" id="np2" type="password" placeholder="Repeat password">
+    </div>
+    <button class="btn btn-primary" onclick="confirmReset()">Set Password</button>
+    <div id="reset-confirm-msg" class="err"></div>
+  `;
+}
+async function confirmReset() {
+  const p1=document.getElementById('np1').value, p2=document.getElementById('np2').value;
+  const msg=document.getElementById('reset-confirm-msg');
+  if(p1.length<8){msg.textContent='Min 8 characters';msg.style.display='block';return;}
+  if(p1!==p2){msg.textContent='Passwords do not match';msg.style.display='block';return;}
+  const {error}=await sb.auth.updateUser({password:p1});
+  if(error){msg.textContent=error.message;msg.style.display='block';return;}
+  msg.style.color='var(--green)'; msg.textContent='✓ Password updated! Signing in…'; msg.style.display='block';
+  setTimeout(async()=>{
+    window.location.hash='';
+    const {data:{session}}=await sb.auth.getSession();
+    if(session){currentUser=session.user;document.getElementById('login-screen').style.display='none';showApp();}
+  },1500);
+}
+
+// ═══════════════════════════════════════════════════════════
+// APP SHELL
+// ═══════════════════════════════════════════════════════════
+async function showApp() {
+  document.getElementById('app').style.display='flex';
+  // Load company name
+  try {
+    const {data:{session}} = await sb.auth.getSession();
+    if(session) {
+      const claims = JSON.parse(atob(session.access_token.split('.')[1]));
+      const tenantId = claims.tenant_id;
+      if(tenantId) {
+        const {data} = await sb.from('tenant_settings')
+          .select('setting_value').eq('tenant_id',tenantId).eq('setting_key','company_name').single();
+        if(data?.setting_value) {
+          const el = document.getElementById('topbar-company');
+          if(el) el.textContent = data.setting_value;
+        }
+      }
+    }
+  } catch(e) {}
+  navTo('jobs');
+}
+
+function navTo(page) {
+  currentPage = page;
+  // Update bottom nav
+  document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
+  const navEl = document.getElementById('nav-'+page);
+  if(navEl) navEl.classList.add('active');
+  document.getElementById('topbar-actions').innerHTML = '';
+
+  if(page==='jobs')          renderJobs();
+  else if(page==='today')    renderToday();
+  else if(page==='invoices') renderInvoices();
+  else if(page==='settings') renderSettings();
+}
+
+function toast(msg, type='info') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = type==='error' ? 'var(--red)' : type==='success' ? 'var(--green)' : 'var(--bg3)';
+  el.style.color = (type==='success'||type==='error') ? '#fff' : 'var(--text)';
+  el.style.display = 'block';
+  setTimeout(() => el.style.display='none', 3000);
+}
+
+function openModal(title, bodyHTML, footerHTML) {
+  document.getElementById('modal-title').textContent = title;
+  document.getElementById('modal-body').innerHTML = bodyHTML;
+  document.getElementById('modal-footer').innerHTML = footerHTML||'';
+  document.getElementById('modal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function fmtDate(d) {
+  if(!d) return '—';
+  return new Date(d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+function fmtTime(d) {
+  if(!d) return '';
+  return new Date(d).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+}
+function statusBadge(s) {
+  const map = {
+    scheduled:   ['badge-blue',   '📅 Scheduled'],
+    in_progress: ['badge-yellow', '🔄 In Progress'],
+    completed:   ['badge-green',  '✓ Completed'],
+    cancelled:   ['badge-gray',   '✕ Cancelled'],
+    on_my_way:   ['badge-purple', '🚗 On My Way'],
+  };
+  const [cls,label] = map[s]||['badge-gray', s];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+function priorityBadge(p) {
+  const map = {
+    EMERGENCY: ['badge-red','🚨 Emergency'],
+    HIGH:      ['badge-yellow','⚡ High'],
+    NORMAL:    ['badge-gray','Normal'],
+    LOW:       ['badge-gray','Low'],
+  };
+  const [cls,label] = map[p]||['badge-gray',p];
+  return `<span class="badge ${cls}">${label}</span>`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MY JOBS
+// ═══════════════════════════════════════════════════════════
+async function renderJobs() {
+  const c = document.getElementById('content');
+  document.getElementById('topbar-title').textContent = 'My Jobs';
+  document.getElementById('topbar-sub').textContent = '';
+  c.innerHTML = '<div class="spinner"></div>';
+
+  const {data, error} = await sb.from('work_orders')
+    .select('id,wo_number,description,status,priority,scheduled_date,scheduled_start,service_type,customers(company_name,phone),service_locations(location_name,address_line1,city,state,zip)')
+    .eq('assigned_to', currentUser.id)
+    .not('status','in','("completed","cancelled")')
+    .order('scheduled_date',{ascending:true});
+
+  if(error){ c.innerHTML=`<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">Error loading jobs</div><div class="empty-sub">${error.message}</div></div>`; return; }
+
+  if(!data||!data.length) {
+    c.innerHTML=`<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">No active jobs</div><div class="empty-sub">You have no assigned jobs right now</div></div>`;
+    return;
+  }
+
+  // Sort by priority then date
+  const priorityOrder = {EMERGENCY:0, HIGH:1, NORMAL:2, LOW:3};
+  const sorted = [...data].sort((a,b) => {
+    const pa = priorityOrder[a.priority]??2;
+    const pb = priorityOrder[b.priority]??2;
+    if(pa !== pb) return pa - pb;
+    return (a.scheduled_date||'').localeCompare(b.scheduled_date||'');
+  });
+
+  document.getElementById('topbar-sub').textContent = `${sorted.length} active job${sorted.length!==1?'s':''}`;
+
+  c.innerHTML = sorted.map(job => `
+    <div class="job-card" onclick="openJob('${job.id}')">
+      <div class="job-card-header">
+        <div style="flex:1;">
+          <div class="job-number">${job.wo_number}</div>
+          <div class="job-customer">${job.customers?.company_name||'Unknown'}</div>
+          <div class="job-desc">${job.description||'No description'}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+          ${statusBadge(job.status)}
+          ${job.priority!=='NORMAL'?priorityBadge(job.priority):''}
+        </div>
+      </div>
+      <div class="job-card-body">
+        <div class="job-meta">
+          ${job.scheduled_date?`<span>📅 ${fmtDate(job.scheduled_date)}${job.scheduled_start?' '+fmtTime(job.scheduled_start):''}</span>`:''}
+          ${job.service_locations?.city?`<span>📍 ${job.service_locations.city}, ${job.service_locations.state}</span>`:''}
+          <span>🔧 ${job.service_type||'—'}</span>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════
+// TODAY'S SCHEDULE
+// ═══════════════════════════════════════════════════════════
+let todaySortMode = 'priority'; // 'priority' or 'location'
+let todayJobsCache = null;
+
+async function renderToday() {
+  const c = document.getElementById('content');
+  document.getElementById('topbar-title').textContent = "Today's Schedule";
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('topbar-sub').textContent = fmtDate(today);
+  c.innerHTML = '<div class="spinner"></div>';
+
+  const {data, error} = await sb.from('work_orders')
+    .select('id,wo_number,description,status,priority,scheduled_date,scheduled_start,service_type,customers(company_name,phone),service_locations(location_name,address_line1,city,state,zip)')
+    .eq('assigned_to', currentUser.id)
+    .eq('scheduled_date', today);
+
+  if(error){ c.innerHTML=`<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">${error.message}</div></div>`; return; }
+
+  if(!data||!data.length) {
+    c.innerHTML=`<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">No jobs today</div><div class="empty-sub">You have no scheduled jobs for today</div></div>`;
+    return;
+  }
+
+  todayJobsCache = data;
+  renderTodaySorted();
+}
+
+function renderTodaySorted() {
+  const c = document.getElementById('content');
+  const data = todayJobsCache;
+  if(!data) return;
+
+  const priorityOrder = {EMERGENCY:0, HIGH:1, NORMAL:2, LOW:3};
+
+  let sorted;
+  if(todaySortMode === 'priority') {
+    // Priority → City → Zip
+    sorted = [...data].sort((a,b) => {
+      const pa = priorityOrder[a.priority]??2;
+      const pb = priorityOrder[b.priority]??2;
+      if(pa !== pb) return pa - pb;
+      const ca = a.service_locations?.city||'';
+      const cb = b.service_locations?.city||'';
+      if(ca !== cb) return ca.localeCompare(cb);
+      return (a.service_locations?.zip||'').localeCompare(b.service_locations?.zip||'');
+    });
+  } else {
+    // Location (City → Zip) → Priority
+    sorted = [...data].sort((a,b) => {
+      const ca = a.service_locations?.city||'';
+      const cb = b.service_locations?.city||'';
+      if(ca !== cb) return ca.localeCompare(cb);
+      const za = a.service_locations?.zip||'';
+      const zb = b.service_locations?.zip||'';
+      if(za !== zb) return za.localeCompare(zb);
+      const pa = priorityOrder[a.priority]??2;
+      const pb = priorityOrder[b.priority]??2;
+      return pa - pb;
+    });
+  }
+
+  document.getElementById('topbar-sub').textContent = `${sorted.length} job${sorted.length!==1?'s':''} today`;
+
+  // Group headers
+  let lastGroup = null;
+  const rows = sorted.map(job => {
+    let groupKey, groupLabel;
+    if(todaySortMode === 'priority') {
+      groupKey = job.priority;
+      const labels = {EMERGENCY:'🚨 Emergency', HIGH:'⚡ High Priority', NORMAL:'Normal Priority', LOW:'Low Priority'};
+      groupLabel = labels[job.priority]||job.priority;
+    } else {
+      groupKey = job.service_locations?.city||'Unknown';
+      groupLabel = `📍 ${groupKey}`;
+    }
+
+    const header = groupKey !== lastGroup
+      ? `<div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em;padding:10px 4px 4px;border-top:${lastGroup?'1px solid var(--border)':'none'};margin-top:${lastGroup?'8px':'0'};">${groupLabel}</div>`
+      : '';
+    lastGroup = groupKey;
+
+    return `${header}
+    <div class="job-card" onclick="openJob('${job.id}')">
+      <div class="job-card-header">
+        <div style="flex:1;">
+          <div class="job-number">${job.wo_number}</div>
+          <div class="job-customer">${job.customers?.company_name||'Unknown'}</div>
+          <div class="job-desc">${job.description||''}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end;">
+          ${statusBadge(job.status)}
+          ${todaySortMode==='location'&&(job.priority==='EMERGENCY'||job.priority==='HIGH')?priorityBadge(job.priority):''}
+        </div>
+      </div>
+      <div class="job-card-body">
+        <div class="job-meta">
+          ${job.service_locations?.address_line1?`<span>🏠 ${job.service_locations.address_line1}</span>`:''}
+          ${job.service_locations?.city?`<span>📍 ${job.service_locations.city} ${job.service_locations.zip||''}</span>`:''}
+          ${job.customers?.phone?`<span>📞 ${job.customers.phone}</span>`:''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  c.innerHTML = `
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button onclick="setTodaySort('priority')" 
+        style="flex:1;padding:8px;border-radius:var(--r2);border:2px solid ${todaySortMode==='priority'?'var(--accent)':'var(--border)'};
+               background:${todaySortMode==='priority'?'var(--accent)':'var(--bg2)'};
+               color:${todaySortMode==='priority'?'#fff':'var(--text2)'};font-size:13px;font-weight:600;cursor:pointer;">
+        🚨 Priority First
+      </button>
+      <button onclick="setTodaySort('location')"
+        style="flex:1;padding:8px;border-radius:var(--r2);border:2px solid ${todaySortMode==='location'?'var(--accent)':'var(--border)'};
+               background:${todaySortMode==='location'?'var(--accent)':'var(--bg2)'};
+               color:${todaySortMode==='location'?'#fff':'var(--text2)'};font-size:13px;font-weight:600;cursor:pointer;">
+        📍 Location First
+      </button>
+    </div>
+    ${rows}
+  `;
+}
+
+function setTodaySort(mode) {
+  todaySortMode = mode;
+  renderTodaySorted();
+}
+
+// ═══════════════════════════════════════════════════════════
+// JOB DETAIL
+// ═══════════════════════════════════════════════════════════
+async function openJob(id) {
+  const c = document.getElementById('content');
+  document.getElementById('topbar-title').textContent = 'Job Detail';
+  document.getElementById('topbar-sub').textContent = '';
+  c.innerHTML = '<div class="spinner"></div>';
+
+  // Update bottom nav
+  document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
+
+  const [{data:job,error:je},{data:notes},{data:photos},{data:sigs},{data:lines}] = await Promise.all([
+    sb.from('work_orders')
+      .select('*,customers(company_name,phone,email,address_line1,city,state),service_locations(location_name,address_line1,city,state,zip,access_notes,contact_name,contact_phone),equipment(equipment_name,equipment_type,brand,model_number,serial_number)')
+      .eq('id',id).single(),
+    sb.from('work_order_notes').select('*').eq('work_order_id',id).order('created_at',{ascending:false}),
+    sb.from('work_order_photos').select('*').eq('work_order_id',id).order('created_at',{ascending:false}),
+    sb.from('work_order_signatures').select('*').eq('work_order_id',id).limit(1),
+    sb.from('work_order_lines').select('*').eq('work_order_id',id).order('line_number',{ascending:true}),
+  ]);
+
+  if(je||!job){ c.innerHTML='<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">Job not found</div></div>'; return; }
+  currentJob = job;
+
+  const loc = job.service_locations;
+  const cust = job.customers;
+  const equip = job.equipment;
+  const hasSig = sigs && sigs.length > 0;
+
+  // Action buttons based on status
+  let actionBtns = '';
+  if(job.status === 'scheduled') {
+    actionBtns = `
+      <div class="btn-grid mt-16">
+        <button class="btn btn-warning" onclick="updateJobStatus('${id}','on_my_way')">🚗 On My Way</button>
+        <button class="btn btn-primary" onclick="updateJobStatus('${id}','in_progress')">▶ Start Job</button>
+      </div>`;
+  } else if(job.status === 'on_my_way') {
+    actionBtns = `
+      <button class="btn btn-primary w-full mt-16" onclick="updateJobStatus('${id}','in_progress')">▶ Start Job</button>`;
+  } else if(job.status === 'in_progress') {
+    actionBtns = `
+      <button class="btn btn-success w-full mt-16" onclick="promptComplete('${id}')">✓ Complete Job</button>`;
+  }
+
+  c.innerHTML = `
+    <div style="margin-bottom:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="navTo('${currentPage==='today'?'today':'jobs'}')">← Back</button>
+    </div>
+
+    <!-- Status Card -->
+    <div class="card">
+      <div class="card-body">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:11px;font-family:monospace;color:var(--text3);">${job.wo_number}</div>
+          ${priorityBadge(job.priority)}
+        </div>
+        <div style="font-size:18px;font-weight:700;margin-bottom:4px;">${cust?.company_name||'Unknown'}</div>
+        <div style="font-size:14px;color:var(--text2);margin-bottom:12px;">${job.description||''}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${statusBadge(job.status)}
+          ${job.scheduled_date?`<span style="font-size:13px;color:var(--text3);">📅 ${fmtDate(job.scheduled_date)}</span>`:''}
+        </div>
+        ${actionBtns}
+      </div>
+    </div>
+
+    <!-- Location -->
+    ${loc?`
+    <div class="card">
+      <div class="card-header"><div class="card-title">📍 Location</div>
+        <a href="https://maps.google.com/?q=${encodeURIComponent((loc.address_line1||'')+' '+(loc.city||'')+' '+(loc.state||''))}" 
+           target="_blank" class="btn btn-ghost btn-sm">Navigate</a>
+      </div>
+      <div class="card-body">
+        <div class="detail-row"><div class="detail-icon">🏢</div><div><div class="detail-label">Location</div><div class="detail-value">${loc.location_name||'—'}</div></div></div>
+        <div class="detail-row"><div class="detail-icon">📌</div><div><div class="detail-label">Address</div><div class="detail-value">${loc.address_line1||'—'}<br>${loc.city||''} ${loc.state||''} ${loc.zip||''}</div></div></div>
+        ${loc.access_notes?`<div class="detail-row"><div class="detail-icon">🔑</div><div><div class="detail-label">Access Notes</div><div class="detail-value" style="color:var(--yellow);">${loc.access_notes}</div></div></div>`:''}
+        ${loc.contact_name?`<div class="detail-row"><div class="detail-icon">👤</div><div><div class="detail-label">On-Site Contact</div><div class="detail-value">${loc.contact_name}${loc.contact_phone?` — <a href="tel:${loc.contact_phone}" style="color:var(--accent);">${loc.contact_phone}</a>`:''}</div></div></div>`:''}
+      </div>
+    </div>`:''}
+
+    <!-- Customer -->
+    ${cust?`
+    <div class="card">
+      <div class="card-header"><div class="card-title">👥 Customer</div></div>
+      <div class="card-body">
+        <div class="detail-row"><div class="detail-icon">🏢</div><div><div class="detail-label">Company</div><div class="detail-value">${cust.company_name||'—'}</div></div></div>
+        ${cust.phone?`<div class="detail-row"><div class="detail-icon">📞</div><div><div class="detail-label">Phone</div><div class="detail-value"><a href="tel:${cust.phone}" style="color:var(--accent);">${cust.phone}</a></div></div></div>`:''}
+        ${cust.email?`<div class="detail-row"><div class="detail-icon">✉️</div><div><div class="detail-label">Email</div><div class="detail-value"><a href="mailto:${cust.email}" style="color:var(--accent);">${cust.email}</a></div></div></div>`:''}
+      </div>
+    </div>`:''}
+
+    <!-- Equipment -->
+    ${equip?`
+    <div class="card">
+      <div class="card-header"><div class="card-title">🌡️ Equipment</div></div>
+      <div class="card-body">
+        <div class="detail-row"><div class="detail-icon">🔧</div><div><div class="detail-label">Unit</div><div class="detail-value">${equip.equipment_name}</div></div></div>
+        ${equip.brand?`<div class="detail-row"><div class="detail-icon">🏷️</div><div><div class="detail-label">Brand / Model</div><div class="detail-value">${equip.brand} ${equip.model_number||''}</div></div></div>`:''}
+        ${equip.serial_number?`<div class="detail-row"><div class="detail-icon">#️⃣</div><div><div class="detail-label">Serial Number</div><div class="detail-value" style="font-family:monospace;">${equip.serial_number}</div></div></div>`:''}
+      </div>
+    </div>`:''}
+
+    <!-- Photos -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📷 Photos (${photos?.length||0})</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-ghost btn-sm" onclick="addPhoto('${id}','camera')">📷 Camera</button>
+          <button class="btn btn-ghost btn-sm" onclick="addPhoto('${id}','file')">📁 File</button>
+        </div>
+      </div>
+      <div class="card-body">
+        ${photos&&photos.length?`
+        <div class="photo-grid">
+          ${photos.map(p=>`
+            <div class="photo-thumb" style="position:relative;">
+              <img src="${p.photo_url}" loading="lazy" onclick="viewPhoto('${p.photo_url}')" style="width:100%;height:100%;object-fit:cover;">
+              <button onclick="deletePhoto('${p.id}','${p.photo_url}','${job.id}')" 
+                style="position:absolute;top:4px;right:4px;background:rgba(0,0,0,.7);color:#fff;border:none;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;line-height:1;">✕</button>
+            </div>`).join('')}
+        </div>`:'<div style="font-size:13px;color:var(--text3);">No photos yet</div>'}
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">📝 Notes (${notes?.length||0})</div>
+        <button class="btn btn-ghost btn-sm" onclick="addNote('${id}')">+ Add Note</button>
+      </div>
+      <div class="card-body">
+        ${notes&&notes.length?
+          notes.map(n=>`
+            <div class="note-item" 
+              ${n.user_id === currentUser?.id ? `onclick="editNote('${n.id}','${job.id}',this)" style="cursor:pointer;"` : ''}
+              title="${n.user_id === currentUser?.id ? 'Tap to edit' : ''}">
+              <div class="note-text">${n.note}</div>
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:6px;">
+                <div class="note-meta">${fmtDate(n.created_at)} ${fmtTime(n.created_at)}</div>
+                ${n.user_id === currentUser?.id ? '<div style="font-size:11px;color:var(--text3);">✏️ tap to edit</div>' : ''}
+              </div>
+            </div>
+          `).join(''):
+          '<div style="font-size:13px;color:var(--text3);">No notes yet</div>'
+        }
+      </div>
+    </div>
+
+    <!-- Line Items / Parts Used -->
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title">🔩 Parts & Labor (${lines?.length||0})</div>
+        <button class="btn btn-ghost btn-sm" onclick="addWOLine('${id}')">+ Add</button>
+      </div>
+      <div class="card-body" id="wo-lines-body">
+        ${lines&&lines.length?`
+          ${lines.map(l=>`
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+              <div>
+                <div style="font-size:14px;">${l.description}</div>
+                <div style="font-size:12px;color:var(--text3);">${l.line_type} · ${l.quantity} ${l.unit||'ea'}</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="font-weight:600;font-size:14px;">$${Number(l.line_total||0).toFixed(2)}</div>
+                <button onclick="deleteFieldLine('${l.id}','${id}')" 
+                  style="background:none;border:none;color:var(--red);font-size:14px;cursor:pointer;">✕</button>
+              </div>
+            </div>
+          `).join('')}
+          <div style="text-align:right;padding-top:8px;font-weight:700;">
+            Total: $${lines.reduce((s,l)=>s+Number(l.line_total||0),0).toFixed(2)}
+          </div>
+        `:'<div style="font-size:13px;color:var(--text3);">No parts or labor recorded yet</div>'}
+      </div>
+    </div>
+
+    <!-- Signature -->
+    <div class="card">
+      <div class="card-header"><div class="card-title">✍️ Customer Signature</div></div>
+      <div class="card-body">
+        ${hasSig?`
+          <div style="color:var(--green);font-size:14px;margin-bottom:8px;">✓ Signed by ${sigs[0].customer_name}</div>
+          <img src="${sigs[0].signature_data}" style="max-width:100%;border:1px solid var(--border);border-radius:var(--r2);">
+        `:`
+          <div style="font-size:13px;color:var(--text3);margin-bottom:12px;">No signature captured yet</div>
+          ${job.status==='in_progress'||job.status==='completed'?`<button class="btn btn-ghost" onclick="captureSignature('${id}')">✍️ Capture Signature</button>`:''}
+        `}
+      </div>
+    </div>
+
+    <div style="height:20px;"></div>
+  `;
+}
+
+// ═══════════════════════════════════════════════════════════
+// JOB ACTIONS
+// ═══════════════════════════════════════════════════════════
+async function updateJobStatus(id, status) {
+  const {error} = await sb.from('work_orders').update({status}).eq('id',id);
+  if(error){ toast(error.message,'error'); return; }
+  toast(`Status updated to ${status.replace('_',' ')}`, 'success');
+  openJob(id);
+}
+
+async function promptComplete(id) {
+  const {data:sigs} = await sb.from('work_order_signatures').select('id').eq('work_order_id',id).limit(1);
+  if(!sigs||!sigs.length) {
+    openModal('Complete Job',
+      `<div style="font-size:14px;color:var(--text2);margin-bottom:16px;">Would you like to capture a customer signature before completing?</div>`,
+      `<div class="btn-grid">
+        <button class="btn btn-ghost" onclick="closeModal();captureSignature('${id}',true)">Get Signature First</button>
+        <button class="btn btn-success" onclick="closeModal();completeAndShowInvoice('${id}')">Complete Without</button>
+      </div>`
+    );
+  } else {
+    await completeAndShowInvoice(id);
+  }
+}
+
+async function completeAndShowInvoice(workOrderId) {
+  await updateJobStatus(workOrderId, 'completed');
+  await checkAutoInvoice(workOrderId);
+  await showInvoiceActions(workOrderId);
+}
+
+async function showInvoiceActions(workOrderId) {
+  // Load WO and related data
+  const {data:wo} = await sb.from('work_orders')
+    .select('*,customers(company_name,email,phone),work_order_lines(*)')
+    .eq('id',workOrderId).single();
+
+  if(!wo) return;
+
+  // Check for existing invoice
+  const {data:invs} = await sb.from('invoices')
+    .select('*,invoice_lines(*)').eq('work_order_id',workOrderId).limit(1);
+  const inv = invs?.[0];
+
+  const customer = wo.customers;
+  const lines = wo.work_order_lines || [];
+  const subtotal = lines.reduce((s,l)=>s+Number(l.line_total||0),0);
+
+  // Build email body for mailto
+  const emailBody = [
+    'Dear ' + (customer?.company_name||'Customer') + ',',
+    ``,
+    'Thank you for allowing us to service your HVAC system today.',
+    ``,
+    `Work Order: ${wo.wo_number}`,
+    inv ? `Invoice: ${inv.invoice_number}` : '',
+    ``,
+    `Services Performed:`,
+    ...lines.map(l => `  - ${l.description}: ${l.quantity} ${l.unit} @ $${Number(l.unit_price).toFixed(2)} = $${Number(l.line_total).toFixed(2)}`),
+    ``,
+    inv ? `Subtotal: $${Number(inv.subtotal).toFixed(2)}` : `Subtotal: $${subtotal.toFixed(2)}`,
+    inv ? 'Subtotal: $' + Number(inv.subtotal).toFixed(2) : 'Subtotal: $' + subtotal.toFixed(2),
+    inv && inv.tax_amount > 0 ? 'Tax: $' + Number(inv.tax_amount).toFixed(2) : '',
+    inv ? 'Total Due: $' + Number(inv.total).toFixed(2) : 'Total: $' + subtotal.toFixed(2),
+    '',
+    "Please don't hesitate to contact us with any questions.",
+    '',
+    'Thank you for your business!',
+  ].filter(Boolean).join('\n');
+
+  const subject = inv 
+    ? `Invoice ${inv.invoice_number} - ${wo.wo_number} Service Complete`
+    : `${wo.wo_number} - Service Complete`;
+  
+  const mailtoUrl = `mailto:${customer?.email||''}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(emailBody)}`;
+
+  openModal('Job Completed ✓',
+    `<div style="background:var(--bg3);border-radius:var(--r2);padding:14px;margin-bottom:16px;">
+      <div style="color:var(--green);font-size:16px;font-weight:700;margin-bottom:8px;">✓ Job Complete</div>
+      <div style="font-size:13px;color:var(--text2);">Work Order: <strong>${wo.wo_number}</strong></div>
+      ${inv?`<div style="font-size:13px;color:var(--text2);">Invoice: <strong>${inv.invoice_number}</strong></div>`:''}
+      <div style="font-size:13px;color:var(--text2);">Customer: <strong>${customer?.company_name||'—'}</strong></div>
+    </div>
+
+    ${inv ? `
+    <div style="margin-bottom:16px;">
+      <div style="font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;margin-bottom:8px;">Invoice Summary</div>
+      ${lines.map(l=>`
+        <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;">
+          <span>${l.description}</span>
+          <span style="font-weight:600;">$${Number(l.line_total).toFixed(2)}</span>
+        </div>
+      `).join('')}
+      <div style="display:flex;justify-content:space-between;padding:8px 0;font-size:14px;font-weight:700;color:var(--accent);">
+        <span>Total Due</span>
+        <span>$${Number(inv.total).toFixed(2)}</span>
+      </div>
+    </div>
+    ` : `
+    <div style="padding:10px;background:var(--bg3);border-radius:var(--r2);font-size:12px;color:var(--yellow);margin-bottom:16px;">
+      ⚠ No invoice created. Enable auto-invoice in Company Settings or create manually in the office.
+    </div>`}
+
+    <div style="font-size:12px;color:var(--text3);margin-bottom:8px;">
+      Customer email: <strong>${customer?.email||'Not on file'}</strong>
+    </div>`,
+
+    `<div style="display:flex;flex-direction:column;gap:8px;">
+      ${customer?.email ? `
+      <a href="${mailtoUrl}" class="btn btn-primary" style="text-decoration:none;text-align:center;">
+        ✉️ Email Invoice to Customer
+      </a>
+      <div style="font-size:10px;color:var(--text3);text-align:center;">Opens your email app — attach PDF when available</div>
+      ` : `
+      <button class="btn btn-ghost" disabled style="opacity:.5;">✉️ No email on file for this customer</button>
+      `}
+      <button class="btn btn-ghost" onclick="closeModal();openJob('${workOrderId}')">View Job Details</button>
+      <button class="btn btn-ghost" onclick="closeModal();navTo('jobs')">Back to My Jobs</button>
+    </div>`
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADD NOTE
+// ═══════════════════════════════════════════════════════════
+function addNote(workOrderId) {
+  openModal('Add Note',
+    `<div class="form-group">
+      <label class="form-label">Note <span class="req">*</span></label>
+      <textarea class="form-input" id="note-text" placeholder="Enter your note here…" rows="4"></textarea>
+    </div>`,
+    `<div class="btn-grid">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveNote('${workOrderId}')">Save Note</button>
+    </div>`
+  );
+}
+
+async function saveNote(workOrderId) {
+  const note = document.getElementById('note-text').value.trim();
+  clearAllFieldErrors();
+  if(!note){ fieldErr('note-text','Please enter a note before saving'); return; }
+
+  // Get tenant_id from JWT
+  const {data:{session}} = await sb.auth.getSession();
+  const claims = JSON.parse(atob(session.access_token.split('.')[1]));
+  const tenantId = claims.tenant_id;
+
+  const {error} = await sb.from('work_order_notes').insert({
+    tenant_id: tenantId,
+    work_order_id: workOrderId,
+    user_id: currentUser.id,
+    note
+  });
+  if(error){ toast(error.message,'error'); return; }
+  toast('Note saved','success');
+  closeModal();
+  openJob(workOrderId);
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADD PHOTO
+// ═══════════════════════════════════════════════════════════
+function addPhoto(workOrderId, source='file') {
+  const captureAttr = source === 'camera' ? 'capture="environment"' : '';
+  const title = source === 'camera' ? '📷 Take Photo' : '📁 Upload Photo';
+  openModal(title,
+    `<div class="form-group">
+      <label class="form-label">${source==='camera'?'Take a Photo':'Select Photo'}</label>
+      <input type="file" id="photo-input" accept="image/*" ${captureAttr}
+        style="color:var(--text);width:100%;padding:10px 0;">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Caption (optional)</label>
+      <input class="form-input" id="photo-caption" placeholder="e.g. Before repair, After repair">
+    </div>
+    <div id="photo-preview" style="display:none;margin-bottom:12px;">
+      <img id="preview-img" style="max-width:100%;border-radius:var(--r2);">
+    </div>`,
+    `<div class="btn-grid">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="uploadPhoto('${workOrderId}')">Save Photo</button>
+    </div>`
+  );
+
+  // Preview on select
+  setTimeout(() => {
+    const input = document.getElementById('photo-input');
+    if(input) {
+      input.addEventListener('change', function() {
+        const file = this.files[0];
+        if(file) {
+          const reader = new FileReader();
+          reader.onload = e => {
+            document.getElementById('preview-img').src = e.target.result;
+            document.getElementById('photo-preview').style.display = 'block';
+          };
+          reader.readAsDataURL(file);
+        }
+      });
+      // Auto-trigger on mobile camera
+      if(source === 'camera') input.click();
+    }
+  }, 200);
+}
+
+async function uploadPhoto(workOrderId) {
+  const input = document.getElementById('photo-input');
+  const caption = document.getElementById('photo-caption').value.trim();
+  if(!input.files||!input.files[0]){ toast('Please select or take a photo first','error'); return; }
+
+  const file = input.files[0];
+  const ext = file.name.split('.').pop();
+  const path = `${workOrderId}/${Date.now()}.${ext}`;
+
+  toast('Uploading…');
+
+  const {error:upErr} = await sb.storage.from('work-order-photos').upload(path, file);
+  if(upErr){ toast(upErr.message,'error'); return; }
+
+  const {data:{publicUrl}} = sb.storage.from('work-order-photos').getPublicUrl(path);
+
+  const {data:{session}} = await sb.auth.getSession();
+  const claims = JSON.parse(atob(session.access_token.split('.')[1]));
+  const tenantId = claims.tenant_id;
+
+  const {error} = await sb.from('work_order_photos').insert({
+    tenant_id: tenantId,
+    work_order_id: workOrderId,
+    user_id: currentUser.id,
+    photo_url: publicUrl,
+    caption: caption||null
+  });
+
+  if(error){ toast(error.message,'error'); return; }
+  toast('Photo uploaded','success');
+  closeModal();
+  openJob(workOrderId);
+}
+
+function viewPhoto(url) {
+  openModal('Photo',
+    `<img src="${url}" style="width:100%;border-radius:var(--r2);">`,
+    `<button class="btn btn-ghost w-full" onclick="closeModal()">Close</button>`
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// SIGNATURE CAPTURE
+// ═══════════════════════════════════════════════════════════
+function captureSignature(workOrderId, thenComplete=false) {
+  openModal('Customer Signature',
+    `<div class="form-group">
+      <label class="form-label">Customer Name <span class="req">*</span></label>
+      <input class="form-input mb-8" id="sig-name" placeholder="Full name">
+    </div>
+    <div class="form-label" style="margin-bottom:6px;">Signature</div>
+    <canvas id="sig-canvas" width="320" height="160"></canvas>
+    <button class="btn btn-ghost btn-sm mt-8" onclick="clearSig()">Clear</button>`,
+    `<div class="btn-grid mt-16">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-success" onclick="saveSignature('${workOrderId}',${thenComplete})">Save & Sign</button>
+    </div>`
+  );
+
+  // Set up canvas
+  setTimeout(() => initSigCanvas(), 100);
+}
+
+function initSigCanvas() {
+  const canvas = document.getElementById('sig-canvas');
+  if(!canvas) return;
+  // Size canvas to container
+  canvas.width = canvas.offsetWidth || 320;
+  canvas.height = 160;
+  const ctx = canvas.getContext('2d');
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  let drawing = false;
+
+  function getPos(e) {
+    const rect = canvas.getBoundingClientRect();
+    const touch = e.touches ? e.touches[0] : e;
+    return {x: touch.clientX - rect.left, y: touch.clientY - rect.top};
+  }
+
+  canvas.addEventListener('mousedown', e => { drawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); });
+  canvas.addEventListener('mousemove', e => { if(!drawing) return; const p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); });
+  canvas.addEventListener('mouseup', () => drawing=false);
+  canvas.addEventListener('touchstart', e => { e.preventDefault(); drawing=true; const p=getPos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); }, {passive:false});
+  canvas.addEventListener('touchmove', e => { e.preventDefault(); if(!drawing) return; const p=getPos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); }, {passive:false});
+  canvas.addEventListener('touchend', () => drawing=false);
+}
+
+function clearSig() {
+  const canvas = document.getElementById('sig-canvas');
+  canvas.getContext('2d').clearRect(0,0,canvas.width,canvas.height);
+}
+
+async function saveSignature(workOrderId, thenComplete) {
+  const name = document.getElementById('sig-name').value.trim();
+  const canvas = document.getElementById('sig-canvas');
+  clearAllFieldErrors();
+  if(!name){ fieldErr('sig-name','Customer name is required before signing'); return; }
+
+  const sigData = canvas.toDataURL('image/png');
+
+  const {data:{session}} = await sb.auth.getSession();
+  const claims = JSON.parse(atob(session.access_token.split('.')[1]));
+  const tenantId = claims.tenant_id;
+
+  const {error} = await sb.from('work_order_signatures').insert({
+    tenant_id: tenantId,
+    work_order_id: workOrderId,
+    customer_name: name,
+    signature_data: sigData
+  });
+
+  if(error){ toast(error.message,'error'); return; }
+
+  toast('Signature saved','success');
+  closeModal();
+
+  if(thenComplete) {
+    await updateJobStatus(workOrderId,'completed');
+    // Check if auto-invoice is enabled
+    await checkAutoInvoice(workOrderId);
+  } else {
+    openJob(workOrderId);
+  }
+}
+
+async function checkAutoInvoice(workOrderId) {
+  try {
+    const {data:{session}} = await sb.auth.getSession();
+    if(!session) return;
+    const claims = JSON.parse(atob(session.access_token.split('.')[1]));
+    const tenantId = claims.tenant_id;
+
+    const {data:setting} = await sb.from('tenant_settings')
+      .select('setting_value').eq('tenant_id',tenantId)
+      .eq('setting_key','auto_invoice_on_sign').single();
+
+    if(setting?.setting_value !== 'true') return;
+
+    // Auto-create invoice
+    toast('Creating invoice…');
+    
+    // Get WO details
+    const {data:wo} = await sb.from('work_orders')
+      .select('*,customers(id,company_name,terms_id,tax_rate_id),work_order_lines(*)')
+      .eq('id',workOrderId).single();
+
+    if(!wo?.customers) return;
+
+    // Check no existing invoice
+    const {data:existing} = await sb.from('invoices')
+      .select('id').eq('work_order_id',workOrderId).limit(1);
+    if(existing?.length) return;
+
+    // Get invoice prefix and next number
+    const {data:prefixSetting} = await sb.from('tenant_settings')
+      .select('setting_value').eq('tenant_id',tenantId).eq('setting_key','invoice_prefix').single();
+    const prefix = prefixSetting?.setting_value || 'INV';
+
+    const {data:lastInv} = await sb.from('invoices').select('invoice_number')
+      .eq('tenant_id',tenantId).order('created_at',{ascending:false}).limit(1);
+    const lastNum = lastInv?.[0]?.invoice_number?.match(/\d+$/)?.[0] || '0';
+    const nextNum = String(Number(lastNum)+1).padStart(4,'0');
+    const invoiceNumber = `${prefix}-${new Date().getFullYear()}-${nextNum}`;
+
+    const lines = wo.work_order_lines || [];
+    const subtotal = lines.reduce((s,l) => s+Number(l.line_total||0), 0);
+
+    const {data:taxRate} = wo.customers?.tax_rate_id ?
+      await sb.from('tax_rates').select('rate').eq('id',wo.customers.tax_rate_id).single() :
+      {data:{rate:0}};
+    const taxPct = Number(taxRate?.rate||0);
+    const taxAmount = Math.round(subtotal*taxPct/100*100)/100;
+    const total = Math.round((subtotal+taxAmount)*100)/100;
+
+    const today = new Date().toISOString().split('T')[0];
+    const {data:terms} = wo.customers?.terms_id ?
+      await sb.from('terms').select('days_due').eq('id',wo.customers.terms_id).single() :
+      {data:{days_due:30}};
+    const dueDate = new Date(Date.now()+(terms?.days_due||30)*24*60*60*1000).toISOString().split('T')[0];
+
+    const {data:inv,error:ie} = await sb.from('invoices').insert({
+      tenant_id:wo.tenant_id, customer_id:wo.customer_id,
+      terms_id:wo.customers.terms_id||null,
+      work_order_id:workOrderId,
+      invoice_number:invoiceNumber,
+      invoice_date:today, due_date:dueDate,
+      status:'draft', subtotal, tax_amount:taxAmount,
+      total, amount_paid:0, balance_due:total,
+      notes:`Auto-generated from Work Order ${wo.wo_number}`,
+    }).select('id').single();
+
+    if(ie) { toast('Invoice creation failed: '+ie.message,'error'); return; }
+
+    if(lines.length) {
+      await sb.from('invoice_lines').insert(lines.map((l,i)=>({
+        tenant_id:wo.tenant_id, invoice_id:inv.id,
+        line_number:l.line_number||i+1, line_type:l.line_type||'labor',
+        description:l.description, quantity:l.quantity,
+        unit:l.unit||'each', unit_price:l.unit_price,
+        unit_cost:l.unit_cost||0, discount_pct:0,
+        is_taxable:l.is_taxable||false,
+        tax_amount:l.is_taxable?Math.round(Number(l.line_total||0)*taxPct/100*100)/100:0,
+        line_total:l.line_total,
+      })));
+    }
+
+    toast(`✓ Invoice ${invoiceNumber} created automatically!`,'success');
+  } catch(e) {
+    console.warn('Auto-invoice error:', e);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// SETTINGS
+// ═══════════════════════════════════════════════════════════
+async function renderInvoices() {
+  const c = document.getElementById('content');
+  document.getElementById('topbar-title').textContent = 'Invoices';
+  document.getElementById('topbar-sub').textContent = '';
+  c.innerHTML = '<div class="spinner"></div>';
+
+  // Load invoices for this tenant - most recent first
+  const {data, error} = await sb.from('invoices')
+    .select('id,invoice_number,invoice_date,status,total,balance_due,customers(company_name,email)')
+    .order('invoice_date',{ascending:false})
+    .limit(50);
+
+  if(error){
+    c.innerHTML = `<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">Error loading invoices</div><div class="empty-sub">${error.message}</div></div>`;
+    return;
+  }
+
+  if(!data||!data.length){
+    c.innerHTML = `<div class="empty"><div class="empty-icon">🧾</div><div class="empty-title">No invoices yet</div><div class="empty-sub">Completed jobs will appear here</div></div>`;
+    return;
+  }
+
+  document.getElementById('topbar-sub').textContent = `${data.length} invoice${data.length!==1?'s':''}`;
+
+  const statusColors = {
+    draft:   'var(--text3)',
+    sent:    'var(--accent)',
+    partial: 'var(--yellow)',
+    paid:    'var(--green)',
+    cancelled: 'var(--red)',
+  };
+
+  const statusLabels = {
+    draft:'Draft', sent:'Sent', partial:'Partial', paid:'Paid ✓', cancelled:'Cancelled'
+  };
+
+  c.innerHTML = data.map(inv => `
+    <div class="job-card" onclick="openInvoiceDetail('${inv.id}')">
+      <div class="job-card-header">
+        <div style="flex:1;">
+          <div class="job-number">${inv.invoice_number}</div>
+          <div class="job-customer">${inv.customers?.company_name||'Unknown'}</div>
+          <div class="job-desc">${fmtDate(inv.invoice_date)}</div>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          <span style="font-size:18px;font-weight:700;color:${statusColors[inv.status]||'var(--text3)'};">
+            $${Number(inv.total||0).toFixed(2)}
+          </span>
+          <span style="font-size:11px;font-weight:600;color:${statusColors[inv.status]||'var(--text3)'};">
+            ${statusLabels[inv.status]||inv.status}
+          </span>
+          ${inv.balance_due > 0 ? `<span style="font-size:11px;color:var(--yellow);">Balance: $${Number(inv.balance_due).toFixed(2)}</span>` : ''}
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function openInvoiceDetail(invoiceId) {
+  const c = document.getElementById('content');
+  document.getElementById('topbar-title').textContent = 'Invoice';
+  document.getElementById('topbar-sub').textContent = '';
+  c.innerHTML = '<div class="spinner"></div>';
+
+  document.querySelectorAll('.bottom-nav-item').forEach(el => el.classList.remove('active'));
+
+  const [{data:inv,error:ie},{data:lines}] = await Promise.all([
+    sb.from('invoices').select('*,customers(company_name,email,phone,address_line1,city,state,zip)').eq('id',invoiceId).single(),
+    sb.from('invoice_lines').select('*').eq('invoice_id',invoiceId).order('line_number'),
+  ]);
+
+  if(ie||!inv){
+    c.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div><div class="empty-title">Invoice not found</div></div>';
+    return;
+  }
+
+  const statusColors = {draft:'var(--text3)',sent:'var(--accent)',partial:'var(--yellow)',paid:'var(--green)',cancelled:'var(--red)'};
+  const cust = inv.customers;
+
+  // Build email body
+  const emailBody = [
+    'Dear ' + (cust?.company_name||'Customer') + ',',
+    '',
+    'Please find your invoice details below.',
+    '',
+    'Invoice: ' + inv.invoice_number,
+    'Date: ' + fmtDate(inv.invoice_date),
+    'Due Date: ' + fmtDate(inv.due_date),
+    '',
+    'Items:',
+    ...(lines||[]).map(l => '  ' + l.description + ' x' + l.quantity + ' = $' + Number(l.line_total).toFixed(2)),
+    '',
+    'Subtotal: $' + Number(inv.subtotal||0).toFixed(2),
+    inv.tax_amount > 0 ? 'Tax: $' + Number(inv.tax_amount).toFixed(2) : '',
+    'Total Due: $' + Number(inv.total||0).toFixed(2),
+    inv.amount_paid > 0 ? 'Amount Paid: $' + Number(inv.amount_paid).toFixed(2) : '',
+    inv.balance_due > 0 ? 'Balance Due: $' + Number(inv.balance_due).toFixed(2) : '',
+    '',
+    'Thank you for your business!',
+  ].filter(Boolean).join('\n');
+
+  const subject = 'Invoice ' + inv.invoice_number;
+  const mailtoUrl = 'mailto:' + (cust?.email||'') + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(emailBody);
+
+  c.innerHTML = `
+    <div style="margin-bottom:8px;">
+      <button class="btn btn-ghost btn-sm" onclick="navTo('invoices')">← Back</button>
+    </div>
+
+    <!-- Invoice Header -->
+    <div class="card">
+      <div class="card-body">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+          <div>
+            <div style="font-size:11px;font-family:monospace;color:var(--text3);">${inv.invoice_number}</div>
+            <div style="font-size:18px;font-weight:700;">${cust?.company_name||'—'}</div>
+            <div style="font-size:13px;color:var(--text2);">Date: ${fmtDate(inv.invoice_date)}</div>
+            <div style="font-size:13px;color:var(--text2);">Due: ${fmtDate(inv.due_date)}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-size:24px;font-weight:700;color:${statusColors[inv.status]||'var(--text)'};">$${Number(inv.total||0).toFixed(2)}</div>
+            <div style="font-size:12px;font-weight:600;color:${statusColors[inv.status]||'var(--text3)'};">${inv.status?.toUpperCase()}</div>
+            ${inv.balance_due > 0 ? `<div style="font-size:12px;color:var(--yellow);">Balance: $${Number(inv.balance_due).toFixed(2)}</div>` : ''}
+          </div>
+        </div>
+
+        <!-- Email button -->
+        ${cust?.email ? `
+        <a href="${mailtoUrl}" class="btn btn-primary" style="text-decoration:none;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;">
+          ✉️ Email to ${cust.email}
+        </a>` : `
+        <div style="font-size:12px;color:var(--text3);padding:8px;background:var(--bg3);border-radius:var(--r2);margin-top:8px;">
+          No email on file for this customer
+        </div>`}
+      </div>
+    </div>
+
+    <!-- Line Items -->
+    <div class="card">
+      <div class="card-header"><div class="card-title">📋 Line Items</div></div>
+      <div class="card-body">
+        ${(lines||[]).map(l=>`
+          <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+            <div>
+              <div style="font-size:14px;">${l.description}</div>
+              <div style="font-size:11px;color:var(--text3);">${l.quantity} ${l.unit||'ea'} @ $${Number(l.unit_price||0).toFixed(2)}</div>
+            </div>
+            <div style="font-weight:600;font-size:14px;">$${Number(l.line_total||0).toFixed(2)}</div>
+          </div>
+        `).join('')}
+
+        <!-- Totals -->
+        <div style="margin-top:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;">
+            <span style="color:var(--text3);">Subtotal</span>
+            <span>$${Number(inv.subtotal||0).toFixed(2)}</span>
+          </div>
+          ${inv.tax_amount > 0 ? `
+          <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;">
+            <span style="color:var(--text3);">Tax</span>
+            <span>$${Number(inv.tax_amount).toFixed(2)}</span>
+          </div>` : ''}
+          <div style="display:flex;justify-content:space-between;font-size:16px;font-weight:700;padding:8px 0;border-top:1px solid var(--border);margin-top:4px;">
+            <span>Total</span>
+            <span style="color:var(--accent);">$${Number(inv.total||0).toFixed(2)}</span>
+          </div>
+          ${inv.amount_paid > 0 ? `
+          <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;color:var(--green);">
+            <span>Paid</span>
+            <span>$${Number(inv.amount_paid).toFixed(2)}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:700;padding:4px 0;color:var(--yellow);">
+            <span>Balance Due</span>
+            <span>$${Number(inv.balance_due||0).toFixed(2)}</span>
+          </div>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Customer Info -->
+    ${cust ? `
+    <div class="card">
+      <div class="card-header"><div class="card-title">👥 Customer</div></div>
+      <div class="card-body">
+        ${cust.phone ? `<div class="detail-row"><div class="detail-icon">📞</div><div><div class="detail-label">Phone</div><div class="detail-value"><a href="tel:${cust.phone}" style="color:var(--accent);">${cust.phone}</a></div></div></div>` : ''}
+        ${cust.email ? `<div class="detail-row"><div class="detail-icon">✉️</div><div><div class="detail-label">Email</div><div class="detail-value">${cust.email}</div></div></div>` : ''}
+        ${cust.address_line1 ? `<div class="detail-row"><div class="detail-icon">📌</div><div><div class="detail-label">Address</div><div class="detail-value">${cust.address_line1}, ${cust.city} ${cust.state}</div></div></div>` : ''}
+      </div>
+    </div>` : ''}
+
+    <div style="height:20px;"></div>
+  `;
+}
+
+async function renderSettings() {
+  const c = document.getElementById('content');
+  document.getElementById('topbar-title').textContent = 'Settings';
+  document.getElementById('topbar-sub').textContent = '';
+
+  const {data:{session}} = await sb.auth.getSession();
+  const claims = session ? JSON.parse(atob(session.access_token.split('.')[1])) : {};
+
+  c.innerHTML = `
+    <div class="card">
+      <div class="card-header"><div class="card-title">Account</div></div>
+      <div class="card-body">
+        <div class="detail-row">
+          <div class="detail-icon">👤</div>
+          <div><div class="detail-label">Signed in as</div><div class="detail-value">${currentUser?.email||'—'}</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><div class="card-title">🔑 Change Password</div></div>
+      <div class="card-body">
+        <div class="form-group">
+          <label class="form-label">New Password</label>
+          <input class="form-input" id="s-pass1" type="password" placeholder="Min 8 characters">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Confirm Password</label>
+          <input class="form-input" id="s-pass2" type="password" placeholder="Repeat password">
+        </div>
+        <button class="btn btn-primary" onclick="changePassword()">Update Password</button>
+        <div id="pass-msg" style="font-size:13px;margin-top:8px;display:none;"></div>
+      </div>
+    </div>
+
+    <button class="btn btn-danger mt-16" onclick="doLogout()">🚪 Sign Out</button>
+  `;
+}
+
+async function changePassword() {
+  const p1 = document.getElementById('s-pass1').value;
+  const p2 = document.getElementById('s-pass2').value;
+  const msg = document.getElementById('pass-msg');
+  if(p1.length<8){msg.style.color='var(--red)';msg.textContent='Min 8 characters';msg.style.display='block';return;}
+  if(p1!==p2){msg.style.color='var(--red)';msg.textContent='Passwords do not match';msg.style.display='block';return;}
+  const {error} = await sb.auth.updateUser({password:p1});
+  if(error){msg.style.color='var(--red)';msg.textContent=error.message;msg.style.display='block';return;}
+  msg.style.color='var(--green)';msg.textContent='✓ Password updated';msg.style.display='block';
+  document.getElementById('s-pass1').value='';
+  document.getElementById('s-pass2').value='';
+}
+
+function showConfig() {
+  const cfg = getConfig();
+  document.getElementById('cfg-url').value = cfg.url||'';
+  document.getElementById('cfg-key').value = cfg.key||'';
+  document.getElementById('app').style.display='none';
+  document.getElementById('config-screen').style.display='flex';
+}
+
+function editNote(noteId, workOrderId, el) {
+  const currentText = el.querySelector('.note-text').textContent;
+  openModal('Edit Note',
+    `<div class="form-group">
+      <label class="form-label">Note</label>
+      <textarea class="form-input" id="edit-note-text" rows="4">${currentText}</textarea>
+    </div>`,
+    `<div class="btn-grid">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveEditNote('${noteId}','${workOrderId}')">Save</button>
+    </div>`
+  );
+}
+
+async function saveEditNote(noteId, workOrderId) {
+  const note = document.getElementById('edit-note-text').value.trim();
+  clearAllFieldErrors();
+  if(!note){ fieldErr('edit-note-text','Note cannot be empty'); return; }
+  const {error} = await sb.from('work_order_notes').update({note}).eq('id', noteId);
+  if(error){ toast(error.message,'error'); return; }
+  toast('Note updated','success');
+  closeModal();
+  openJob(workOrderId);
+}
+
+let fieldCatalogFilter = 'all';
+let fieldCatalogData = [];
+
+async function addWOLine(workOrderId) {
+  // Load full product catalog
+  const {data:products} = await sb.from('products')
+    .select('id,product_code,name,category,unit,cost_price,sell_price,track_inventory,inventory_stock(quantity_on_hand,quantity_reserved)')
+    .eq('is_active',true).order('category').order('name');
+
+  fieldCatalogData = products||[];
+  fieldCatalogFilter = 'all';
+
+  openModal('Add Part / Labor', buildFieldCatalogHTML(workOrderId), '');
+}
+
+function buildFieldCatalogHTML(workOrderId) {
+  const tabs = [
+    {key:'all',       label:'All',       icon:'📋'},
+    {key:'parts',     label:'Parts',     icon:'🔩'},
+    {key:'labor',     label:'Labor',     icon:'👷'},
+    {key:'service',   label:'Services',  icon:'🔧'},
+    {key:'equipment', label:'Equipment', icon:'🌡️'},
+    {key:'inventory', label:'In Stock',  icon:'🏪'},
+  ];
+
+  let filtered = fieldCatalogData;
+  if(fieldCatalogFilter === 'inventory') {
+    filtered = fieldCatalogData.filter(p => p.track_inventory);
+  } else if(fieldCatalogFilter !== 'all') {
+    filtered = fieldCatalogData.filter(p => p.category === fieldCatalogFilter);
+  }
+
+  const prodOpts = filtered.map(p => {
+    const stock = p.inventory_stock?.[0];
+    const avail = stock ? Number(stock.quantity_on_hand) - Number(stock.quantity_reserved) : null;
+    const stockInfo = p.track_inventory && stock ? ` (${avail} in stock)` : '';
+    return `<option value="${p.id}" 
+      data-cost="${p.cost_price}" data-price="${p.sell_price}" 
+      data-unit="${p.unit}" data-type="${p.category}" data-name="${p.name}">
+      ${p.product_code} — ${p.name}${stockInfo}
+    </option>`;
+  }).join('');
+
+  return `
+    <!-- Filter tabs -->
+    <div style="display:flex;gap:4px;margin-bottom:12px;flex-wrap:wrap;">
+      ${tabs.map(t=>`
+        <button onclick="setFieldCatalogFilter('${t.key}','${workOrderId}')"
+          style="padding:5px 10px;border-radius:20px;border:2px solid ${fieldCatalogFilter===t.key?'var(--accent)':'var(--border)'};
+                 background:${fieldCatalogFilter===t.key?'var(--accent)':'var(--bg2)'};
+                 color:${fieldCatalogFilter===t.key?'#fff':'var(--text2)'};
+                 font-size:11px;font-weight:600;cursor:pointer;">
+          ${t.icon} ${t.label}
+        </button>
+      `).join('')}
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Select from Catalog</label>
+      <select class="form-input" id="fl-product" onchange="fieldFillFromProduct()" size="1">
+        <option value="">— Not in catalog (field purchase) —</option>
+        ${prodOpts}
+      </select>
+    </div>
+    <div id="fl-field-purchase" style="display:none;padding:8px 10px;background:var(--bg3);border-radius:var(--r2);font-size:12px;color:var(--yellow);margin-bottom:10px;">
+      🛒 Field purchase — will be flagged for office review
+    </div>
+    <div class="form-group">
+      <label class="form-label">Description <span class="req">*</span></label>
+      <input class="form-input" id="fl-desc" placeholder="e.g. Capacitor 45/5 MFD">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label class="form-label">Qty <span class="req">*</span></label>
+        <input class="form-input" id="fl-qty" type="number" step="0.01" value="1" oninput="fieldUpdateTotal()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Unit</label>
+        <select class="form-input" id="fl-unit">
+          <option>each</option><option>hr</option><option>lb</option><option>ft</option><option>gal</option>
+        </select>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div class="form-group">
+        <label class="form-label">Your Cost ($)</label>
+        <input class="form-input" id="fl-cost" type="number" step="0.01" value="0">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Charge ($) <span class="req">*</span></label>
+        <input class="form-input" id="fl-price" type="number" step="0.01" value="0" oninput="fieldUpdateTotal()">
+      </div>
+    </div>
+    <div style="text-align:right;font-weight:700;color:var(--accent);margin-top:4px;">
+      Total: <span id="fl-total">$0.00</span>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveFieldLine('${workOrderId}')">Add</button>
+    </div>
+  `;
+}
+
+function setFieldCatalogFilter(filter, workOrderId) {
+  fieldCatalogFilter = filter;
+  document.getElementById('modal-body').innerHTML = buildFieldCatalogHTML(workOrderId);
+  document.getElementById('modal-footer').innerHTML = '';
+}
+
+function fieldFillFromProduct() {
+  const sel = document.getElementById('fl-product');
+  const opt = sel.options[sel.selectedIndex];
+  const fp = document.getElementById('fl-field-purchase');
+  if(!opt.value) {
+    if(fp) fp.style.display='block';
+    document.getElementById('fl-desc').value='';
+    document.getElementById('fl-cost').value=0;
+    document.getElementById('fl-price').value=0;
+    return;
+  }
+  if(fp) fp.style.display='none';
+  document.getElementById('fl-desc').value = opt.dataset.name||'';
+  document.getElementById('fl-cost').value = opt.dataset.cost||0;
+  document.getElementById('fl-price').value = opt.dataset.price||0;
+  document.getElementById('fl-unit').value = opt.dataset.unit||'each';
+  fieldUpdateTotal();
+}
+
+function fieldUpdateTotal() {
+  const qty = Number(document.getElementById('fl-qty')?.value)||0;
+  const price = Number(document.getElementById('fl-price')?.value)||0;
+  const el = document.getElementById('fl-total');
+  if(el) el.textContent = '$'+(qty*price).toFixed(2);
+}
+
+async function saveFieldLine(workOrderId) {
+  const desc  = document.getElementById('fl-desc').value.trim();
+  const qty   = Number(document.getElementById('fl-qty').value)||1;
+  const price = Number(document.getElementById('fl-price').value)||0;
+  const cost  = Number(document.getElementById('fl-cost').value)||0;
+  if(!desc){ toast('Description required','error'); return; }
+
+  const {data:{session}} = await sb.auth.getSession();
+  const claims = JSON.parse(atob(session.access_token.split('.')[1]));
+  const tenantId = claims.tenant_id;
+
+  const {data:existing} = await sb.from('work_order_lines')
+    .select('line_number').eq('work_order_id',workOrderId)
+    .order('line_number',{ascending:false}).limit(1);
+  const lineNum = existing&&existing.length ? existing[0].line_number+1 : 1;
+
+  const productSel = document.getElementById('fl-product');
+  const productId = productSel?.value || null;
+
+  clearAllFieldErrors();
+  const _desc = document.getElementById('fl-desc')?.value.trim();
+  const _qty  = Number(document.getElementById('fl-qty')?.value||0);
+  const _price= Number(document.getElementById('fl-price')?.value||0);
+  if(!_desc){ fieldErr('fl-desc','Description is required'); return; }
+  if(_qty <= 0){ fieldErr('fl-qty','Quantity must be greater than 0'); return; }
+  if(_price <= 0){ fieldErr('fl-price','Charge amount must be greater than 0'); return; }
+  const {error} = await sb.from('work_order_lines').insert({
+    tenant_id: tenantId, work_order_id: workOrderId,
+    line_number: lineNum, line_type: 'parts',
+    description: desc, quantity: qty, unit: document.getElementById('fl-unit').value,
+    unit_cost: cost, unit_price: price, line_total: qty*price, is_taxable: false,
+    product_id: productId, is_field_purchase: !productId,
+  });
+
+  if(error){ toast(error.message,'error'); return; }
+  toast('Added successfully','success');
+  closeModal();
+  openJob(workOrderId);
+}
+
+async function deleteFieldLine(lineId, workOrderId) {
+  if(!confirm('Remove this line?')) return;
+  const {error} = await sb.from('work_order_lines').delete().eq('id',lineId);
+  if(error){ toast(error.message,'error'); return; }
+  toast('Removed','success');
+  openJob(workOrderId);
+}
+
+async function deletePhoto(photoId, photoUrl, workOrderId) {
+  if(!confirm('Delete this photo?')) return;
+
+  // Extract storage path from URL
+  const urlParts = photoUrl.split('/work-order-photos/');
+  if(urlParts.length > 1) {
+    const path = urlParts[1].split('?')[0];
+    await sb.storage.from('work-order-photos').remove([path]);
+  }
+
+  // Delete from database
+  const {error} = await sb.from('work_order_photos').delete().eq('id', photoId);
+  if(error){ toast('Failed to delete: '+error.message, 'error'); return; }
+
+  toast('Photo deleted', 'success');
+  openJob(workOrderId);
+}
+
+// ── Start
+boot();
+</script>
+</body>
+</html>

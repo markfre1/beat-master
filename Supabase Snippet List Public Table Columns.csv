@@ -1,0 +1,101 @@
+table_name,column_name,data_type,is_nullable
+bank_accounts,id,uuid,NO
+bank_accounts,tenant_id,uuid,NO
+bank_accounts,account_name,text,NO
+bank_accounts,account_type,text,NO
+bank_accounts,account_number,text,YES
+bank_accounts,bank_name,text,YES
+bank_accounts,current_balance,numeric,NO
+bank_accounts,is_active,boolean,NO
+bank_accounts,created_at,timestamp with time zone,NO
+bank_transactions,id,uuid,NO
+bank_transactions,tenant_id,uuid,NO
+bank_transactions,bank_account_id,uuid,NO
+bank_transactions,transaction_date,date,NO
+bank_transactions,description,text,NO
+bank_transactions,amount,numeric,NO
+bank_transactions,transaction_type,text,NO
+bank_transactions,is_reconciled,boolean,NO
+bank_transactions,journal_entry_id,uuid,YES
+bank_transactions,reference,text,YES
+bank_transactions,created_at,timestamp with time zone,NO
+customers,id,uuid,NO
+customers,tenant_id,uuid,NO
+customers,terms_id,uuid,YES
+customers,tax_rate_id,uuid,YES
+customers,customer_code,text,NO
+customers,company_name,text,NO
+customers,customer_type,text,NO
+customers,contact_name,text,YES
+customers,email,text,YES
+customers,phone,text,YES
+customers,phone_alt,text,YES
+customers,address_line1,text,YES
+customers,city,text,YES
+customers,state,text,YES
+customers,zip,text,YES
+customers,country,text,NO
+customers,credit_limit,numeric,NO
+customers,is_taxable,boolean,NO
+customers,is_active,boolean,NO
+customers,notes,text,YES
+customers,created_at,timestamp with time zone,NO
+customers,updated_at,timestamp with time zone,NO
+equipment,id,uuid,NO
+equipment,tenant_id,uuid,NO
+equipment,location_id,uuid,NO
+equipment,customer_id,uuid,NO
+equipment,equipment_name,text,NO
+equipment,equipment_type,text,NO
+equipment,brand,text,YES
+equipment,model_number,text,YES
+equipment,serial_number,text,YES
+equipment,install_date,date,YES
+equipment,warranty_expiry,date,YES
+equipment,tonnage,numeric,YES
+equipment,seer_rating,numeric,YES
+equipment,refrigerant_type,text,YES
+equipment,next_service_date,date,YES
+equipment,is_active,boolean,NO
+equipment,created_at,timestamp with time zone,NO
+equipment,updated_at,timestamp with time zone,NO
+equipment_brands,id,uuid,NO
+equipment_brands,name,text,NO
+equipment_brands,is_active,boolean,NO
+equipment_brands,created_at,timestamp with time zone,NO
+equipment_brands,updated_at,timestamp with time zone,NO
+equipment_types,id,uuid,NO
+equipment_types,tenant_id,uuid,NO
+equipment_types,code,text,NO
+equipment_types,description,text,NO
+equipment_types,industry_type,text,NO
+equipment_types,is_active,boolean,NO
+equipment_types,created_at,timestamp with time zone,NO
+equipment_types,updated_at,timestamp with time zone,NO
+gl_accounts,id,uuid,NO
+gl_accounts,tenant_id,uuid,NO
+gl_accounts,account_number,text,NO
+gl_accounts,account_name,text,NO
+gl_accounts,account_type,text,NO
+gl_accounts,description,text,YES
+gl_accounts,is_active,boolean,NO
+gl_accounts,created_at,timestamp with time zone,NO
+gl_accounts,updated_at,timestamp with time zone,NO
+group_permissions,id,uuid,NO
+group_permissions,tenant_id,uuid,NO
+group_permissions,group_id,uuid,NO
+group_permissions,resource_id,uuid,NO
+group_permissions,can_query,boolean,NO
+group_permissions,can_create,boolean,NO
+group_permissions,can_modify,boolean,NO
+group_permissions,can_delete,boolean,NO
+group_permissions,can_export,boolean,NO
+group_permissions,can_approve,boolean,NO
+group_permissions,can_admin,boolean,NO
+group_permissions,created_at,timestamp with time zone,NO
+group_permissions,updated_at,timestamp with time zone,NO
+inventory_stock,id,uuid,NO
+inventory_stock,tenant_id,uuid,NO
+inventory_stock,product_id,uuid,NO
+inventory_stock,quantity_on_hand,numeric,NO
+inventory_stock,quantity_reserved,numeric,NO
