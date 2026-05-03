@@ -620,12 +620,13 @@ function renderMicSetupBlock() {
     </div>`;
   }
 
-  return`<div class="mic-setup" id="mic-setup-block">
-    <div class="mic-setup-title">🎙️ Microphone Access</div>
-    <div class="mic-setup-desc">Allow access now so you can <b>speak your answers</b> when you buzz in. You cannot play without this activated.</div>
-    <button id="mic-test-btn" class="mic-test-btn" onclick="testMicrophone()" style="width:100%;justify-content:center;">Enable Microphone</button>
-    <div id="mic-test-status" class="mic-status-line" style="text-align:center;">${supported?'Tap above — your browser will ask for permission, tap Allow.':'⚠️ Speech recognition not supported in this browser — you will type answers.'}</div>
-  </div>`;
+  return '<div class="mic-setup" id="mic-setup-block">' +
+    '<div class="mic-setup-title">🎙️ Microphone Access</div>' +
+    '<div class="mic-setup-desc">Allow mic access to speak your answers. Or continue without it and type instead.</div>' +
+    '<button id="waiting-mic-btn" style="width:100%;background:var(--neon);color:#000;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;touch-action:manipulation;margin-bottom:8px;" onclick="waitingRoomEnableMic()">Enable Microphone</button>' +
+    '<button style="width:100%;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;cursor:pointer;touch-action:manipulation;" onclick="skipMicAndContinue()">Continue without mic (type answers)</button>' +
+    '<div id="mic-test-status" class="mic-status-line" style="text-align:center;margin-top:6px;"></div>' +
+  '</div>';
 }
 function renderPlayerList() { return state.players.map((p,i)=>`<div class="player-row"><div class="p-avatar">${p.avatar}</div><div class="p-name">${p.name}</div><div class="p-status ${i===0?'ready':'wait'}">${i===0?'✓ HOST':'READY'}</div></div>`).join(''); }
 function addPlayer() { const inp=document.getElementById('new-player-input'); const name=inp?.value?.trim(); if(!name||state.players.length>=6)return; const avatars=['🎸','🎤','🥁','🎹','🎺','🎻']; state.players.push({name,avatar:avatars[(state.players.length)%avatars.length],score:0}); inp.value=''; renderSettings(); }
@@ -1203,8 +1204,9 @@ async function initAuth() {
     const upperCode = joinCode.toUpperCase()
     sessionStorage.setItem('pendingJoinCode', upperCode)
     if (state.currentUser) {
-      // Already logged in - auto join the room directly
+      // Already logged in - auto join the room directly, no screens needed
       sessionStorage.removeItem('pendingJoinCode')
+      console.log('[initAuth] auto-joining room:', upperCode)
       autoJoinRoom(upperCode)
     } else {
       // Not logged in - go to register, join code saved in sessionStorage
@@ -2386,6 +2388,7 @@ function renderWaitingRoom() {
   const hostCtrl = document.getElementById('waiting-host-controls');
   const guestMsg = document.getElementById('waiting-guest-msg');
   const hasEnough = state.partyPlayers.length >= 2;
+  console.log('[waitingRoom] players:', state.partyPlayers.length, 'hasEnough:', hasEnough, 'isHost:', state.partyIsHost);
 
   if (state.partyIsHost) {
     if (guestMsg) guestMsg.style.display = 'none';
@@ -2444,9 +2447,22 @@ function renderWaitingMicBlock() {
 }
 
 async function waitingRoomEnableMic() {
-  await testMicrophone();
-  if (state.micPermission === 'granted') await markMicReady();
-  renderWaitingRoom();
+  const btn = document.getElementById('waiting-mic-btn');
+  if (btn) { btn.textContent = 'Requesting access…'; btn.disabled = true; }
+  const statusEl = document.getElementById('mic-test-status');
+  if (statusEl) statusEl.textContent = 'Please tap Allow when your browser asks…';
+  try {
+    await testMicrophone();
+    if (state.micPermission === 'granted') {
+      await markMicReady();
+    } else {
+      if (btn) { btn.textContent = 'Enable Microphone'; btn.disabled = false; }
+      if (statusEl) statusEl.textContent = 'Mic access denied. Tap "Continue without mic" to keep going.';
+    }
+  } catch(e) {
+    if (btn) { btn.textContent = 'Enable Microphone'; btn.disabled = false; }
+    if (statusEl) statusEl.textContent = 'Could not access mic. Try "Continue without mic".';
+  }
 }
 
 async function markMicReady() {
@@ -2455,6 +2471,20 @@ async function markMicReady() {
     .update({ mic_ready: true })
     .eq('room_id', state.partyRoom.id)
     .eq('player_id', state.currentUser.id);
+  state.micPermission = 'granted';
+  renderWaitingRoom();
+}
+
+async function skipMicAndContinue() {
+  // Mark as ready even without mic - they'll type answers
+  if (state.partyRoom && state.currentUser) {
+    await sb.from('room_players')
+      .update({ mic_ready: true })
+      .eq('room_id', state.partyRoom.id)
+      .eq('player_id', state.currentUser.id);
+  }
+  state.micPermission = 'denied';
+  renderWaitingRoom();
 }
 
 // ── HOST STARTS GAME ──
