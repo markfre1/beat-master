@@ -465,12 +465,18 @@ function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
 function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting'){
     renderWaitingRoom();
-    // Start polling as fallback if realtime doesn't update
+    // Immediate refresh
+    setTimeout(() => refreshPartyPlayers(), 300);
+    // Poll every 3 seconds as fallback for realtime
     clearInterval(state._waitingPoll);
     state._waitingPoll = setInterval(() => {
-      if (state.screen === 'waiting') refreshPartyPlayers();
-      else clearInterval(state._waitingPoll);
-    }, 4000);
+      if (state.screen === 'waiting') {
+        refreshPartyPlayers();
+      } else {
+        clearInterval(state._waitingPoll);
+        state._waitingPoll = null;
+      }
+    }, 3000);
   } if(name==='join')prefillJoinCode(); if(name==='party-setup'){
     renderPartySetupPlayers();
     renderInvitePeopleList();
@@ -1938,20 +1944,31 @@ function prefillJoinCode() {
 }
 
 async function refreshPartyPlayers() {
-  if (!state.partyRoom) return;
+  if (!state.partyRoom) {
+    console.warn('[refresh] no partyRoom');
+    return;
+  }
   try {
+    console.log('[refresh] fetching room_players for room:', state.partyRoom.id);
     const { data, error } = await sb.from('room_players')
       .select('*, profiles(nickname, avatar_url)')
       .eq('room_id', state.partyRoom.id)
       .order('joined_at');
-    if (error) { console.warn('[refreshPartyPlayers]', error); return; }
+    if (error) {
+      console.error('[refresh] error:', error.message, error.code);
+      // Show error in waiting room
+      const listEl = document.getElementById('waiting-players-list');
+      if (listEl && state.screen === 'waiting') {
+        listEl.innerHTML = '<div style="color:var(--pink);font-size:12px;padding:12px;text-align:center;">Error loading players: ' + error.message + '</div>';
+      }
+      return;
+    }
     state.partyPlayers = data || [];
-    console.log('[refreshPartyPlayers] players:', state.partyPlayers.length);
-    // Re-render whichever screen is active
+    console.log('[refresh] got', state.partyPlayers.length, 'players');
     if (state.screen === 'waiting') renderWaitingRoom();
     if (state.screen === 'party-setup') renderPartySetupPlayers();
   } catch(e) {
-    console.warn('[refreshPartyPlayers] error:', e);
+    console.error('[refresh] exception:', e.message);
   }
 }
 
@@ -2292,6 +2309,7 @@ function renderWaitingRoom() {
               '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Need 1 more player to start (you count!)</div>' +
             '</div>') +
         '<button onclick="shareInviteLink()" style="background:transparent;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation;width:100%;">📤 Invite More Players</button>' +
+        '<button onclick="refreshPartyPlayers()" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:10px;font-size:12px;cursor:pointer;touch-action:manipulation;width:100%;">🔄 Refresh Player List</button>' +
         '</div>';
     }
   } else {
