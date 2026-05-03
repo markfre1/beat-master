@@ -2239,6 +2239,29 @@ function goToWaiting() {
 }
 
 // ── WAITING ROOM ──
+async function debugWaitingRoom() {
+  const out = document.getElementById('waiting-debug');
+  if (!out) return;
+  out.innerHTML = 'Checking…';
+  try {
+    if (!state.partyRoom) { out.innerHTML = '❌ No partyRoom in state'; return; }
+    out.innerHTML = 'Room ID: ' + state.partyRoom.id + '<br>Querying…';
+    const { data, error } = await sb.from('room_players')
+      .select('player_id, is_host, profiles(nickname)')
+      .eq('room_id', state.partyRoom.id);
+    if (error) {
+      out.innerHTML = '❌ DB Error: ' + error.message + ' (code: ' + error.code + ')';
+    } else {
+      out.innerHTML = '✅ Found ' + (data||[]).length + ' player(s):<br>' +
+        (data||[]).map(p => (p.profiles?.nickname||p.player_id?.slice(0,8)) + (p.is_host?' 👑':'')).join(', ');
+      state.partyPlayers = data || [];
+      renderWaitingRoom();
+    }
+  } catch(e) {
+    out.innerHTML = '❌ Exception: ' + e.message;
+  }
+}
+
 function renderWaitingRoom() {
   // Check mic permission status first
   if (state.micPermission === 'unknown' && navigator.permissions) {
@@ -2561,6 +2584,12 @@ initAuth();
     <!-- Guest waiting message -->
     <div id="waiting-guest-msg" style="display:none;text-align:center;padding:12px;font-size:13px;color:var(--muted);">
       Waiting for the host to start the game…
+    </div>
+
+    <!-- Debug panel -->
+    <div style="margin-top:8px;">
+      <button onclick="debugWaitingRoom()" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:12px;color:var(--muted);cursor:pointer;touch-action:manipulation;">🔍 Check Connection</button>
+      <div id="waiting-debug" style="font-size:11px;color:var(--muted);padding:8px;text-align:center;min-height:16px;"></div>
     </div>
   </div>
 </div>
