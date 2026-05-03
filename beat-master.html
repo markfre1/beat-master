@@ -1857,15 +1857,23 @@ async function autoJoinRoom(code) {
   if (!code || !state.currentUser) return;
   try {
     const { data: room, error } = await sb.from('game_rooms')
-      .select('*').eq('code', code.toUpperCase()).eq('status', 'waiting').single();
+      .select('*').eq('code', code.toUpperCase()).single();
     if (error || !room) {
-      // Room not found - show join screen so user can try manually
+      console.error('[autoJoinRoom] room not found:', error?.message);
       goto('join');
       setTimeout(() => {
         const el = document.getElementById('join-code-input');
         if (el) el.value = code.toUpperCase();
         const errEl = document.getElementById('join-error');
-        if (errEl) errEl.textContent = 'Room not found or game already started.';
+        if (errEl) errEl.textContent = 'Room not found. Please check the code and try again.';
+      }, 100);
+      return;
+    }
+    if (room.status === 'finished') {
+      goto('join');
+      setTimeout(() => {
+        const errEl = document.getElementById('join-error');
+        if (errEl) errEl.textContent = 'This game has already ended.';
       }, 100);
       return;
     }
@@ -1917,8 +1925,17 @@ async function joinRoomByCode() {
   if (btn) { btn.textContent = 'Joining…'; btn.disabled = true; }
   try {
     // Find the room
-    const { data: room, error } = await sb.from('game_rooms').select('*').eq('code', code).eq('status', 'waiting').single();
-    if (error || !room) { if (errEl) errEl.textContent = 'Room not found or game already started.'; if (btn) { btn.textContent = 'Join Game →'; btn.disabled = false; } return; }
+    const { data: room, error } = await sb.from('game_rooms').select('*').eq('code', code).single();
+    if (error || !room) {
+      if (errEl) errEl.textContent = 'Room not found. Check the code and try again.';
+      if (btn) { btn.textContent = 'Join Game →'; btn.disabled = false; }
+      return;
+    }
+    if (room.status === 'finished') {
+      if (errEl) errEl.textContent = 'This game has already ended.';
+      if (btn) { btn.textContent = 'Join Game →'; btn.disabled = false; }
+      return;
+    }
 
     // Check player count
     const { count } = await sb.from('room_players').select('*', {count:'exact',head:true}).eq('room_id', room.id);
@@ -1963,34 +1980,29 @@ async function refreshPartyPlayers() {
   }
   try {
     console.log('[refresh] fetching room_players for room:', state.partyRoom.id);
-    // Try with profiles join first, fall back to simple query
-    let data, error;
-    const r1 = await sb.from('room_players')
-      .select('*, profiles(nickname, avatar_url)')
+    // Simple query first - no joins to avoid schema cache issues
+    const { data, error } = await sb.from('room_players')
+      .select('*')
       .eq('room_id', state.partyRoom.id)
       .order('joined_at');
-    if (r1.error) {
-      console.warn('[refresh] join query failed, trying simple:', r1.error.message);
-      // Try without profiles join
-      const r2 = await sb.from('room_players')
-        .select('*')
-        .eq('room_id', state.partyRoom.id)
-        .order('joined_at');
-      if (r2.error) {
-        console.error('[refresh] both queries failed:', r2.error.message);
-        const listEl = document.getElementById('waiting-players-list');
-        if (listEl && state.screen === 'waiting') {
-          listEl.innerHTML = '<div style="color:var(--pink);font-size:12px;padding:12px;text-align:center;">Error: ' + r2.error.message + '</div>';
-        }
-        return;
-      }
-      data = r2.data;
-      error = r2.error;
-    } else {
-      data = r1.data;
-      error = r1.error;
+    if (error) {
+      console.error('[refresh] error:', error.message);
+      return;
     }
-    state.partyPlayers = data || [];
+    // Fetch profiles separately for each player
+    const playerIds = (data||[]).map(p => p.player_id);
+    let profileMap = {};
+    if (playerIds.length > 0) {
+      const { data: profiles } = await sb.from('profiles')
+        .select('id, nickname, avatar_url')
+        .in('id', playerIds);
+      (profiles||[]).forEach(p => { profileMap[p.id] = p; });
+    }
+    // Merge profiles into player data
+    state.partyPlayers = (data||[]).map(p => ({
+      ...p,
+      profiles: profileMap[p.player_id] || { nickname: 'Player', avatar_url: null }
+    }));
     console.log('[refresh] got', state.partyPlayers.length, 'players');
     if (state.screen === 'waiting') renderWaitingRoom();
     if (state.screen === 'party-setup') renderPartySetupPlayers();
