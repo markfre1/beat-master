@@ -1822,13 +1822,19 @@ async function createPartyRoom() {
     if (error) throw error;
 
     // Add host as first player
-    await sb.from('room_players').insert({
+    const { data: playerData, error: playerErr } = await sb.from('room_players').insert({
       room_id: room.id,
       player_id: state.currentUser.id,
       is_host: true,
       mic_ready: false,
       score: 0,
-    });
+    }).select();
+    if (playerErr) {
+      console.error('[createPartyRoom] player insert error:', JSON.stringify(playerErr));
+      alert('Room created but could not add you as player.\nError: ' + playerErr.message + '\nCode: ' + playerErr.code);
+    } else {
+      console.log('[createPartyRoom] host inserted:', playerData);
+    }
 
     state.partyRoom = room;
     state.partyIsHost = true;
@@ -1864,10 +1870,17 @@ async function autoJoinRoom(code) {
       return;
     }
     // Join the room
-    await sb.from('room_players').upsert({
+    const { data: guestData, error: guestErr } = await sb.from('room_players').upsert({
       room_id: room.id, player_id: state.currentUser.id,
       is_host: false, mic_ready: false, score: 0,
-    }, { onConflict: 'room_id,player_id' });
+    }, { onConflict: 'room_id,player_id' }).select();
+    if (guestErr) {
+      console.error('[autoJoinRoom] insert error:', JSON.stringify(guestErr));
+      alert('Could not join room.\nError: ' + guestErr.message + '\nCode: ' + guestErr.code);
+      goto('join');
+      return;
+    }
+    console.log('[autoJoinRoom] guest inserted:', guestData);
 
     state.partyRoom = room;
     state.partyIsHost = false;
