@@ -456,19 +456,28 @@ const state = {
   bonusPool:[], nextBonusAt:0, skipVotes:[], totalSkips:0, paused:false, pauseRequester:null,
   pauseVotes:{}, restartVotes:{}, footerRestartVotes:{}, pausedTimerRemaining:0, pausedAudioTime:0,
   // Party mode realtime state
-  partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false,
+  partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false, _waitingPoll: null,
   partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [],
   currentUser: null, currentProfile: null, _pendingAvatarFile: null,
 };
 
 function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s,genre:gid}))); }); return pool; }
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
-function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting')renderWaitingRoom(); if(name==='join')prefillJoinCode(); if(name==='party-setup'){
+function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting'){
+    renderWaitingRoom();
+    // Start polling as fallback if realtime doesn't update
+    clearInterval(state._waitingPoll);
+    state._waitingPoll = setInterval(() => {
+      if (state.screen === 'waiting') refreshPartyPlayers();
+      else clearInterval(state._waitingPoll);
+    }, 4000);
+  } if(name==='join')prefillJoinCode(); if(name==='party-setup'){
     renderPartySetupPlayers();
     renderInvitePeopleList();
   } }
 function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
-function clearAllTimers() { Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
+function clearAllTimers() {
+  if (state._waitingPoll) { clearInterval(state._waitingPoll); state._waitingPoll = null; } Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
 function norm(s) { return (s||'').toLowerCase().replace(/[\u2018\u2019']/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
 function wordMatch(answer,target) { const aw=norm(answer).split(' ').filter(w=>w.length>1); const tw=norm(target).split(' ').filter(w=>w.length>1); if(!tw.length)return norm(answer).includes(norm(target)); const hits=tw.filter(t=>aw.some(a=>a.includes(t)||t.includes(a))); return hits.length/tw.length>=0.55; }
 function checkAnswer(spoken,song) { const hasTitle=wordMatch(spoken,song.title); const hasArtist=wordMatch(spoken,song.artist); if(song.isBonus){const pts=(hasTitle&&hasArtist)?5:(hasTitle||hasArtist)?2:0; return{hasTitle,hasArtist,pts,isBonus:true};} const pts=(hasTitle&&hasArtist)?3:(hasTitle||hasArtist)?1:0; return{hasTitle,hasArtist,pts}; }
@@ -1930,13 +1939,20 @@ function prefillJoinCode() {
 
 async function refreshPartyPlayers() {
   if (!state.partyRoom) return;
-  const { data } = await sb.from('room_players')
-    .select('*, profiles(nickname, avatar_url)')
-    .eq('room_id', state.partyRoom.id)
-    .order('joined_at');
-  state.partyPlayers = data || [];
-  renderPartySetupPlayers();
-  renderWaitingRoom();
+  try {
+    const { data, error } = await sb.from('room_players')
+      .select('*, profiles(nickname, avatar_url)')
+      .eq('room_id', state.partyRoom.id)
+      .order('joined_at');
+    if (error) { console.warn('[refreshPartyPlayers]', error); return; }
+    state.partyPlayers = data || [];
+    console.log('[refreshPartyPlayers] players:', state.partyPlayers.length);
+    // Re-render whichever screen is active
+    if (state.screen === 'waiting') renderWaitingRoom();
+    if (state.screen === 'party-setup') renderPartySetupPlayers();
+  } catch(e) {
+    console.warn('[refreshPartyPlayers] error:', e);
+  }
 }
 
 async function kickPlayer(playerId) {
@@ -1966,44 +1982,46 @@ async function leaveRoom() {
 
 // ── REALTIME SUBSCRIPTION ──
 function subscribeToRoom(roomId) {
-  if (state.partyChannel) sb.removeChannel(state.partyChannel);
+  if (state.partyChannel) { try { sb.removeChannel(state.partyChannel); } catch(e) {} }
 
-  state.partyChannel = sb.channel('room:' + roomId, {
-    config: { broadcast: { self: true }, presence: { key: state.currentUser.id } }
-  });
+  state.partyChannel = sb.channel('room:' + roomId);
 
-  // Listen for room status changes (game start, etc.)
+  // Listen for changes to game_rooms (game start signal)
   state.partyChannel
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'game_rooms', filter: `id=eq.${roomId}` }, payload => {
-      const room = payload.new;
-      state.partyRoom = room;
-      if (room.status === 'playing' && state.screen !== 'game') {
-        // Host pushed game start — all guests jump in
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'game_rooms',
+      filter: 'id=eq.' + roomId
+    }, async (payload) => {
+      console.log('[realtime] game_rooms change:', payload.new?.status);
+      state.partyRoom = payload.new;
+      if (payload.new?.status === 'playing' && state.screen !== 'game') {
+        await refreshPartyPlayers();
         startPartyGame();
       }
-      if (room.status === 'finished' && state.screen !== 'home') {
+      if (payload.new?.status === 'finished' && state.screen !== 'home') {
         alert('The host ended the game.');
         state.partyRoom = null; state.partyPlayers = []; state.partyIsHost = false;
         goto('home');
       }
-      // Sync buzzer state for non-host players
-      if (room.current_phase === 'answering' && room.buzzed_by) {
-        state.partyBuzzedPlayerId = room.buzzed_by;
-        renderPartyGameArea();
-      }
-      if (room.current_phase === 'playing') {
-        state.partyBuzzedPlayerId = null;
-        renderPartyGameArea();
-      }
     })
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'room_players', filter: `room_id=eq.${roomId}` }, payload => {
-      refreshPartyPlayers();
+    // Listen for player joins/leaves/mic updates
+    .on('postgres_changes', {
+      event: '*', schema: 'public', table: 'room_players',
+      filter: 'room_id=eq.' + roomId
+    }, async (payload) => {
+      console.log('[realtime] room_players change:', payload.eventType, payload.new?.player_id);
+      await refreshPartyPlayers();
     })
-    .subscribe();
+    .subscribe((status) => {
+      console.log('[realtime] channel status:', status);
+      if (status === 'SUBSCRIBED') {
+        // Do an immediate refresh when subscription is confirmed
+        refreshPartyPlayers();
+      }
+    });
 }
 
-// ── SHARE INVITE ──
-// ── PARTY INVITE MANAGEMENT ──
+
 function addInvitePerson() {
   var nameEl = document.getElementById('invite-name');
   var phoneEl = document.getElementById('invite-phone');
@@ -2205,6 +2223,17 @@ function goToWaiting() {
 
 // ── WAITING ROOM ──
 function renderWaitingRoom() {
+  // Check mic permission status first
+  if (state.micPermission === 'unknown' && navigator.permissions) {
+    navigator.permissions.query({ name: 'microphone' }).then(status => {
+      if (status.state === 'granted') { state.micPermission = 'granted'; markMicReady(); }
+      else if (status.state === 'denied') { state.micPermission = 'denied'; }
+      renderWaitingRoom();
+    }).catch(() => {});
+  }
+  // If mic already granted, auto-mark ready
+  if (state.micPermission === 'granted') markMicReady();
+
   const code = state.partyRoom?.code || '';
   const codeEl = document.getElementById('waiting-room-code');
   const badgeEl = document.getElementById('waiting-code-badge');
