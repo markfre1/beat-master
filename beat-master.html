@@ -465,9 +465,9 @@ function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
 function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting'){
     renderWaitingRoom();
-    // Immediate refresh
-    setTimeout(() => refreshPartyPlayers(), 300);
-    // Poll every 3 seconds as fallback for realtime
+    // Immediate refresh + aggressive polling every 2 seconds
+    setTimeout(() => refreshPartyPlayers(), 200);
+    setTimeout(() => refreshPartyPlayers(), 1000);
     clearInterval(state._waitingPoll);
     state._waitingPoll = setInterval(() => {
       if (state.screen === 'waiting') {
@@ -476,7 +476,7 @@ function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfi
         clearInterval(state._waitingPoll);
         state._waitingPoll = null;
       }
-    }, 3000);
+    }, 2000);
   } if(name==='join')prefillJoinCode(); if(name==='party-setup'){
     renderPartySetupPlayers();
     renderInvitePeopleList();
@@ -623,8 +623,8 @@ function renderMicSetupBlock() {
   return '<div class="mic-setup" id="mic-setup-block">' +
     '<div class="mic-setup-title">🎙️ Microphone Access</div>' +
     '<div class="mic-setup-desc">Allow mic access to speak your answers. Or continue without it and type instead.</div>' +
-    '<button id="waiting-mic-btn" style="width:100%;background:var(--neon);color:#000;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;touch-action:manipulation;margin-bottom:8px;" onclick="waitingRoomEnableMic()">Enable Microphone</button>' +
-    '<button style="width:100%;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;cursor:pointer;touch-action:manipulation;" onclick="skipMicAndContinue()">Continue without mic (type answers)</button>' +
+    '<button data-action="enable-mic" style="width:100%;background:var(--neon);color:#000;border:none;border-radius:12px;padding:14px;font-size:15px;font-weight:800;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;margin-bottom:8px;">Enable Microphone</button>' +
+    '<button data-action="skip-mic" style="width:100%;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:11px;font-size:13px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;">Continue without mic</button>' +
     '<div id="mic-test-status" class="mic-status-line" style="text-align:center;margin-top:6px;"></div>' +
   '</div>';
 }
@@ -1981,7 +1981,7 @@ async function refreshPartyPlayers() {
     return;
   }
   try {
-    console.log('[refresh] fetching room_players for room:', state.partyRoom.id);
+    console.log('[refresh] fetching room_players for room:', state.partyRoom.id, 'isHost:', state.partyIsHost);
     // Simple query first - no joins to avoid schema cache issues
     const { data, error } = await sb.from('room_players')
       .select('*')
@@ -2349,6 +2349,7 @@ function renderWaitingRoom() {
   if (codeEl) codeEl.textContent = code;
   if (badgeEl) badgeEl.textContent = code;
   if (countEl) countEl.textContent = state.partyPlayers.length;
+  console.log('[renderWaitingRoom] players:', state.partyPlayers.length, 'isHost:', state.partyIsHost, 'room:', state.partyRoom?.id?.slice(0,8));
 
   // Mic setup
   const micBlock = document.getElementById('waiting-mic-block');
@@ -2390,18 +2391,35 @@ function renderWaitingRoom() {
   const hasEnough = state.partyPlayers.length >= 2;
   console.log('[waitingRoom] players:', state.partyPlayers.length, 'hasEnough:', hasEnough, 'isHost:', state.partyIsHost);
 
+  // Add event delegation for all buttons in waiting room
+  setTimeout(function() {
+    var screen = document.getElementById('screen-waiting');
+    if (!screen) return;
+    // Remove old listener and add fresh one
+    screen.onclick = function(e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      var action = btn.getAttribute('data-action');
+      if (action === 'enable-mic') waitingRoomEnableMic();
+      if (action === 'skip-mic') skipMicAndContinue();
+      if (action === 'start-game') hostStartGame();
+      if (action === 'invite-more') shareInviteLink();
+      if (action === 'refresh') refreshPartyPlayers();
+    };
+  }, 50);
+
   if (state.partyIsHost) {
     if (guestMsg) guestMsg.style.display = 'none';
     if (hostCtrl) {
       hostCtrl.innerHTML = '<div style="display:flex;flex-direction:column;gap:10px;margin-top:8px;">' +
         (hasEnough
-          ? '<button id="host-start-btn" onclick="hostStartGame()" style="background:var(--neon);color:#000;border:none;border-radius:14px;padding:18px;font-size:17px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">🎵 Start Game!</button>'
+          ? '<button data-action="start-game" style="background:var(--neon);color:#000;border:none;border-radius:14px;padding:18px;font-size:17px;font-weight:900;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">🎵 Start Game!</button>'
           : '<div style="background:var(--dark3);border:1px dashed var(--border);border-radius:14px;padding:16px;text-align:center;">' +
               '<div style="font-size:13px;color:var(--muted);">Waiting for a player to join…</div>' +
               '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Need 1 more player to start (you count!)</div>' +
             '</div>') +
-        '<button onclick="shareInviteLink()" style="background:transparent;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation;width:100%;">📤 Invite More Players</button>' +
-        '<button onclick="refreshPartyPlayers()" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:10px;font-size:12px;cursor:pointer;touch-action:manipulation;width:100%;">🔄 Refresh Player List</button>' +
+        '<button data-action="invite-more" style="background:transparent;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">📤 Invite More Players</button>' +
+        '<button data-action="refresh" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:10px;font-size:12px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">🔄 Refresh Player List</button>' +
         '</div>';
     }
   } else {
