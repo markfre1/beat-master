@@ -490,7 +490,7 @@ function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfi
         clearInterval(state._waitingPoll);
         state._waitingPoll = null;
       }
-    }, 1500);
+    }, 5000);
   } if(name==='join')prefillJoinCode(); if(name==='party-setup'){
     renderPartySetupPlayers();
     renderInvitePeopleList();
@@ -2378,9 +2378,12 @@ function renderWaitingRoom(skipMicBlock) {
   if (badgeEl) badgeEl.textContent = code;
   if (countEl) countEl.textContent = state.partyPlayers.length;
 
-  // Live player list
+  // Live player list - only rebuild if count changed to reduce flashing
   const listEl = document.getElementById('waiting-players-list');
-  if (listEl) {
+  const prevCount = listEl ? parseInt(listEl.dataset.playerCount || '0') : 0;
+  const currCount = state.partyPlayers.length;
+  if (listEl && (prevCount !== currCount || !skipMicBlock)) {
+    listEl.dataset.playerCount = currCount;
     if (state.partyPlayers.length === 0) {
       listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Waiting for players to join…<br><span style="font-size:11px;opacity:0.6;">Share the invite link so they can join</span></div>';
     } else {
@@ -2406,13 +2409,12 @@ function renderWaitingRoom(skipMicBlock) {
         btn.addEventListener('click', () => kickPlayer(btn.dataset.pid));
       });
     }
-  }
+  } // end if count changed
 
   // Host vs guest controls
   const hostCtrl = document.getElementById('waiting-host-controls');
   const guestMsg = document.getElementById('waiting-guest-msg');
   const hasEnough = state.partyPlayers.length >= 2;
-  console.log('[waitingRoom] players:', state.partyPlayers.length, 'hasEnough:', hasEnough, 'isHost:', state.partyIsHost);
 
   // Add event delegation for all buttons in waiting room
   // Persistent listener - set once, works even when buttons are rebuilt by polls
@@ -2488,7 +2490,7 @@ function renderWaitingMicBlock() {
   return `<div style="background:rgba(255,58,140,0.06);border:1px solid rgba(255,58,140,0.3);border-radius:14px;padding:16px;">
     <div style="font-size:13px;font-weight:700;color:var(--pink);margin-bottom:6px;">🎙️ Enable Your Microphone</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">You need to allow microphone access to play. Tap below and then tap <b style="color:var(--text)">Allow</b> when your browser asks.</div>
-    <button onclick="waitingRoomEnableMic()" style="width:100%;background:var(--pink);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:13px;cursor:pointer;font-family:inherit;">Enable Microphone to Play</button>
+    <button data-action="enable-mic" style="width:100%;background:var(--pink);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:13px;cursor:pointer;touch-action:manipulation;">Enable Microphone to Play</button>
   </div>`;
 }
 
