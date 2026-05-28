@@ -1023,7 +1023,29 @@ function getSoloGrade(songsUsed,won) {
   if(songsUsed<=cMax) return{letter:'D',label:'Decent',    color:'#54A0FF',     msg:`Got there in ${sStr}. More practice needed.`};
   return{letter:'C',label:'Close Call',color:'var(--pink)',msg:`Just scraped through in ${sStr}. Very close!`};
 }
-function showGameOver(winner) { saveGameResult(winner); state.stats.played++; const myScore=state.players.find(p=>p.name==='You')?.score||0; if(winner&&(winner.name==='You'||state.mode==='solo'))state.stats.wins++; state.stats.best=Math.max(state.stats.best,myScore); updateHomeStats(); goto('gameover'); if(state.mode==='solo'){const won=!!winner; const grade=getSoloGrade(state.songsPlayed,won); const elapsed=Math.round((Date.now()-state.gameStartTime)/1000); const mins=Math.floor(elapsed/60),secs=elapsed%60; const timeStr=mins>0?`${mins}m ${secs}s`:`${secs}s`; document.getElementById('go-trophy').textContent=won?grade.letter:'💀'; document.getElementById('go-trophy').style.cssText=won?`font-size:80px;font-weight:900;color:${grade.color};text-shadow:0 0 40px ${grade.color};font-family:'Segoe UI',system-ui,sans-serif;margin-bottom:4px;animation:trophyIn 0.6s cubic-bezier(0.175,0.885,0.32,1.275);`:''; document.getElementById('go-label').textContent=grade.label; document.getElementById('go-label').style.color=grade.color; document.getElementById('go-name').textContent=won?`${myScore} pts · ${state.songsPlayed} songs`:'GAME OVER'; document.getElementById('go-name').style.color=won?grade.color:'var(--pink)'; document.getElementById('go-sub').textContent=grade.msg; document.getElementById('go-cards').innerHTML=`<div class="final-card ${won?'win':''}"><div class="fc-name">⏱ Time</div><div class="fc-num" style="font-size:32px">${timeStr}</div></div><div class="final-card ${won?'win':''}"><div class="fc-name">🎵 Songs</div><div class="fc-num" style="font-size:32px">${state.songsPlayed}/${soloSongLimit(state.targetScore)}</div></div><div class="final-card ${won?'win':''}"><div class="fc-name">⭐ Score</div><div class="fc-num" style="font-size:32px">${myScore}/${state.targetScore}</div></div>`;}else{document.getElementById('go-trophy').textContent=winner?'🏆':'😤'; document.getElementById('go-trophy').style.cssText=''; document.getElementById('go-label').textContent=winner?'🎉 Winner!':'No Winner'; document.getElementById('go-label').style.color='var(--neon)'; document.getElementById('go-name').textContent=winner?winner.name:'Nobody'; document.getElementById('go-name').style.color=winner?'var(--neon)':'var(--muted)'; document.getElementById('go-sub').textContent=winner?`${winner.name} is the music master! 🎵`:"10 rounds with no points. Try a different genre!"; document.getElementById('go-cards').innerHTML=state.players.map((p,i)=>`<div class="final-card ${winner&&winner.name===p.name?'win':''}"><div class="fc-name">${p.avatar} ${p.name}</div><div class="fc-num">${p.score}</div></div>`).join('');} }
+function showGameOver(winner) {
+  // Clean up party room when game ends
+  if (state.mode === 'party' && state.partyRoom) {
+    const roomId = state.partyRoom.id;
+    // Mark room as finished then delete after delay
+    sb.from('game_rooms').update({ status: 'finished' })
+      .eq('id', roomId)
+      .then(() => {
+        // Delete room and players after 30 seconds
+        setTimeout(() => {
+          sb.from('room_players').delete().eq('room_id', roomId).then(() => {});
+          sb.from('game_rooms').delete().eq('id', roomId).then(() => {});
+        }, 30000);
+      });
+    // Clear local party state
+    clearInterval(state._gameStartPoll);
+    clearInterval(state._waitingPoll);
+    state.partyRoom = null;
+    state.partyPlayers = [];
+    state.partyIsHost = false;
+    if (state.partyChannel) { try { sb.removeChannel(state.partyChannel); } catch(e) {} state.partyChannel = null; }
+  }
+  saveGameResult(winner); state.stats.played++; const myScore=state.players.find(p=>p.name==='You')?.score||0; if(winner&&(winner.name==='You'||state.mode==='solo'))state.stats.wins++; state.stats.best=Math.max(state.stats.best,myScore); updateHomeStats(); goto('gameover'); if(state.mode==='solo'){const won=!!winner; const grade=getSoloGrade(state.songsPlayed,won); const elapsed=Math.round((Date.now()-state.gameStartTime)/1000); const mins=Math.floor(elapsed/60),secs=elapsed%60; const timeStr=mins>0?`${mins}m ${secs}s`:`${secs}s`; document.getElementById('go-trophy').textContent=won?grade.letter:'💀'; document.getElementById('go-trophy').style.cssText=won?`font-size:80px;font-weight:900;color:${grade.color};text-shadow:0 0 40px ${grade.color};font-family:'Segoe UI',system-ui,sans-serif;margin-bottom:4px;animation:trophyIn 0.6s cubic-bezier(0.175,0.885,0.32,1.275);`:''; document.getElementById('go-label').textContent=grade.label; document.getElementById('go-label').style.color=grade.color; document.getElementById('go-name').textContent=won?`${myScore} pts · ${state.songsPlayed} songs`:'GAME OVER'; document.getElementById('go-name').style.color=won?grade.color:'var(--pink)'; document.getElementById('go-sub').textContent=grade.msg; document.getElementById('go-cards').innerHTML=`<div class="final-card ${won?'win':''}"><div class="fc-name">⏱ Time</div><div class="fc-num" style="font-size:32px">${timeStr}</div></div><div class="final-card ${won?'win':''}"><div class="fc-name">🎵 Songs</div><div class="fc-num" style="font-size:32px">${state.songsPlayed}/${soloSongLimit(state.targetScore)}</div></div><div class="final-card ${won?'win':''}"><div class="fc-name">⭐ Score</div><div class="fc-num" style="font-size:32px">${myScore}/${state.targetScore}</div></div>`;}else{document.getElementById('go-trophy').textContent=winner?'🏆':'😤'; document.getElementById('go-trophy').style.cssText=''; document.getElementById('go-label').textContent=winner?'🎉 Winner!':'No Winner'; document.getElementById('go-label').style.color='var(--neon)'; document.getElementById('go-name').textContent=winner?winner.name:'Nobody'; document.getElementById('go-name').style.color=winner?'var(--neon)':'var(--muted)'; document.getElementById('go-sub').textContent=winner?`${winner.name} is the music master! 🎵`:"10 rounds with no points. Try a different genre!"; document.getElementById('go-cards').innerHTML=state.players.map((p,i)=>`<div class="final-card ${winner&&winner.name===p.name?'win':''}"><div class="fc-name">${p.avatar} ${p.name}</div><div class="fc-num">${p.score}</div></div>`).join('');} }
 function updateHomeStats() { const el1=document.getElementById('stat-played'); const el2=document.getElementById('stat-wins'); const el3=document.getElementById('stat-best'); if(el1)el1.textContent=state.stats.played; if(el2)el2.textContent=state.stats.wins; if(el3)el3.textContent=state.stats.best; }
 function renderScorePanel() { const panel=document.getElementById('score-panel'); panel.innerHTML=state.players.map((p,i)=>`${i>0?'<div class="score-vs">VS</div>':''}<div class="score-box" id="scorebox-${i}"><div class="score-player">${p.avatar} ${p.name}</div><div class="score-num" id="score-num-${i}">${p.score}</div></div>`).join(''); }
 function updateScorePanel() { state.players.forEach((p,i)=>{const el=document.getElementById('score-num-'+i); if(el)el.textContent=p.score;}); }
@@ -1237,6 +1259,17 @@ async function initAuth() {
 }
 
 async function loadProfile() {
+  // Clean up stale rooms older than 2 hours on login
+  try {
+    const twoHoursAgo = new Date(Date.now() - 2*60*60*1000).toISOString();
+    const { data: staleRooms } = await sb.from('game_rooms').select('id').lt('created_at', twoHoursAgo);
+    if (staleRooms?.length) {
+      for (const r of staleRooms) {
+        await sb.from('room_players').delete().eq('room_id', r.id);
+        await sb.from('game_rooms').delete().eq('id', r.id);
+      }
+    }
+  } catch(e) {}
   const { data } = await sb.from('profiles')
     .select('*')
     .eq('id', state.currentUser.id)
@@ -2088,9 +2121,10 @@ function subscribeToRoom(roomId) {
     state._gameStartPoll = setInterval(async () => {
       if (state.screen !== 'waiting') { clearInterval(state._gameStartPoll); return; }
       try {
-        screenLog('poll check isHost:'+state.partyIsHost);
-        const { data } = await sb.from('game_rooms').select('status,settings').eq('id', roomId).single();
-        screenLog('room status:'+data?.status);
+        const currentRoomId = state.partyRoom?.id || roomId;
+        screenLog('poll roomId:'+currentRoomId.slice(0,6)+' isHost:'+state.partyIsHost);
+        const { data } = await sb.from('game_rooms').select('status,settings').eq('id', currentRoomId).single();
+        screenLog('status:'+data?.status);
         if (data?.status === 'playing') {
           clearInterval(state._gameStartPoll);
           screenLog('GAME STARTED players:'+state.partyPlayers.length);
@@ -2542,17 +2576,29 @@ async function skipMicAndContinue() {
 // ── HOST STARTS GAME ──
 async function hostStartGame() {
   if (!state.partyIsHost || !state.partyRoom) return;
-  const song = buildPartySongList();
-  // Signal all players to start via room status change
-  await sb.from('game_rooms').update({
+  const btn = document.querySelector('[data-action="start-game"]');
+  if (btn) { btn.textContent = 'Starting…'; btn.disabled = true; }
+
+  const existingSettings = state.partyRoom.settings || {};
+  const { error } = await sb.from('game_rooms').update({
     status: 'playing',
-    current_phase: 'playing',
     settings: {
-      ...state.partyRoom.settings,
-      songList: song,
+      genres: existingSettings.genres || state.genres || [],
+      targetScore: existingSettings.targetScore || state.targetScore || 5,
       startedAt: Date.now(),
     }
   }).eq('id', state.partyRoom.id);
+
+  if (error) {
+    console.error('[hostStartGame] DB update failed:', error.message, error.code);
+    screenLog('START ERROR: ' + error.message);
+    if (btn) { btn.textContent = '🎵 Start Game!'; btn.disabled = false; }
+    alert('Could not start game: ' + error.message);
+    return;
+  }
+  console.log('[hostStartGame] DB updated to playing, starting game');
+  screenLog('HOST: DB set to playing, starting game');
+  state.partyRoom.status = 'playing'; // update local state too
   startPartyGame();
 }
 
@@ -2575,10 +2621,10 @@ function startPartyGame() {
   state.songsPlayed = 0;
   state.totalSkips = 0;
   state.gameStartTime = Date.now();
-  // Fallback to all genres if none set
-  if (!state.genres || state.genres.length === 0) {
-    state.genres = Object.keys(SONGS);
-  }
+  // Ensure required state is set
+  if (!state.genres || state.genres.length === 0) state.genres = Object.keys(SONGS);
+  if (!state.targetScore || state.targetScore < 1) state.targetScore = 5;
+  if (!state.winCondition) state.winCondition = 'score';
   state.songs = shuffle(buildSongPool());
   state.songIdx = 0;
   state.bonusPool = shuffle([...BONUS_FLAT]);
