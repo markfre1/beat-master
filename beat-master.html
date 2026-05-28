@@ -467,6 +467,7 @@ function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfi
     state._micChecking = false;
     state._micMarkedReady = false;
     state._micBlockRendered = false;
+    state._waitingListenerSet = false;
     // Auto-check mic permission before rendering
     if (navigator.permissions) {
       navigator.permissions.query({ name: 'microphone' }).then(status => {
@@ -2024,21 +2025,7 @@ async function refreshPartyPlayers() {
     console.log('[refresh] got', state.partyPlayers.length, 'players');
     if (state.screen === 'waiting') {
       renderWaitingRoom(true);
-      // Re-wire buttons after DOM update
-      setTimeout(function() {
-        var refreshBtn = document.querySelector('#screen-waiting [data-action="refresh"]');
-        if (refreshBtn && !refreshBtn._wired) {
-          refreshBtn._wired = true;
-          refreshBtn.onclick = function() { refreshPartyPlayers(); };
-          refreshBtn.ontouchend = function(e) { e.preventDefault(); refreshPartyPlayers(); };
-        }
-        var startBtn = document.querySelector('#screen-waiting [data-action="start-game"]');
-        if (startBtn && !startBtn._wired) {
-          startBtn._wired = true;
-          startBtn.onclick = function() { hostStartGame(); };
-          startBtn.ontouchend = function(e) { e.preventDefault(); hostStartGame(); };
-        }
-      }, 50);
+
     }
     if (state.screen === 'party-setup') renderPartySetupPlayers();
   } catch(e) {
@@ -2343,11 +2330,11 @@ async function debugWaitingRoom() {
           out.innerHTML += '<br>✅ Join query OK: ' + (d2||[]).length + ' rows';
           state.partyPlayers = d2 || [];
         }
-        renderWaitingRoom();
+        renderWaitingRoom(true);
       } catch(e2) {
         out.innerHTML += '<br>⚠️ Join timed out, using simple data';
         state.partyPlayers = (data||[]).map(p => ({...p, profiles: {nickname: 'Player'}}));
-        renderWaitingRoom();
+        renderWaitingRoom(true);
       }
     }
   } catch(e) {
@@ -2427,25 +2414,27 @@ function renderWaitingRoom(skipMicBlock) {
   console.log('[waitingRoom] players:', state.partyPlayers.length, 'hasEnough:', hasEnough, 'isHost:', state.partyIsHost);
 
   // Add event delegation for all buttons in waiting room
-  // Wire buttons directly - more reliable than event delegation
-  setTimeout(function() {
-    // Refresh button
-    var refreshBtn = document.querySelector('#screen-waiting [data-action="refresh"]');
-    if (refreshBtn) {
-      refreshBtn.onclick = function() { refreshPartyPlayers(); };
-      refreshBtn.ontouchend = function(e) { e.preventDefault(); refreshPartyPlayers(); };
+  // Persistent listener - set once, works even when buttons are rebuilt by polls
+  if (!state._waitingListenerSet) {
+    state._waitingListenerSet = true;
+    var waitingScreen = document.getElementById('screen-waiting');
+    if (waitingScreen) {
+      var handleWaitingAction = function(e) {
+        var btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var action = btn.getAttribute('data-action');
+        if (action === 'refresh') refreshPartyPlayers();
+        if (action === 'start-game') hostStartGame();
+        if (action === 'invite-more') shareInviteLink();
+        if (action === 'enable-mic') waitingRoomEnableMic();
+        if (action === 'skip-mic') skipMicAndContinue();
+      };
+      waitingScreen.addEventListener('click', handleWaitingAction);
+      waitingScreen.addEventListener('touchend', handleWaitingAction);
     }
-    var startBtn = document.querySelector('#screen-waiting [data-action="start-game"]');
-    if (startBtn) {
-      startBtn.onclick = function() { hostStartGame(); };
-      startBtn.ontouchend = function(e) { e.preventDefault(); hostStartGame(); };
-    }
-    var inviteBtn = document.querySelector('#screen-waiting [data-action="invite-more"]');
-    if (inviteBtn) {
-      inviteBtn.onclick = function() { shareInviteLink(); };
-      inviteBtn.ontouchend = function(e) { e.preventDefault(); shareInviteLink(); };
-    }
-  }, 200);
+  }
 
   if (state.partyIsHost) {
     if (guestMsg) guestMsg.style.display = 'none';
@@ -2529,7 +2518,6 @@ async function markMicReady() {
 }
 
 async function skipMicAndContinue() {
-  // Mark as ready even without mic - they'll type answers
   if (state.partyRoom && state.currentUser) {
     await sb.from('room_players')
       .update({ mic_ready: true })
@@ -2537,7 +2525,9 @@ async function skipMicAndContinue() {
       .eq('player_id', state.currentUser.id);
   }
   state.micPermission = 'denied';
-  renderWaitingRoom();
+  // Only update mic block, not full screen
+  const mb = document.getElementById('waiting-mic-block');
+  if (mb) mb.innerHTML = renderWaitingMicBlock();
 }
 
 // ── HOST STARTS GAME ──
