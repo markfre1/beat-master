@@ -467,8 +467,21 @@ function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfi
     state._micChecking = false;
     state._micMarkedReady = false;
     state._micBlockRendered = false;
-    renderWaitingRoom();
-    setTimeout(() => refreshPartyPlayers(), 200);
+    // Auto-check mic permission before rendering
+    if (navigator.permissions) {
+      navigator.permissions.query({ name: 'microphone' }).then(status => {
+        if (status.state === 'granted') state.micPermission = 'granted';
+        else if (status.state === 'denied') state.micPermission = 'denied';
+        renderWaitingRoom();
+        setTimeout(() => refreshPartyPlayers(), 200);
+      }).catch(() => {
+        renderWaitingRoom();
+        setTimeout(() => refreshPartyPlayers(), 200);
+      });
+    } else {
+      renderWaitingRoom();
+      setTimeout(() => refreshPartyPlayers(), 200);
+    }
     setTimeout(() => refreshPartyPlayers(), 1000);
     clearInterval(state._waitingPoll);
     state._waitingPoll = setInterval(() => {
@@ -2009,7 +2022,24 @@ async function refreshPartyPlayers() {
       profiles: profileMap[p.player_id] || { nickname: 'Player', avatar_url: null }
     }));
     console.log('[refresh] got', state.partyPlayers.length, 'players');
-    if (state.screen === 'waiting') renderWaitingRoom(true); // skip mic block to prevent flickering
+    if (state.screen === 'waiting') {
+      renderWaitingRoom(true);
+      // Re-wire buttons after DOM update
+      setTimeout(function() {
+        var refreshBtn = document.querySelector('#screen-waiting [data-action="refresh"]');
+        if (refreshBtn && !refreshBtn._wired) {
+          refreshBtn._wired = true;
+          refreshBtn.onclick = function() { refreshPartyPlayers(); };
+          refreshBtn.ontouchend = function(e) { e.preventDefault(); refreshPartyPlayers(); };
+        }
+        var startBtn = document.querySelector('#screen-waiting [data-action="start-game"]');
+        if (startBtn && !startBtn._wired) {
+          startBtn._wired = true;
+          startBtn.onclick = function() { hostStartGame(); };
+          startBtn.ontouchend = function(e) { e.preventDefault(); hostStartGame(); };
+        }
+      }, 50);
+    }
     if (state.screen === 'party-setup') renderPartySetupPlayers();
   } catch(e) {
     console.error('[refresh] exception:', e.message);
@@ -2397,21 +2427,25 @@ function renderWaitingRoom(skipMicBlock) {
   console.log('[waitingRoom] players:', state.partyPlayers.length, 'hasEnough:', hasEnough, 'isHost:', state.partyIsHost);
 
   // Add event delegation for all buttons in waiting room
+  // Wire buttons directly - more reliable than event delegation
   setTimeout(function() {
-    var screen = document.getElementById('screen-waiting');
-    if (!screen) return;
-    // Remove old listener and add fresh one
-    screen.onclick = function(e) {
-      var btn = e.target.closest('button');
-      if (!btn) return;
-      var action = btn.getAttribute('data-action');
-      if (action === 'enable-mic') waitingRoomEnableMic();
-      if (action === 'skip-mic') skipMicAndContinue();
-      if (action === 'start-game') hostStartGame();
-      if (action === 'invite-more') shareInviteLink();
-      if (action === 'refresh') refreshPartyPlayers();
-    };
-  }, 50);
+    // Refresh button
+    var refreshBtn = document.querySelector('#screen-waiting [data-action="refresh"]');
+    if (refreshBtn) {
+      refreshBtn.onclick = function() { refreshPartyPlayers(); };
+      refreshBtn.ontouchend = function(e) { e.preventDefault(); refreshPartyPlayers(); };
+    }
+    var startBtn = document.querySelector('#screen-waiting [data-action="start-game"]');
+    if (startBtn) {
+      startBtn.onclick = function() { hostStartGame(); };
+      startBtn.ontouchend = function(e) { e.preventDefault(); hostStartGame(); };
+    }
+    var inviteBtn = document.querySelector('#screen-waiting [data-action="invite-more"]');
+    if (inviteBtn) {
+      inviteBtn.onclick = function() { shareInviteLink(); };
+      inviteBtn.ontouchend = function(e) { e.preventDefault(); shareInviteLink(); };
+    }
+  }, 200);
 
   if (state.partyIsHost) {
     if (guestMsg) guestMsg.style.display = 'none';
