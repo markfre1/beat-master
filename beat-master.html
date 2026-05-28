@@ -456,7 +456,7 @@ const state = {
   bonusPool:[], nextBonusAt:0, skipVotes:[], totalSkips:0, paused:false, pauseRequester:null,
   pauseVotes:{}, restartVotes:{}, footerRestartVotes:{}, pausedTimerRemaining:0, pausedAudioTime:0,
   // Party mode realtime state
-  partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false, _waitingPoll: null,
+  partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false, _waitingPoll: null, _micChecking: false,
   partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [],
   currentUser: null, currentProfile: null, _pendingAvatarFile: null,
 };
@@ -464,8 +464,9 @@ const state = {
 function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s,genre:gid}))); }); return pool; }
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
 function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting'){
+    state._micChecking = false;
+    state._micMarkedReady = false;
     renderWaitingRoom();
-    // Immediate refresh + aggressive polling every 2 seconds
     setTimeout(() => refreshPartyPlayers(), 200);
     setTimeout(() => refreshPartyPlayers(), 1000);
     clearInterval(state._waitingPoll);
@@ -2332,18 +2333,29 @@ async function debugWaitingRoom() {
 }
 
 function renderWaitingRoom(skipMicBlock) {
-  // Only re-render mic block when explicitly needed (not on every poll)
+  // Only update mic block once - not on every poll refresh
   if (!skipMicBlock) {
-    if (state.micPermission === 'unknown' && navigator.permissions) {
-      navigator.permissions.query({ name: 'microphone' }).then(status => {
-        if (status.state === 'granted') { state.micPermission = 'granted'; markMicReady(); }
-        else if (status.state === 'denied') { state.micPermission = 'denied'; }
-        renderWaitingRoom(false);
-      }).catch(() => {});
-    }
-    if (state.micPermission === 'granted') markMicReady();
     const micBlock = document.getElementById('waiting-mic-block');
     if (micBlock) micBlock.innerHTML = renderWaitingMicBlock();
+    // One-time permission check - set flag to avoid loops
+    if (state.micPermission === 'unknown' && navigator.permissions && !state._micChecking) {
+      state._micChecking = true;
+      navigator.permissions.query({ name: 'microphone' }).then(status => {
+        state._micChecking = false;
+        if (status.state === 'granted') {
+          state.micPermission = 'granted';
+          markMicReady();
+          // Only update the mic block, not the whole screen
+          const mb = document.getElementById('waiting-mic-block');
+          if (mb) mb.innerHTML = renderWaitingMicBlock();
+        } else if (status.state === 'denied') {
+          state.micPermission = 'denied';
+          const mb = document.getElementById('waiting-mic-block');
+          if (mb) mb.innerHTML = renderWaitingMicBlock();
+        }
+      }).catch(() => { state._micChecking = false; });
+    }
+    if (state.micPermission === 'granted') markMicReady();
   }
 
   const code = state.partyRoom?.code || '';
@@ -2485,12 +2497,15 @@ async function waitingRoomEnableMic() {
 
 async function markMicReady() {
   if (!state.partyRoom || !state.currentUser) return;
+  if (state._micMarkedReady) return; // already marked, don't repeat
+  state._micMarkedReady = true;
   await sb.from('room_players')
     .update({ mic_ready: true })
     .eq('room_id', state.partyRoom.id)
     .eq('player_id', state.currentUser.id);
-  state.micPermission = 'granted';
-  renderWaitingRoom();
+  // Only update mic block, not entire screen
+  const mb = document.getElementById('waiting-mic-block');
+  if (mb) mb.innerHTML = renderWaitingMicBlock();
 }
 
 async function skipMicAndContinue() {
