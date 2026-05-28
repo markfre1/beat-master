@@ -1888,6 +1888,7 @@ async function autoJoinRoom(code) {
       state.genres = room.settings.genres || [];
       state.targetScore = room.settings.targetScore || 5;
     }
+    screenLog('autoJoin room:'+room.id.slice(0,8)+' isHost:'+state.partyIsHost);
     subscribeToRoom(room.id);
     await refreshPartyPlayers();
     goto('waiting');
@@ -2031,6 +2032,14 @@ async function leaveRoom() {
 }
 
 // ── REALTIME SUBSCRIPTION ──
+function screenLog(msg) {
+  var el = document.getElementById('screen-log');
+  if (!el) return;
+  el.style.display = 'block';
+  el.innerHTML += '<div>' + new Date().toLocaleTimeString() + ' ' + msg + '</div>';
+  el.scrollTop = el.scrollHeight;
+}
+
 function subscribeToRoom(roomId) {
   if (state.partyChannel) { try { sb.removeChannel(state.partyChannel); } catch(e) {} }
 
@@ -2046,7 +2055,7 @@ function subscribeToRoom(roomId) {
       state.partyRoom = payload.new;
       if (payload.new?.status === 'playing' && state.screen === 'waiting') {
         clearInterval(state._gameStartPoll);
-        console.log('[realtime] game starting! players:', state.partyPlayers.length);
+        screenLog('REALTIME GAME START players:'+state.partyPlayers.length);
         if (payload.new.settings?.genres) state.genres = payload.new.settings.genres;
         if (payload.new.settings?.targetScore) state.targetScore = payload.new.settings.targetScore;
         await refreshPartyPlayers();
@@ -2072,15 +2081,19 @@ function subscribeToRoom(roomId) {
     });
 
   // Fallback poll for game start (invitee only)
+  console.log('[subscribeToRoom] partyIsHost:', state.partyIsHost, '- poll will start:', !state.partyIsHost);
   if (!state.partyIsHost) {
     clearInterval(state._gameStartPoll);
+    screenLog('poll started for room:'+roomId.slice(0,8));
     state._gameStartPoll = setInterval(async () => {
       if (state.screen !== 'waiting') { clearInterval(state._gameStartPoll); return; }
       try {
+        screenLog('poll check isHost:'+state.partyIsHost);
         const { data } = await sb.from('game_rooms').select('status,settings').eq('id', roomId).single();
+        screenLog('room status:'+data?.status);
         if (data?.status === 'playing') {
           clearInterval(state._gameStartPoll);
-          console.log('[gameStartPoll] game started! players:', state.partyPlayers.length);
+          screenLog('GAME STARTED players:'+state.partyPlayers.length);
           if (data.settings?.genres) state.genres = data.settings.genres;
           if (data.settings?.targetScore) state.targetScore = data.settings.targetScore;
           // Always refresh players then start
@@ -2611,11 +2624,12 @@ async function submitPartyAnswer() {
   if (result.pts > 0 && myPlayer) myPlayer.score += result.pts;
 
   // Sync score to DB
-  if (state.partyRoom && state.currentUser) {
-    sb.from('room_players').update({ score: myPlayer?.score || 0 })
+  // Score tracked locally only - DB update optional
+  if (state.partyRoom && state.currentUser && myPlayer) {
+    sb.from('room_players').update({ score: myPlayer.score || 0 })
       .eq('room_id', state.partyRoom.id)
       .eq('player_id', state.currentUser.id)
-      .then(({error}) => { if(error) console.warn('[score update]', error.message); });
+      .then(({error}) => { if(error) console.warn('[score]', error.message); });
   }
   // Clear buzz on room
   await sb.from('game_rooms').update({ current_phase: 'playing', buzzed_by: null, buzz_time: null })
@@ -2725,6 +2739,9 @@ initAuth();
     <div id="waiting-guest-msg" style="display:none;text-align:center;padding:12px;font-size:13px;color:var(--muted);">
       Waiting for the host to start the game…
     </div>
+
+    <!-- On-screen debug log (tap to clear) -->
+    <div id="screen-log" onclick="this.innerHTML=''" style="margin-top:8px;background:#000;border:1px solid #333;border-radius:8px;padding:8px;font-size:10px;color:#0f0;font-family:monospace;max-height:120px;overflow-y:auto;display:none;"></div>
 
     <!-- Debug panel -->
     <div style="margin-top:8px;">
