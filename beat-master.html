@@ -464,7 +464,18 @@ const state = {
 function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s,genre:gid}))); }); return pool; }
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
 function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting'){
-    if (state.micPermission !== 'granted') { state._micBlockRendered = false; state._micMarkedReady = false; }
+    // Reset mic block only if permission unknown (first time)
+    // If already granted this session, preserve state
+    if (state.micPermission === 'unknown') {
+      state._micBlockRendered = false;
+      state._micMarkedReady = false;
+      // Quick sync check of browser permission
+      if (navigator.permissions) {
+        navigator.permissions.query({name:'microphone'}).then(s => {
+          if (s.state === 'granted') state.micPermission = 'granted';
+        }).catch(()=>{});
+      }
+    }
     renderWaitingRoom();
     setTimeout(() => refreshPartyPlayers(), 500);
   } if(name==='join')prefillJoinCode(); if(name==='party-setup'){
@@ -2135,21 +2146,22 @@ function subscribeToRoom(roomId) {
         const newRound = payload.new?.round;
 
         if (state.screen === 'game') {
-          if (newPhase === 'result' && state.phase === 'playing') {
-            // Host ended round - invitee follows
-            endRound(null, null, state.currentSong || newSong, true);
-          } else if (newPhase === 'playing' && newSong && newRound !== state.round) {
-            // Host started new round with new song
-            state.round = newRound || state.round + 1;
+          if (newPhase === 'playing' && newSong && newRound && newRound !== state.round) {
+            // Host broadcast a new song - invitee starts it
+            console.log('[realtime] new round:', newRound, 'song:', newSong?.title);
+            state.round = newRound;
             state.partyBuzzedPlayerId = null;
             state.phase = 'playing';
             state.currentSong = newSong;
             clearAllTimers();
+            stopAudio();
             setStatus('⏳ Loading preview…', false);
             renderActionArea();
             tickRound();
             fetchAndPlaySong(newSong);
           }
+          // Note: invitee does NOT auto-advance on 'result' phase
+          // They wait for the host's next song broadcast instead
         } else if (state.screen === 'waiting' && newPhase === 'playing' && newSong) {
           // Game just started - invitee enters game
           state.round = newRound || 1;
@@ -2575,30 +2587,21 @@ function renderWaitingRoom(skipMicBlock) {
 
 function renderWaitingMicBlock() {
   const perm = state.micPermission;
-  const myPlayer = state.partyPlayers.find(p => p.player_id === state.currentUser?.id);
-  const micReady = myPlayer?.mic_ready || false;
-
-  if (micReady) {
-    return `<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
-      <span style="font-size:24px;">✅</span>
-      <div>
-        <div style="font-size:13px;font-weight:700;color:var(--teal);">Microphone Ready</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">You're all set to speak your answers</div>
-      </div>
-    </div>`;
-  }
+  // Show ready if permission granted (don't rely on DB mic_ready which may lag)
   if (perm === 'granted') {
-    // Update DB that this player is mic-ready
-    markMicReady();
-    return `<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;">
-      <div style="font-size:13px;font-weight:700;color:var(--teal);">✅ Microphone Ready</div>
-    </div>`;
+    return '<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">' +
+      '<span style="font-size:24px;">✅</span>' +
+      '<div><div style="font-size:13px;font-weight:700;color:var(--teal);">Microphone Ready</div>' +
+      '<div style="font-size:11px;color:var(--muted);margin-top:2px;">You are all set to speak your answers</div></div>' +
+    '</div>';
   }
-  return `<div style="background:rgba(255,58,140,0.06);border:1px solid rgba(255,58,140,0.3);border-radius:14px;padding:16px;">
-    <div style="font-size:13px;font-weight:700;color:var(--pink);margin-bottom:6px;">🎙️ Enable Your Microphone</div>
-    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">You need to allow microphone access to play. Tap below and then tap <b style="color:var(--text)">Allow</b> when your browser asks.</div>
-    <button onclick="waitingRoomEnableMic()" style="width:100%;background:var(--pink);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:13px;cursor:pointer;font-family:inherit;">Enable Microphone to Play</button>
-  </div>`;
+  // Show enable button
+  return '<div style="background:rgba(255,58,140,0.06);border:1px solid rgba(255,58,140,0.3);border-radius:14px;padding:16px;">' +
+    '<div style="font-size:13px;font-weight:700;color:var(--pink);margin-bottom:6px;">🎙️ Enable Your Microphone</div>' +
+    '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">Tap below and then tap <b style="color:var(--text)">Allow</b> when your browser asks.</div>' +
+    '<button data-action="enable-mic" style="width:100%;background:var(--pink);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:13px;cursor:pointer;touch-action:manipulation;">Enable Microphone to Play</button>' +
+    '<button data-action="skip-mic" style="width:100%;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:10px;font-size:12px;cursor:pointer;touch-action:manipulation;margin-top:8px;">Continue without mic</button>' +
+  '</div>';
 }
 
 async function waitingRoomEnableMic() {
