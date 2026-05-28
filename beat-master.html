@@ -2169,7 +2169,7 @@ function subscribeToRoom(roomId) {
         const newSong = payload.new?.settings?.currentSong;
         const newRound = payload.new?.round;
 
-        if (state.screen === 'game') {
+        if (state.screen === 'game' || state.screen === 'result') {
           if (newPhase === 'playing' && newSong && newRound && newRound !== state.round) {
             // Host broadcast a new song
             // Only jump if invitee is not mid-answer and round timer has run enough
