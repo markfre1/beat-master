@@ -466,6 +466,7 @@ function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) 
 function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting'){
     state._micChecking = false;
     state._micMarkedReady = false;
+    state._micBlockRendered = false;
     renderWaitingRoom();
     setTimeout(() => refreshPartyPlayers(), 200);
     setTimeout(() => refreshPartyPlayers(), 1000);
@@ -2333,29 +2334,22 @@ async function debugWaitingRoom() {
 }
 
 function renderWaitingRoom(skipMicBlock) {
-  // Only update mic block once - not on every poll refresh
-  if (!skipMicBlock) {
+  // Never rebuild mic block during polls - only on first render
+  if (!skipMicBlock && !state._micBlockRendered) {
+    state._micBlockRendered = true;
     const micBlock = document.getElementById('waiting-mic-block');
     if (micBlock) micBlock.innerHTML = renderWaitingMicBlock();
-    // One-time permission check - set flag to avoid loops
-    if (state.micPermission === 'unknown' && navigator.permissions && !state._micChecking) {
-      state._micChecking = true;
+    // Check mic permission once silently
+    if (state.micPermission === 'unknown' && navigator.permissions) {
       navigator.permissions.query({ name: 'microphone' }).then(status => {
-        state._micChecking = false;
-        if (status.state === 'granted') {
+        if (status.state === 'granted' && !state._micMarkedReady) {
           state.micPermission = 'granted';
           markMicReady();
-          // Only update the mic block, not the whole screen
-          const mb = document.getElementById('waiting-mic-block');
-          if (mb) mb.innerHTML = renderWaitingMicBlock();
         } else if (status.state === 'denied') {
           state.micPermission = 'denied';
-          const mb = document.getElementById('waiting-mic-block');
-          if (mb) mb.innerHTML = renderWaitingMicBlock();
         }
-      }).catch(() => { state._micChecking = false; });
+      }).catch(() => {});
     }
-    if (state.micPermission === 'granted') markMicReady();
   }
 
   const code = state.partyRoom?.code || '';
@@ -2365,7 +2359,6 @@ function renderWaitingRoom(skipMicBlock) {
   if (codeEl) codeEl.textContent = code;
   if (badgeEl) badgeEl.textContent = code;
   if (countEl) countEl.textContent = state.partyPlayers.length;
-  console.log('[renderWaitingRoom] players:', state.partyPlayers.length, 'isHost:', state.partyIsHost, 'room:', state.partyRoom?.id?.slice(0,8));
 
   // Live player list
   const listEl = document.getElementById('waiting-players-list');
