@@ -1039,6 +1039,26 @@ function stopMic() { state.micActive=false; if(state.recognition){try{state.reco
 function soloSkip() { if(state.phase!=='playing')return; clearAllTimers(); stopAudio(); state.totalSkips++; endRound(null,null,state.currentSong); }
 function partySkipVote(playerIdx) { if(state.phase!=='playing')return; if(state.skipVotes.includes(playerIdx))return; state.skipVotes.push(playerIdx); renderActionArea(); if(state.skipVotes.length>=state.players.length){clearAllTimers(); stopAudio(); endRound(null,null,state.currentSong);} }
 function endRound(playerIdx,result,song,timedOut=false) { clearAllTimers(); stopAudio(); stopMic(); state.phase='result';
+  // If invitee has a pending song waiting, apply it after result screen
+  if (state._pendingSong && !state.partyIsHost) {
+    const pending = state._pendingSong;
+    state._pendingSong = null;
+    setTimeout(() => {
+      if (state.phase === 'result' || state.phase === 'playing') {
+        state.round = pending.round;
+        state.partyBuzzedPlayerId = null;
+        state.phase = 'playing';
+        state.currentSong = pending.song;
+        clearAllTimers();
+        stopAudio();
+        goto('game');
+        setStatus('⏳ Loading preview…', false);
+        renderActionArea();
+        tickRound();
+        fetchAndPlaySong(pending.song);
+      }
+    }, 2000);
+  }
   // Signal invitees that round ended
   if (state.mode==='party' && state.partyIsHost && state.partyRoom) {
     sb.from('game_rooms').update({ current_phase: 'result', buzzed_by: null, buzz_time: null })
@@ -2151,21 +2171,35 @@ function subscribeToRoom(roomId) {
 
         if (state.screen === 'game') {
           if (newPhase === 'playing' && newSong && newRound && newRound !== state.round) {
-            // Host broadcast a new song - invitee starts it
-            console.log('[realtime] new round:', newRound, 'song:', newSong?.title);
-            state.round = newRound;
-            state.partyBuzzedPlayerId = null;
-            state.phase = 'playing';
-            state.currentSong = newSong;
-            clearAllTimers();
-            stopAudio();
-            setStatus('⏳ Loading preview…', false);
-            renderActionArea();
-            tickRound();
-            fetchAndPlaySong(newSong);
+            // Host broadcast a new song
+            // Only jump if invitee is not mid-answer and round timer has run enough
+            const canAdvance = state.phase !== 'answering' && state.phase !== 'submitting';
+            if (canAdvance) {
+              console.log('[realtime] advancing to round:', newRound, 'song:', newSong?.title);
+              state.round = newRound;
+              state.partyBuzzedPlayerId = null;
+              state.phase = 'playing';
+              state.currentSong = newSong;
+              // Sync round timer to host's start time
+              const roundStartedAt = payload.new?.settings?.roundStartedAt;
+              if (roundStartedAt) {
+                const elapsed = Math.floor((Date.now() - roundStartedAt) / 1000);
+                state.roundTime = Math.max(5, 20 - elapsed); // at least 5 seconds
+              } else {
+                state.roundTime = 20;
+              }
+              clearAllTimers();
+              stopAudio();
+              setStatus('⏳ Loading preview…', false);
+              renderActionArea();
+              tickRound();
+              fetchAndPlaySong(newSong);
+            } else {
+              // Store pending song - will start after current answer resolves
+              state._pendingSong = { song: newSong, round: newRound };
+              console.log('[realtime] stored pending song for round:', newRound);
+            }
           }
-          // Note: invitee does NOT auto-advance on 'result' phase
-          // They wait for the host's next song broadcast instead
         } else if (state.screen === 'waiting' && newPhase === 'playing' && newSong) {
           // Game just started - invitee enters game
           state.round = newRound || 1;
