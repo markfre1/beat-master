@@ -2189,6 +2189,7 @@ function subscribeToRoom(roomId) {
         const newPhase = payload.new?.current_phase;
         const newSong = payload.new?.settings?.currentSong;
         const newRound = payload.new?.round;
+        screenLog('broadcast: phase='+newPhase+' round='+newRound+' hasSong='+(!!newSong)+' myRound='+state.round+' screen='+state.screen);
 
         if (state.screen === 'game' || state.screen === 'result') {
           if (newPhase === 'playing' && newSong && newRound && newRound !== state.round) {
@@ -2197,6 +2198,7 @@ function subscribeToRoom(roomId) {
             const canAdvance = state.phase !== 'answering' && state.phase !== 'submitting';
             if (canAdvance) {
               console.log('[realtime] advancing to round:', newRound, 'song:', newSong?.title);
+              screenLog('ADVANCE round:'+newRound+' phase:'+state.phase);
               state.round = newRound;
               state.partyBuzzedPlayerId = null;
               state.phase = 'playing';
