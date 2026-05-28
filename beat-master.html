@@ -1997,10 +1997,6 @@ async function refreshPartyPlayers() {
     }));
     console.log('[refresh] got', state.partyPlayers.length, 'players');
     if (state.screen === 'waiting') {
-      // Invitee: check if game already started
-      if (!state.partyIsHost && state.partyRoom?.status === 'playing') {
-        startPartyGame(); return;
-      }
       renderWaitingRoom(true);
     }
     if (state.screen === 'party-setup') renderPartySetupPlayers();
@@ -2050,10 +2046,11 @@ function subscribeToRoom(roomId) {
       state.partyRoom = payload.new;
       if (payload.new?.status === 'playing' && state.screen === 'waiting') {
         clearInterval(state._gameStartPoll);
+        console.log('[realtime] game starting! players:', state.partyPlayers.length);
         if (payload.new.settings?.genres) state.genres = payload.new.settings.genres;
         if (payload.new.settings?.targetScore) state.targetScore = payload.new.settings.targetScore;
-        if (state.partyPlayers.length < 2) await refreshPartyPlayers();
-        startPartyGame();
+        await refreshPartyPlayers();
+        if (state.screen !== 'game') startPartyGame();
       }
       if (payload.new?.status === 'finished' && state.screen !== 'home') {
         alert('The host ended the game.');
@@ -2083,14 +2080,15 @@ function subscribeToRoom(roomId) {
         const { data } = await sb.from('game_rooms').select('status,settings').eq('id', roomId).single();
         if (data?.status === 'playing') {
           clearInterval(state._gameStartPoll);
+          console.log('[gameStartPoll] game started! players:', state.partyPlayers.length);
           if (data.settings?.genres) state.genres = data.settings.genres;
           if (data.settings?.targetScore) state.targetScore = data.settings.targetScore;
-          // Make sure we have players loaded before starting
-          if (state.partyPlayers.length < 2) await refreshPartyPlayers();
-          startPartyGame();
+          // Always refresh players then start
+          await refreshPartyPlayers();
+          if (state.screen !== 'game') startPartyGame();
         }
       } catch(e) {}
-    }, 3000);
+    }, 2000);
   }
 }
 
