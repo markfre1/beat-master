@@ -913,18 +913,6 @@ async function fetchAndPlaySong(song) {
       state.audioLoading = false;
       await audio.play();
 
-      // Broadcast song to invitees NOW that we have previewUrl and startOffset
-      if (state.mode === 'party' && state.partyIsHost && state.partyRoom) {
-        partyBroadcastSong({
-          title: song.title,
-          artist: song.artist,
-          year: song.year,
-          previewUrl: best.previewUrl,
-          startOffset: audio.currentTime || 0,
-          isBonus: song.isBonus || false,
-        });
-      }
-
       const isBonusSong = state.currentSong && state.currentSong.isBonus;
       setStatus(
         isBonusSong ? '⚡ Name the theme + its source for 5 pts!' : '🎵 Song is playing — buzz in when you know it!',
@@ -951,10 +939,26 @@ async function fetchAndPlaySong(song) {
 function updateTimerRing(val,max) { const circ=2*Math.PI*40; const arc=document.getElementById('timer-arc'); const num=document.getElementById('timer-num'); if(!arc||!num)return; const pct=val/max; arc.style.strokeDasharray=`${pct*circ} ${circ}`; const isLow=pct<=0.3; arc.style.stroke=isLow?'var(--pink)':'var(--teal)'; num.style.color=isLow?'var(--pink)':'var(--text)'; num.textContent=val; }
 function beginRound() {
   if(state.mode==='party') state.partyBuzzedPlayerId=null;
-  clearAllTimers(); const isBonusRound=state.songsPlayed===state.nextBonusAt&&state.bonusPool.length>0; if(isBonusRound){state.currentSong=state.bonusPool.shift(); state.nextBonusAt=state.songsPlayed+4+Math.floor(Math.random()*3);}else{state.currentSong=state.songs[state.songIdx%state.songs.length];} state.phase='playing'; state.buzzQueue=[]; state.buzzTimes={}; state.roundTimeAtBuzz=0; state.spokenText=''; state.micActive=false; state.skipVotes=[]; state.roundTime=20; state.answerTime=7; if(state.mode==='solo'){document.getElementById('round-tag').textContent=`SONG ${state.songsPlayed+1}/${soloSongLimit(state.targetScore)}`;}else{document.getElementById('round-tag').textContent='RND '+state.round;} updateTimerRing(20,20); updateInfoRow(); if(isBonusRound){showBonusBanner(state.currentSong); document.getElementById('screen-game').classList.add('bonus-active');}else{document.getElementById('screen-game').classList.remove('bonus-active');} setWaveform(false,true); setStatus('⏳ Loading preview…',false); renderActionArea(); if(state.mode==='party')scheduleAI(); tickRound(); fetchAndPlaySong(state.currentSong);
-  // In party mode, host broadcasts song to all players after fetching
-  if (state.mode==='party' && state.partyIsHost && state.partyRoom) {
-    partyBroadcastSong(state.currentSong);
+  clearAllTimers(); const isBonusRound=state.songsPlayed===state.nextBonusAt&&state.bonusPool.length>0; if(isBonusRound){state.currentSong=state.bonusPool.shift(); state.nextBonusAt=state.songsPlayed+4+Math.floor(Math.random()*3);}else{state.currentSong=state.songs[state.songIdx%state.songs.length];} state.phase='playing'; state.buzzQueue=[]; state.buzzTimes={}; state.roundTimeAtBuzz=0; state.spokenText=''; state.micActive=false; state.skipVotes=[]; state.roundTime=20; state.answerTime=7; if(state.mode==='solo'){document.getElementById('round-tag').textContent=`SONG ${state.songsPlayed+1}/${soloSongLimit(state.targetScore)}`;}else{document.getElementById('round-tag').textContent='RND '+state.round;} updateTimerRing(20,20); updateInfoRow(); if(isBonusRound){showBonusBanner(state.currentSong); document.getElementById('screen-game').classList.add('bonus-active');}else{document.getElementById('screen-game').classList.remove('bonus-active');} setWaveform(false,true); setStatus('⏳ Loading preview…',false); renderActionArea(); if(state.mode==='party')scheduleAI(); tickRound();
+  if (state.mode==='party' && state.partyIsHost) {
+    partyFetchAndBroadcast(state.currentSong, state.round);
+  } else {
+    fetchAndPlaySong(state.currentSong);
+  }
+}
+
+async function partyFetchAndBroadcast(song, roundNum) {
+  await fetchAndPlaySong(song);
+  // Only broadcast if still on same round and still host
+  if (state.round === roundNum && state.mode === 'party' && state.partyIsHost && state.partyRoom) {
+    await partyBroadcastSong({
+      title: song.title,
+      artist: song.artist,
+      year: song.year,
+      previewUrl: audio.src,
+      startOffset: audio.currentTime || 0,
+      isBonus: song.isBonus || false,
+    });
   }
 }
 function tickRound() { if(state.phase!=='playing')return; if(state.roundTime<=0){endRound(null,null,null,true);return;} state.timers.round=setTimeout(()=>{state.roundTime--; updateTimerRing(state.roundTime,20); tickRound();},1000); }
