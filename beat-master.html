@@ -961,7 +961,19 @@ async function partyFetchAndBroadcast(song, roundNum) {
     });
   }
 }
-function tickRound() { if(state.phase!=='playing')return; if(state.roundTime<=0){endRound(null,null,null,true);return;} state.timers.round=setTimeout(()=>{state.roundTime--; updateTimerRing(state.roundTime,20); tickRound();},1000); }
+function tickRound() {
+  if(state.phase!=='playing') return;
+  if(state.roundTime<=0) {
+    // Party invitee: wait for host signal instead of ending round locally
+    if(state.mode==='party' && !state.partyIsHost) {
+      setStatus('⏳ Waiting for next song…', false);
+      return; // Don't call endRound - wait for host broadcast
+    }
+    endRound(null,null,null,true);
+    return;
+  }
+  state.timers.round=setTimeout(()=>{state.roundTime--; updateTimerRing(state.roundTime,20); tickRound();},1000);
+}
 function scheduleAI() { const rates={easy:0.42,normal:0.70,legend:0.90}; const minT={easy:12,normal:7,legend:3}; const maxT={easy:26,normal:19,legend:9}; if(Math.random()>(rates[state.difficulty]||0.70))return; const delay=(minT[state.difficulty]+Math.random()*(maxT[state.difficulty]-minT[state.difficulty]))*1000; state.timers.ai=setTimeout(()=>{if(state.phase!=='playing')return; const aiIdx=state.players.findIndex(p=>p.avatar==='🤖'); if(aiIdx===-1)return; clearTimeout(state.timers.round); state.roundTimeAtBuzz=state.roundTime; state.buzzQueue=[aiIdx]; state.phase='answering'; pauseAudio(); setWaveform(false); setStatus('🤖 AI buzzed in!',false); renderActionArea(); state.timers.aianswer=setTimeout(()=>{const pts=state.currentSong.isBonus?5:3; endRound(aiIdx,{hasTitle:true,hasArtist:true,pts},state.currentSong);},1800);},delay); }
 function playerBuzz(playerIdx) { if(playerIdx===undefined)playerIdx=0; if(state.phase!=='playing')return; if(state.buzzQueue.includes(playerIdx))return; state.buzzTimes[playerIdx]=Date.now(); state.buzzQueue.push(playerIdx); if(state.buzzQueue.length===1){clearTimeout(state.timers.round); clearTimeout(state.timers.ai); state.roundTimeAtBuzz=state.roundTime; state.phase='answering'; state.answerTime=7; state.spokenText=''; pauseAudio(); setWaveform(false); startAnswerFor(playerIdx);}else{renderActionArea();} }
 function startAnswerFor(playerIdx) { state.answerTime=7; state.spokenText=''; state._finalTranscript=''; stopMic(); const p=state.players[playerIdx]; setStatus(`🎙️ ${p?p.avatar+' '+p.name:'You'} — speak your answer now!`,true); renderActionArea(); startMic(); tickAnswer(); }
@@ -2134,31 +2146,12 @@ function screenLog(msg) {
 }
 
 async function inviteePlaySong(song, elapsedSeconds) {
-  if (!song.previewUrl) {
-    // Fallback: search iTunes if no direct URL
-    fetchAndPlaySong(song);
-    tickRound();
-    return;
-  }
-  try {
-    stopAudio();
-    if (!audio) { fetchAndPlaySong(song); tickRound(); return; }
-    audio.crossOrigin = 'anonymous';
-    audio.src = song.previewUrl;
-    audio.volume = 0.9;
-    const startAt = (song.startOffset || 0) + Math.max(0, elapsedSeconds || 0);
-    audio.currentTime = Math.min(startAt, 25);
-    await audio.play();
-    setWaveform(true, false);
-    state.audioReady = true;
-    // Sync timer to host - count down from remaining time
-    tickRound();
-  } catch(e) {
-    console.warn('[inviteePlaySong] error:', e.message);
-    // Fallback to full iTunes search
-    fetchAndPlaySong(song);
-    tickRound();
-  }
+  // Always do fresh iTunes search - CDN URLs are not cross-device compatible
+  // fetchAndPlaySong handles everything including waveform and status
+  await fetchAndPlaySong(song);
+  // Only start timer AFTER song is loaded and playing
+  // fetchAndPlaySong is awaited so audio is ready now
+  if (state.phase === 'playing') tickRound();
 }
 
 async function partyBroadcastSong(song) {
@@ -2214,9 +2207,9 @@ function subscribeToRoom(roomId) {
               const rsa = payload.new?.settings?.roundStartedAt;
               const elapsed = rsa ? Math.floor((Date.now() - rsa) / 1000) : 0;
               state.roundTime = Math.max(3, 20 - elapsed);
-              setStatus('🎵 Song is playing — buzz in when you know it!', false);
+              setStatus('⏳ Loading preview…', false);
               renderActionArea();
-              // Play exact URL from host - no iTunes search needed
+              // Fetch and play song, then start timer
               inviteePlaySong(newSong, elapsed);
             } else {
               // Store pending song - will start after current answer resolves
