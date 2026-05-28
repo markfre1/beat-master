@@ -902,6 +902,18 @@ async function fetchAndPlaySong(song) {
       state.audioLoading = false;
       await audio.play();
 
+      // Broadcast song to invitees NOW that we have previewUrl and startOffset
+      if (state.mode === 'party' && state.partyIsHost && state.partyRoom) {
+        partyBroadcastSong({
+          title: song.title,
+          artist: song.artist,
+          year: song.year,
+          previewUrl: best.previewUrl,
+          startOffset: audio.currentTime || 0,
+          isBonus: song.isBonus || false,
+        });
+      }
+
       const isBonusSong = state.currentSong && state.currentSong.isBonus;
       setStatus(
         isBonusSong ? '⚡ Name the theme + its source for 5 pts!' : '🎵 Song is playing — buzz in when you know it!',
