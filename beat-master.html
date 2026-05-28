@@ -2043,7 +2043,10 @@ function subscribeToRoom(roomId) {
       console.log('[realtime] game_rooms change:', payload.new?.status);
       state.partyRoom = payload.new;
       if (payload.new?.status === 'playing' && state.screen !== 'game') {
-        await refreshPartyPlayers();
+        clearInterval(state._gameStartPoll);
+        if (payload.new.settings?.genres) state.genres = payload.new.settings.genres;
+        if (payload.new.settings?.targetScore) state.targetScore = payload.new.settings.targetScore;
+        if (state.partyPlayers.length < 2) await refreshPartyPlayers();
         startPartyGame();
       }
       if (payload.new?.status === 'finished' && state.screen !== 'home') {
@@ -2075,6 +2078,9 @@ function subscribeToRoom(roomId) {
         if (data?.status === 'playing') {
           clearInterval(state._gameStartPoll);
           if (data.settings?.genres) state.genres = data.settings.genres;
+          if (data.settings?.targetScore) state.targetScore = data.settings.targetScore;
+          // Make sure we have players loaded before starting
+          if (state.partyPlayers.length < 2) await refreshPartyPlayers();
           startPartyGame();
         }
       } catch(e) {}
@@ -2552,6 +2558,10 @@ function startPartyGame() {
   state.songsPlayed = 0;
   state.totalSkips = 0;
   state.gameStartTime = Date.now();
+  // Fallback to all genres if none set
+  if (!state.genres || state.genres.length === 0) {
+    state.genres = Object.keys(SONGS);
+  }
   state.songs = shuffle(buildSongPool());
   state.songIdx = 0;
   state.bonusPool = shuffle([...BONUS_FLAT]);
