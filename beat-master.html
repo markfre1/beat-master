@@ -2379,12 +2379,9 @@ function renderWaitingRoom(skipMicBlock) {
   if (badgeEl) badgeEl.textContent = code;
   if (countEl) countEl.textContent = state.partyPlayers.length;
 
-  // Live player list - only rebuild if count changed to reduce flashing
+  // Live player list - always rebuild when refresh fires
   const listEl = document.getElementById('waiting-players-list');
-  const prevCount = listEl ? parseInt(listEl.dataset.playerCount || '0') : 0;
-  const currCount = state.partyPlayers.length;
-  if (listEl && (prevCount !== currCount || !skipMicBlock)) {
-    listEl.dataset.playerCount = currCount;
+  if (listEl) {
     if (state.partyPlayers.length === 0) {
       listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Waiting for players to join…<br><span style="font-size:11px;opacity:0.6;">Share the invite link so they can join</span></div>';
     } else {
@@ -2410,7 +2407,7 @@ function renderWaitingRoom(skipMicBlock) {
         btn.addEventListener('click', () => kickPlayer(btn.dataset.pid));
       });
     }
-  } // end if count changed
+  }
 
   // Host vs guest controls
   const hostCtrl = document.getElementById('waiting-host-controls');
