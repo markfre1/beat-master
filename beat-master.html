@@ -2180,14 +2180,9 @@ function subscribeToRoom(roomId) {
               state.partyBuzzedPlayerId = null;
               state.phase = 'playing';
               state.currentSong = newSong;
-              // Sync round timer to host's start time
-              const roundStartedAt = payload.new?.settings?.roundStartedAt;
-              if (roundStartedAt) {
-                const elapsed = Math.floor((Date.now() - roundStartedAt) / 1000);
-                state.roundTime = Math.max(5, 20 - elapsed); // at least 5 seconds
-              } else {
-                state.roundTime = 20;
-              }
+              // Give full round time - don't sync to host's elapsed time
+              // Both players hear the same song simultaneously from the broadcast
+              state.roundTime = 20;
               clearAllTimers();
               stopAudio();
               setStatus('⏳ Loading preview…', false);
