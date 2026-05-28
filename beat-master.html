@@ -1485,7 +1485,8 @@ async function renderProfileScreen() {
         ${avatarHtml}
         <div>
           <div style="font-size:22px;font-weight:900;letter-spacing:1px;">${p?.nickname || 'Player'}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:0.5px;">${memberSince ? 'Member since ' + memberSince : ''}</div>
+          <div style="font-size:12px;color:var(--neon);margin-top:2px;">${state.currentUser?.email || ''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:0.5px;">${memberSince ? 'Member since ' + memberSince : ''}</div>
         </div>
       </div>
 
@@ -2006,7 +2007,7 @@ async function refreshPartyPlayers() {
       profiles: profileMap[p.player_id] || { nickname: 'Player', avatar_url: null }
     }));
     console.log('[refresh] got', state.partyPlayers.length, 'players');
-    if (state.screen === 'waiting') renderWaitingRoom();
+    if (state.screen === 'waiting') renderWaitingRoom(true); // skip mic block to prevent flickering
     if (state.screen === 'party-setup') renderPartySetupPlayers();
   } catch(e) {
     console.error('[refresh] exception:', e.message);
@@ -2330,17 +2331,20 @@ async function debugWaitingRoom() {
   }
 }
 
-function renderWaitingRoom() {
-  // Check mic permission status first
-  if (state.micPermission === 'unknown' && navigator.permissions) {
-    navigator.permissions.query({ name: 'microphone' }).then(status => {
-      if (status.state === 'granted') { state.micPermission = 'granted'; markMicReady(); }
-      else if (status.state === 'denied') { state.micPermission = 'denied'; }
-      renderWaitingRoom();
-    }).catch(() => {});
+function renderWaitingRoom(skipMicBlock) {
+  // Only re-render mic block when explicitly needed (not on every poll)
+  if (!skipMicBlock) {
+    if (state.micPermission === 'unknown' && navigator.permissions) {
+      navigator.permissions.query({ name: 'microphone' }).then(status => {
+        if (status.state === 'granted') { state.micPermission = 'granted'; markMicReady(); }
+        else if (status.state === 'denied') { state.micPermission = 'denied'; }
+        renderWaitingRoom(false);
+      }).catch(() => {});
+    }
+    if (state.micPermission === 'granted') markMicReady();
+    const micBlock = document.getElementById('waiting-mic-block');
+    if (micBlock) micBlock.innerHTML = renderWaitingMicBlock();
   }
-  // If mic already granted, auto-mark ready
-  if (state.micPermission === 'granted') markMicReady();
 
   const code = state.partyRoom?.code || '';
   const codeEl = document.getElementById('waiting-room-code');
@@ -2350,10 +2354,6 @@ function renderWaitingRoom() {
   if (badgeEl) badgeEl.textContent = code;
   if (countEl) countEl.textContent = state.partyPlayers.length;
   console.log('[renderWaitingRoom] players:', state.partyPlayers.length, 'isHost:', state.partyIsHost, 'room:', state.partyRoom?.id?.slice(0,8));
-
-  // Mic setup
-  const micBlock = document.getElementById('waiting-mic-block');
-  if (micBlock) micBlock.innerHTML = renderWaitingMicBlock();
 
   // Live player list
   const listEl = document.getElementById('waiting-players-list');
