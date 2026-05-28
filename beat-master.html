@@ -2133,6 +2133,34 @@ function screenLog(msg) {
   el.scrollTop = el.scrollHeight;
 }
 
+async function inviteePlaySong(song, elapsedSeconds) {
+  if (!song.previewUrl) {
+    // Fallback: search iTunes if no direct URL
+    fetchAndPlaySong(song);
+    tickRound();
+    return;
+  }
+  try {
+    stopAudio();
+    if (!audio) { fetchAndPlaySong(song); tickRound(); return; }
+    audio.crossOrigin = 'anonymous';
+    audio.src = song.previewUrl;
+    audio.volume = 0.9;
+    const startAt = (song.startOffset || 0) + Math.max(0, elapsedSeconds || 0);
+    audio.currentTime = Math.min(startAt, 25);
+    await audio.play();
+    setWaveform(true, false);
+    state.audioReady = true;
+    // Sync timer to host - count down from remaining time
+    tickRound();
+  } catch(e) {
+    console.warn('[inviteePlaySong] error:', e.message);
+    // Fallback to full iTunes search
+    fetchAndPlaySong(song);
+    tickRound();
+  }
+}
+
 async function partyBroadcastSong(song) {
   if (!state.partyRoom || !state.partyIsHost) return;
   await sb.from('game_rooms').update({
@@ -2180,15 +2208,16 @@ function subscribeToRoom(roomId) {
               state.partyBuzzedPlayerId = null;
               state.phase = 'playing';
               state.currentSong = newSong;
-              // Give full round time - don't sync to host's elapsed time
-              // Both players hear the same song simultaneously from the broadcast
-              state.roundTime = 20;
               clearAllTimers();
               stopAudio();
-              setStatus('⏳ Loading preview…', false);
+              // Use host's roundStartedAt to sync timer
+              const rsa = payload.new?.settings?.roundStartedAt;
+              const elapsed = rsa ? Math.floor((Date.now() - rsa) / 1000) : 0;
+              state.roundTime = Math.max(3, 20 - elapsed);
+              setStatus('🎵 Song is playing — buzz in when you know it!', false);
               renderActionArea();
-              tickRound();
-              fetchAndPlaySong(newSong);
+              // Play exact URL from host - no iTunes search needed
+              inviteePlaySong(newSong, elapsed);
             } else {
               // Store pending song - will start after current answer resolves
               state._pendingSong = { song: newSong, round: newRound };
