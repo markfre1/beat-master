@@ -457,7 +457,7 @@ const state = {
   pauseVotes:{}, restartVotes:{}, footerRestartVotes:{}, pausedTimerRemaining:0, pausedAudioTime:0,
   // Party mode realtime state
   partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false, _waitingPoll: null, _micChecking: false,
-  partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [],
+  partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [], _gameStartPoll: null,
   currentUser: null, currentProfile: null, _pendingAvatarFile: null,
 };
 
@@ -465,9 +465,12 @@ function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
 function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting'){
     state._micChecking = false;
-    state._micMarkedReady = false;
-    state._micBlockRendered = false;
     state._waitingListenerSet = false;
+    // Only reset mic state if not already granted - prevents re-asking every time
+    if (state.micPermission !== 'granted') {
+      state._micBlockRendered = false;
+      state._micMarkedReady = false;
+    }
     // Check mic permission synchronously if already known
     if (navigator.permissions && state.micPermission === 'unknown') {
       navigator.permissions.query({ name: 'microphone' }).then(status => {
@@ -497,7 +500,7 @@ function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfi
   } }
 function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function clearAllTimers() {
-  if (state._waitingPoll) { clearInterval(state._waitingPoll); state._waitingPoll = null; } Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
+  if (state._waitingPoll) { clearInterval(state._waitingPoll); state._waitingPoll = null; } if (state._gameStartPoll) { clearInterval(state._gameStartPoll); state._gameStartPoll = null; } Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
 function norm(s) { return (s||'').toLowerCase().replace(/[\u2018\u2019']/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
 function wordMatch(answer,target) { const aw=norm(answer).split(' ').filter(w=>w.length>1); const tw=norm(target).split(' ').filter(w=>w.length>1); if(!tw.length)return norm(answer).includes(norm(target)); const hits=tw.filter(t=>aw.some(a=>a.includes(t)||t.includes(a))); return hits.length/tw.length>=0.55; }
 function checkAnswer(spoken,song) { const hasTitle=wordMatch(spoken,song.title); const hasArtist=wordMatch(spoken,song.artist); if(song.isBonus){const pts=(hasTitle&&hasArtist)?5:(hasTitle||hasArtist)?2:0; return{hasTitle,hasArtist,pts,isBonus:true};} const pts=(hasTitle&&hasArtist)?3:(hasTitle||hasArtist)?1:0; return{hasTitle,hasArtist,pts}; }
@@ -2095,10 +2098,24 @@ function subscribeToRoom(roomId) {
     .subscribe((status) => {
       console.log('[realtime] channel status:', status);
       if (status === 'SUBSCRIBED') {
-        // Do an immediate refresh when subscription is confirmed
         refreshPartyPlayers();
       }
     });
+
+  // Fallback: poll for game start every 3 seconds for non-host players
+  if (!state.partyIsHost) {
+    clearInterval(state._gameStartPoll);
+    state._gameStartPoll = setInterval(async () => {
+      if (state.screen !== 'waiting') { clearInterval(state._gameStartPoll); return; }
+      const { data } = await sb.from('game_rooms')
+        .select('status').eq('id', roomId).single();
+      if (data?.status === 'playing') {
+        clearInterval(state._gameStartPoll);
+        await refreshPartyPlayers();
+        startPartyGame();
+      }
+    }, 3000);
+  }
 }
 
 
@@ -2381,8 +2398,12 @@ function renderWaitingRoom(skipMicBlock) {
 
   // Live player list - always rebuild when refresh fires
   const listEl = document.getElementById('waiting-players-list');
-  if (listEl) {
-    if (state.partyPlayers.length === 0) {
+  // Only rebuild player rows when count changes to prevent flashing
+  const newCount = state.partyPlayers.length;
+  const oldCount = parseInt(listEl?.dataset?.count || '-1');
+  if (listEl && (newCount !== oldCount)) {
+    listEl.dataset.count = newCount;
+    if (newCount === 0) {
       listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Waiting for players to join…<br><span style="font-size:11px;opacity:0.6;">Share the invite link so they can join</span></div>';
     } else {
       listEl.innerHTML = state.partyPlayers.map(rp => {
@@ -2407,7 +2428,7 @@ function renderWaitingRoom(skipMicBlock) {
         btn.addEventListener('click', () => kickPlayer(btn.dataset.pid));
       });
     }
-  }
+  } // end player list rebuild
 
   // Host vs guest controls
   const hostCtrl = document.getElementById('waiting-host-controls');
