@@ -345,7 +345,7 @@ button { touch-action:manipulation; }
 </head>
 <body>
 <audio id="song-audio" preload="auto" style="display:none"></audio>
-<div class="screen" id="screen-home"><div class="home-inner"><div class="logo-box">🎵</div><div class="home-title">BEAT<br>MASTER</div><div class="home-tagline">Hear the tune. Beat the buzzer. Drop the beat.</div><div class="home-sub">Are you a music master?</div><div class="home-actions"><button class="btn-primary" onclick="requireAuth()">▶ &nbsp;Play Now</button><div style="display:flex;gap:8px;"><button class="btn-secondary" style="flex:1;font-size:13px;" id="profile-btn" onclick="handleProfileBtn()">👤 Profile</button><button class="btn-secondary" style="flex:1;font-size:13px;" id="leaderboard-btn" onclick="goto('leaderboard')">🏆 Leaderboard</button></div></div><div class="stats-row"><div class="stat-item"><div class="stat-num" id="stat-played">0</div><div class="stat-lbl">Played</div></div><div class="stat-item"><div class="stat-num" id="stat-wins">0</div><div class="stat-lbl">Wins</div></div><div class="stat-item"><div class="stat-num" id="stat-best">0</div><div class="stat-lbl">Best</div></div></div></div></div>
+<div class="screen" id="screen-home"><div class="home-inner"><div class="logo-box">🎵</div><div class="home-title">BEAT<br>MASTER</div><div class="home-tagline">Hear the tune. Beat the buzzer. Drop the beat.</div><div class="home-sub">Are you a music master?</div><div class="home-actions"><button class="btn-primary" onclick="requireAuth()">▶ &nbsp;Play Now</button><button class="btn-secondary" onclick="gotoJoin()" style="width:100%;font-size:15px;font-weight:800;margin-top:-4px;">🔑 Join a Room</button><div style="display:flex;gap:8px;"><button class="btn-secondary" style="flex:1;font-size:13px;" id="profile-btn" onclick="handleProfileBtn()">👤 Profile</button><button class="btn-secondary" style="flex:1;font-size:13px;" id="leaderboard-btn" onclick="goto('leaderboard')">🏆 Leaderboard</button></div></div><div class="stats-row"><div class="stat-item"><div class="stat-num" id="stat-played">0</div><div class="stat-lbl">Played</div></div><div class="stat-item"><div class="stat-num" id="stat-wins">0</div><div class="stat-lbl">Wins</div></div><div class="stat-item"><div class="stat-num" id="stat-best">0</div><div class="stat-lbl">Best</div></div></div></div></div>
 <div class="screen hidden" id="screen-modeselect"><div class="page-header"><div class="back-btn" onclick="goto('home')">←</div><div><div class="page-title">Choose Your Game</div><div class="page-sub">How do you want to play?</div></div></div><div class="page-body"><div class="mode-grid" style="grid-template-columns:1fr;gap:14px;"><div class="mode-card" onclick="selectMode('solo')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🎯</div><div><div class="mode-name">Solo Challenge</div><div class="mode-desc">Beat the buzzer. Test your knowledge. No opponents.</div></div></div><div class="mode-card" onclick="selectMode('party')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🏠</div><div><div class="mode-name">Private Party</div><div class="mode-desc">Create your game room. Invite your friends. Challenge each other.</div></div></div><div class="mode-card disabled" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="soon-tag">COMING SOON</div><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🌍</div><div><div class="mode-name">Play Globally</div><div class="mode-desc">Create a public game. Wait for players to join. Challenge the world.</div></div></div></div></div></div>
 <div class="screen hidden" id="screen-genreselect"><div class="page-header"><div class="back-btn" onclick="goto('modeselect')">←</div><div><div class="page-title">Pick Your Genres</div><div class="page-sub">Select one, several, or all.</div></div></div><div class="page-body"><div class="genre-actions-row" id="genre-actions-row"></div><div class="genre-grid" id="genre-grid"></div><div class="genre-selected-summary" id="genre-summary"></div></div><div class="continue-wrap"><button class="btn-primary" id="genre-continue-btn" disabled onclick="genreContinue()">Continue →</button></div></div>
 <div class="screen hidden" id="screen-settings"><div class="page-header"><div class="back-btn" onclick="goto('genreselect')">←</div><div><div class="page-title">Finish Game Setup</div><div class="page-sub" id="settings-mode-sub">Solo Challenge</div></div></div><div class="page-body" id="settings-body"></div></div>
@@ -491,6 +491,10 @@ function unlockAudio() {
   } catch(e) {}
 }
 
+function gotoJoin() {
+  if (!state.currentUser) { sessionStorage.setItem('afterLoginGoto','join'); goto('register'); }
+  else { goto('join'); }
+}
 function genreContinue() {
   if (state.genres.length === 0) { alert('Please select at least one genre!'); return; }
   if (state.mode === 'party') {
@@ -1235,8 +1239,9 @@ async function initAuth() {
           // Auto-join the room after login
           sessionStorage.removeItem('pendingJoinCode')
           autoJoinRoom(pending)
+        } else if (sessionStorage.getItem('afterLoginGoto')) {
+          const g = sessionStorage.getItem('afterLoginGoto'); sessionStorage.removeItem('afterLoginGoto'); goto(g);
         } else {
-          // Normal login - go to mode select
           goto('modeselect')
         }
       }
