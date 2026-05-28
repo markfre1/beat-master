@@ -1996,7 +1996,13 @@ async function refreshPartyPlayers() {
       profiles: profileMap[p.player_id] || { nickname: 'Player', avatar_url: null }
     }));
     console.log('[refresh] got', state.partyPlayers.length, 'players');
-    if (state.screen === 'waiting') renderWaitingRoom(true);
+    if (state.screen === 'waiting') {
+      // Invitee: check if game already started
+      if (!state.partyIsHost && state.partyRoom?.status === 'playing') {
+        startPartyGame(); return;
+      }
+      renderWaitingRoom(true);
+    }
     if (state.screen === 'party-setup') renderPartySetupPlayers();
   } catch(e) {
     console.error('[refresh] exception:', e.message);
@@ -2042,7 +2048,7 @@ function subscribeToRoom(roomId) {
     }, async (payload) => {
       console.log('[realtime] game_rooms change:', payload.new?.status);
       state.partyRoom = payload.new;
-      if (payload.new?.status === 'playing' && state.screen !== 'game') {
+      if (payload.new?.status === 'playing' && state.screen === 'waiting') {
         clearInterval(state._gameStartPoll);
         if (payload.new.settings?.genres) state.genres = payload.new.settings.genres;
         if (payload.new.settings?.targetScore) state.targetScore = payload.new.settings.targetScore;
@@ -2608,9 +2614,10 @@ async function submitPartyAnswer() {
 
   // Sync score to DB
   if (state.partyRoom && state.currentUser) {
-    await sb.from('room_players').update({ score: myPlayer?.score || 0 })
+    sb.from('room_players').update({ score: myPlayer?.score || 0 })
       .eq('room_id', state.partyRoom.id)
-      .eq('player_id', state.currentUser.id);
+      .eq('player_id', state.currentUser.id)
+      .then(({error}) => { if(error) console.warn('[score update]', error.message); });
   }
   // Clear buzz on room
   await sb.from('game_rooms').update({ current_phase: 'playing', buzzed_by: null, buzz_time: null })
