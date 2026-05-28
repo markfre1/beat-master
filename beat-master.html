@@ -456,56 +456,28 @@ const state = {
   bonusPool:[], nextBonusAt:0, skipVotes:[], totalSkips:0, paused:false, pauseRequester:null,
   pauseVotes:{}, restartVotes:{}, footerRestartVotes:{}, pausedTimerRemaining:0, pausedAudioTime:0,
   // Party mode realtime state
-  partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false, _waitingPoll: null, _micChecking: false,
-  partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [], _gameStartPoll: null,
+  partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false, _waitingPoll: null,
+  partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [],
   currentUser: null, currentProfile: null, _pendingAvatarFile: null,
 };
 
 function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s,genre:gid}))); }); return pool; }
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
 function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting'){
-    state._micChecking = false;
-    state._waitingListenerSet = false;
-    // Only reset mic state if not already granted - prevents re-asking every time
-    if (state.micPermission !== 'granted') {
-      state._micBlockRendered = false;
-      state._micMarkedReady = false;
-    }
-    // Check mic permission synchronously if already known
-    if (navigator.permissions && state.micPermission === 'unknown') {
-      navigator.permissions.query({ name: 'microphone' }).then(status => {
-        if (status.state === 'granted') state.micPermission = 'granted';
-        else if (status.state === 'denied') state.micPermission = 'denied';
-        // Only update mic block, NOT full screen
-        var mb = document.getElementById('waiting-mic-block');
-        if (mb) mb.innerHTML = renderWaitingMicBlock();
-        if (status.state === 'granted' && !state._micMarkedReady) markMicReady();
-      }).catch(function(){});
-    }
+    if (state.micPermission !== 'granted') { state._micBlockRendered = false; state._micMarkedReady = false; }
     renderWaitingRoom();
     setTimeout(() => refreshPartyPlayers(), 500);
-    setTimeout(() => refreshPartyPlayers(), 1000);
-    clearInterval(state._waitingPoll);
-    state._waitingPoll = setInterval(() => {
-      if (state.screen === 'waiting') {
-        refreshPartyPlayers();
-      } else {
-        clearInterval(state._waitingPoll);
-        state._waitingPoll = null;
-      }
-    }, 5000);
   } if(name==='join')prefillJoinCode(); if(name==='party-setup'){
     renderPartySetupPlayers();
     renderInvitePeopleList();
   } }
 function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function clearAllTimers() {
-  if (state._waitingPoll) { clearInterval(state._waitingPoll); state._waitingPoll = null; } if (state._gameStartPoll) { clearInterval(state._gameStartPoll); state._gameStartPoll = null; } Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
+  if (state._waitingPoll) { clearInterval(state._waitingPoll); state._waitingPoll = null; } Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
 function norm(s) { return (s||'').toLowerCase().replace(/[\u2018\u2019']/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
 function wordMatch(answer,target) { const aw=norm(answer).split(' ').filter(w=>w.length>1); const tw=norm(target).split(' ').filter(w=>w.length>1); if(!tw.length)return norm(answer).includes(norm(target)); const hits=tw.filter(t=>aw.some(a=>a.includes(t)||t.includes(a))); return hits.length/tw.length>=0.55; }
 function checkAnswer(spoken,song) { const hasTitle=wordMatch(spoken,song.title); const hasArtist=wordMatch(spoken,song.artist); if(song.isBonus){const pts=(hasTitle&&hasArtist)?5:(hasTitle||hasArtist)?2:0; return{hasTitle,hasArtist,pts,isBonus:true};} const pts=(hasTitle&&hasArtist)?3:(hasTitle||hasArtist)?1:0; return{hasTitle,hasArtist,pts}; }
-function renderGenres() { const grid=document.getElementById('genre-grid'); const allGenreIds=GENRES.map(g=>g.id); const allSelected=allGenreIds.every(id=>state.genres.includes(id)); const noneSelected=state.genres.length===0; const actionsRow=document.getElementById('genre-actions-row'); actionsRow.innerHTML=`<button class="genre-action-btn ${allSelected?'active':''}" onclick="toggleSelectAll()">${allSelected?'✓ All Selected':'🌍 Select All'}</button><button class="genre-action-btn" onclick="clearGenreSelection()" ${noneSelected?'disabled style="opacity:0.4;cursor:not-allowed"':''}>✕ Clear</button>`; grid.innerHTML=GENRES.map(g=>{const sel=state.genres.includes(g.id); const bdr=sel?'border-color:'+g.color+';background:'+g.color+'08':''; return'<div class="genre-card '+(sel?'selected':'')+'" data-gid="'+g.id+'" style="'+bdr+'">'+'<div class="genre-check">'+(sel?'✓':'')+'</div>'+'<div class="genre-emoji">'+g.emoji+'</div>'+'<div class="genre-name" style="color:'+(sel?g.color:'var(--text)')+'">'+g.name+'</div>'+'<div class="genre-count" style="color:'+g.color+'">'+(SONGS[g.id]?g.id in SONGS?SONGS[g.id].length:0:0)+' songs</div></div>';}).join('');
-grid.onclick=function(e){var card=e.target.closest('[data-gid]');if(card)toggleGenre(card.dataset.gid);}; const summary=document.getElementById('genre-summary'); if(state.genres.length===0){summary.innerHTML='Select at least one genre to continue';}else if(allSelected){summary.innerHTML=`<b>All genres</b> selected — <b>${totalSongCount()}</b> songs in the mix 🔥`;}else{const names=state.genres.map(id=>{const g=GENRES.find(x=>x.id===id); return g?g.emoji+' '+g.name:id;}); summary.innerHTML=`<b>${state.genres.length}</b> genre${state.genres.length>1?'s':''} · <b>${totalSongCount()}</b> songs — ${names.join(', ')}`;} document.getElementById('genre-continue-btn').disabled=state.genres.length===0; }
+function renderGenres() { const grid=document.getElementById('genre-grid'); const allGenreIds=GENRES.map(g=>g.id); const allSelected=allGenreIds.every(id=>state.genres.includes(id)); const noneSelected=state.genres.length===0; const actionsRow=document.getElementById('genre-actions-row'); actionsRow.innerHTML=`<button class="genre-action-btn ${allSelected?'active':''}" onclick="toggleSelectAll()">${allSelected?'✓ All Selected':'🌍 Select All'}</button><button class="genre-action-btn" onclick="clearGenreSelection()" ${noneSelected?'disabled style="opacity:0.4;cursor:not-allowed"':''}>✕ Clear</button>`; grid.innerHTML=GENRES.map(g=>{const sel=state.genres.includes(g.id); return`<div class="genre-card ${sel?'selected':''}" style="${sel?`border-color:${g.color};background:${g.color}08`:''}" onclick="toggleGenre('${g.id}')"><div class="genre-check">${sel?'✓':''}</div><div class="genre-emoji">${g.emoji}</div><div class="genre-name" style="color:${sel?g.color:'var(--text)'}">${g.name}</div><div class="genre-count" style="color:${g.color}">${SONGS[g.id]?.length||0} songs</div></div>`;}).join(''); const summary=document.getElementById('genre-summary'); if(state.genres.length===0){summary.innerHTML='Select at least one genre to continue';}else if(allSelected){summary.innerHTML=`<b>All genres</b> selected — <b>${totalSongCount()}</b> songs in the mix 🔥`;}else{const names=state.genres.map(id=>{const g=GENRES.find(x=>x.id===id); return g?g.emoji+' '+g.name:id;}); summary.innerHTML=`<b>${state.genres.length}</b> genre${state.genres.length>1?'s':''} · <b>${totalSongCount()}</b> songs — ${names.join(', ')}`;} document.getElementById('genre-continue-btn').disabled=state.genres.length===0; }
 function toggleGenre(id) { const idx=state.genres.indexOf(id); if(idx===-1){state.genres.push(id);}else{state.genres.splice(idx,1);} renderGenres(); }
 function toggleSelectAll() { const allGenreIds=GENRES.map(g=>g.id); const allSelected=allGenreIds.every(id=>state.genres.includes(id)); if(allSelected){state.genres=[];}else{state.genres=[...allGenreIds];} renderGenres(); }
 function clearGenreSelection() { state.genres=[]; renderGenres(); }
@@ -1503,8 +1475,7 @@ async function renderProfileScreen() {
         ${avatarHtml}
         <div>
           <div style="font-size:22px;font-weight:900;letter-spacing:1px;">${p?.nickname || 'Player'}</div>
-          <div style="font-size:12px;color:var(--neon);margin-top:2px;">${state.currentUser?.email || ''}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:0.5px;">${memberSince ? 'Member since ' + memberSince : ''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:0.5px;">${memberSince ? 'Member since ' + memberSince : ''}</div>
         </div>
       </div>
 
@@ -2010,28 +1981,22 @@ async function refreshPartyPlayers() {
       console.error('[refresh] error:', error.message);
       return;
     }
-    // Try to get profiles, but don't let it block the player count update
+    // Fetch profiles separately for each player
     const playerIds = (data||[]).map(p => p.player_id);
     let profileMap = {};
-    try {
-      if (playerIds.length > 0) {
-        const { data: profiles } = await sb.from('profiles')
-          .select('id, nickname, avatar_url')
-          .in('id', playerIds);
-        (profiles||[]).forEach(p => { profileMap[p.id] = p; });
-      }
-    } catch(pe) { console.warn('[refresh] profiles fetch failed:', pe.message); }
+    if (playerIds.length > 0) {
+      const { data: profiles } = await sb.from('profiles')
+        .select('id, nickname, avatar_url')
+        .in('id', playerIds);
+      (profiles||[]).forEach(p => { profileMap[p.id] = p; });
+    }
+    // Merge profiles into player data
     state.partyPlayers = (data||[]).map(p => ({
       ...p,
       profiles: profileMap[p.player_id] || { nickname: 'Player', avatar_url: null }
     }));
     console.log('[refresh] got', state.partyPlayers.length, 'players');
-    // Show count visually so we know refresh is working
-    var countEl = document.getElementById('waiting-player-count');
-    if (countEl) countEl.textContent = state.partyPlayers.length;
-    if (state.screen === 'waiting') {
-      renderWaitingRoom(true);
-    }
+    if (state.screen === 'waiting') renderWaitingRoom(true);
     if (state.screen === 'party-setup') renderPartySetupPlayers();
   } catch(e) {
     console.error('[refresh] exception:', e.message);
@@ -2097,23 +2062,22 @@ function subscribeToRoom(roomId) {
     })
     .subscribe((status) => {
       console.log('[realtime] channel status:', status);
-      if (status === 'SUBSCRIBED') {
-        refreshPartyPlayers();
-      }
+      if (status === 'SUBSCRIBED') refreshPartyPlayers();
     });
 
-  // Fallback: poll for game start every 3 seconds for non-host players
+  // Fallback poll for game start (invitee only)
   if (!state.partyIsHost) {
     clearInterval(state._gameStartPoll);
     state._gameStartPoll = setInterval(async () => {
       if (state.screen !== 'waiting') { clearInterval(state._gameStartPoll); return; }
-      const { data } = await sb.from('game_rooms')
-        .select('status').eq('id', roomId).single();
-      if (data?.status === 'playing') {
-        clearInterval(state._gameStartPoll);
-        await refreshPartyPlayers();
-        startPartyGame();
-      }
+      try {
+        const { data } = await sb.from('game_rooms').select('status,settings').eq('id', roomId).single();
+        if (data?.status === 'playing') {
+          clearInterval(state._gameStartPoll);
+          if (data.settings?.genres) state.genres = data.settings.genres;
+          startPartyGame();
+        }
+      } catch(e) {}
     }, 3000);
   }
 }
@@ -2370,21 +2334,20 @@ async function debugWaitingRoom() {
 }
 
 function renderWaitingRoom(skipMicBlock) {
-  // Never rebuild mic block during polls - only on first render
-  if (!skipMicBlock && !state._micBlockRendered) {
-    state._micBlockRendered = true;
-    const micBlock = document.getElementById('waiting-mic-block');
-    if (micBlock) micBlock.innerHTML = renderWaitingMicBlock();
-    // Check mic permission once silently
-    if (state.micPermission === 'unknown' && navigator.permissions) {
-      navigator.permissions.query({ name: 'microphone' }).then(status => {
-        if (status.state === 'granted' && !state._micMarkedReady) {
-          state.micPermission = 'granted';
-          markMicReady();
-        } else if (status.state === 'denied') {
-          state.micPermission = 'denied';
-        }
-      }).catch(() => {});
+  if (!skipMicBlock) {
+    // Only check mic once using a flag
+    if (!state._micBlockRendered) {
+      state._micBlockRendered = true;
+      const micBlock = document.getElementById('waiting-mic-block');
+      if (micBlock) micBlock.innerHTML = renderWaitingMicBlock();
+      // Check permission once, update mic block only
+      if (state.micPermission === 'unknown' && navigator.permissions) {
+        navigator.permissions.query({ name: 'microphone' }).then(status => {
+          if (status.state === 'granted') { state.micPermission = 'granted'; markMicReady(); }
+          else if (status.state === 'denied') { state.micPermission = 'denied'; const mb = document.getElementById('waiting-mic-block'); if(mb) mb.innerHTML = renderWaitingMicBlock(); }
+        }).catch(() => {});
+      }
+      if (state.micPermission === 'granted') markMicReady();
     }
   }
 
@@ -2395,15 +2358,16 @@ function renderWaitingRoom(skipMicBlock) {
   if (codeEl) codeEl.textContent = code;
   if (badgeEl) badgeEl.textContent = code;
   if (countEl) countEl.textContent = state.partyPlayers.length;
+  console.log('[renderWaitingRoom] players:', state.partyPlayers.length, 'isHost:', state.partyIsHost, 'room:', state.partyRoom?.id?.slice(0,8));
 
-  // Live player list - always rebuild when refresh fires
+  // Mic setup
+  const micBlock = document.getElementById('waiting-mic-block');
+  if (micBlock) micBlock.innerHTML = renderWaitingMicBlock();
+
+  // Live player list
   const listEl = document.getElementById('waiting-players-list');
-  // Only rebuild player rows when count changes to prevent flashing
-  const newCount = state.partyPlayers.length;
-  const oldCount = parseInt(listEl?.dataset?.count || '-1');
-  if (listEl && (newCount !== oldCount)) {
-    listEl.dataset.count = newCount;
-    if (newCount === 0) {
+  if (listEl) {
+    if (state.partyPlayers.length === 0) {
       listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Waiting for players to join…<br><span style="font-size:11px;opacity:0.6;">Share the invite link so they can join</span></div>';
     } else {
       listEl.innerHTML = state.partyPlayers.map(rp => {
@@ -2428,41 +2392,30 @@ function renderWaitingRoom(skipMicBlock) {
         btn.addEventListener('click', () => kickPlayer(btn.dataset.pid));
       });
     }
-  } // end player list rebuild
+  }
 
   // Host vs guest controls
   const hostCtrl = document.getElementById('waiting-host-controls');
   const guestMsg = document.getElementById('waiting-guest-msg');
   const hasEnough = state.partyPlayers.length >= 2;
+  console.log('[waitingRoom] players:', state.partyPlayers.length, 'hasEnough:', hasEnough, 'isHost:', state.partyIsHost);
 
   // Add event delegation for all buttons in waiting room
-  // Persistent listener - set once, works even when buttons are rebuilt by polls
-  if (!state._waitingListenerSet) {
-    state._waitingListenerSet = true;
-    var waitingScreen = document.getElementById('screen-waiting');
-    if (waitingScreen) {
-      var handleWaitingAction = function(e) {
-        var btn = e.target.closest('[data-action]');
-        if (!btn) return;
-        e.preventDefault();
-        e.stopPropagation();
-        var action = btn.getAttribute('data-action');
-        console.log('[waiting] action:', action, 'event:', e.type);
-        if (action === 'refresh') refreshPartyPlayers();
-        if (action === 'start-game') hostStartGame();
-        if (action === 'invite-more') shareInviteLink();
-        if (action === 'enable-mic') waitingRoomEnableMic();
-        if (action === 'skip-mic') skipMicAndContinue();
-      };
-      // Use touchstart for instant response on mobile
-      waitingScreen.addEventListener('touchstart', function(e) {
-        var btn = e.target.closest('[data-action]');
-        if (btn) { e.preventDefault(); }
-      }, {passive: false});
-      waitingScreen.addEventListener('touchend', handleWaitingAction, {passive: false});
-      waitingScreen.addEventListener('click', handleWaitingAction);
-    }
-  }
+  setTimeout(function() {
+    var screen = document.getElementById('screen-waiting');
+    if (!screen) return;
+    // Remove old listener and add fresh one
+    screen.onclick = function(e) {
+      var btn = e.target.closest('button');
+      if (!btn) return;
+      var action = btn.getAttribute('data-action');
+      if (action === 'enable-mic') waitingRoomEnableMic();
+      if (action === 'skip-mic') skipMicAndContinue();
+      if (action === 'start-game') hostStartGame();
+      if (action === 'invite-more') shareInviteLink();
+      if (action === 'refresh') refreshPartyPlayers();
+    };
+  }, 50);
 
   if (state.partyIsHost) {
     if (guestMsg) guestMsg.style.display = 'none';
@@ -2475,7 +2428,7 @@ function renderWaitingRoom(skipMicBlock) {
               '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Need 1 more player to start (you count!)</div>' +
             '</div>') +
         '<button data-action="invite-more" style="background:transparent;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">📤 Invite More Players</button>' +
-        '<button data-action="refresh" onclick="refreshPartyPlayers()" style="background:var(--dark3);color:var(--text);border:1px solid var(--neon);border-radius:12px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">🔄 Refresh Player List</button>' +
+        '<button data-action="refresh" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:10px;font-size:12px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">🔄 Refresh Player List</button>' +
         '</div>';
     }
   } else {
@@ -2497,19 +2450,26 @@ function renderWaitingMicBlock() {
   const myPlayer = state.partyPlayers.find(p => p.player_id === state.currentUser?.id);
   const micReady = myPlayer?.mic_ready || false;
 
-  if (micReady || perm === 'granted') {
-    return '<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">' +
-      '<span style="font-size:24px;">✅</span>' +
-      '<div>' +
-        '<div style="font-size:13px;font-weight:700;color:var(--teal);">Microphone Ready</div>' +
-        '<div style="font-size:11px;color:var(--muted);margin-top:2px;">You are all set to speak your answers</div>' +
-      '</div>' +
-    '</div>';
+  if (micReady) {
+    return `<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:24px;">✅</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--teal);">Microphone Ready</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">You're all set to speak your answers</div>
+      </div>
+    </div>`;
+  }
+  if (perm === 'granted') {
+    // Update DB that this player is mic-ready
+    markMicReady();
+    return `<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;">
+      <div style="font-size:13px;font-weight:700;color:var(--teal);">✅ Microphone Ready</div>
+    </div>`;
   }
   return `<div style="background:rgba(255,58,140,0.06);border:1px solid rgba(255,58,140,0.3);border-radius:14px;padding:16px;">
     <div style="font-size:13px;font-weight:700;color:var(--pink);margin-bottom:6px;">🎙️ Enable Your Microphone</div>
     <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">You need to allow microphone access to play. Tap below and then tap <b style="color:var(--text)">Allow</b> when your browser asks.</div>
-    <button data-action="enable-mic" style="width:100%;background:var(--pink);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:13px;cursor:pointer;touch-action:manipulation;">Enable Microphone to Play</button>
+    <button onclick="waitingRoomEnableMic()" style="width:100%;background:var(--pink);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:13px;cursor:pointer;font-family:inherit;">Enable Microphone to Play</button>
   </div>`;
 }
 
@@ -2534,17 +2494,17 @@ async function waitingRoomEnableMic() {
 
 async function markMicReady() {
   if (!state.partyRoom || !state.currentUser) return;
-  if (state._micMarkedReady) return;
-  state._micMarkedReady = true;
   await sb.from('room_players')
     .update({ mic_ready: true })
     .eq('room_id', state.partyRoom.id)
     .eq('player_id', state.currentUser.id);
-  var mb = document.getElementById('waiting-mic-block');
+  state.micPermission = 'granted';
+  const mb = document.getElementById('waiting-mic-block');
   if (mb) mb.innerHTML = renderWaitingMicBlock();
 }
 
 async function skipMicAndContinue() {
+  // Mark as ready even without mic - they'll type answers
   if (state.partyRoom && state.currentUser) {
     await sb.from('room_players')
       .update({ mic_ready: true })
@@ -2552,9 +2512,8 @@ async function skipMicAndContinue() {
       .eq('player_id', state.currentUser.id);
   }
   state.micPermission = 'denied';
-  // Only update mic block, not full screen
-  const mb = document.getElementById('waiting-mic-block');
-  if (mb) mb.innerHTML = renderWaitingMicBlock();
+  const mb2 = document.getElementById('waiting-mic-block');
+  if (mb2) mb2.innerHTML = renderWaitingMicBlock();
 }
 
 // ── HOST STARTS GAME ──
@@ -2643,8 +2602,7 @@ async function submitPartyAnswer() {
       .eq('room_id', state.partyRoom.id)
       .eq('player_id', state.currentUser.id);
   }
-  // Clear buzz on room and locally
-  state.partyBuzzedPlayerId = null;
+  // Clear buzz on room
   await sb.from('game_rooms').update({ current_phase: 'playing', buzzed_by: null, buzz_time: null })
     .eq('id', state.partyRoom.id);
 
@@ -2753,7 +2711,11 @@ initAuth();
       Waiting for the host to start the game…
     </div>
 
-
+    <!-- Debug panel -->
+    <div style="margin-top:8px;">
+      <button onclick="debugWaitingRoom()" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:12px;color:var(--muted);cursor:pointer;touch-action:manipulation;">🔍 Check Connection</button>
+      <div id="waiting-debug" style="font-size:11px;color:var(--muted);padding:8px;text-align:center;min-height:16px;"></div>
+    </div>
   </div>
 </div>
 
