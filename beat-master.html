@@ -477,7 +477,7 @@ function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfi
         clearInterval(state._waitingPoll);
         state._waitingPoll = null;
       }
-    }, 2000);
+    }, 1500);
   } if(name==='join')prefillJoinCode(); if(name==='party-setup'){
     renderPartySetupPlayers();
     renderInvitePeopleList();
@@ -2431,7 +2431,7 @@ function renderWaitingRoom(skipMicBlock) {
               '<div style="font-size:11px;color:var(--muted);margin-top:4px;">Need 1 more player to start (you count!)</div>' +
             '</div>') +
         '<button data-action="invite-more" style="background:transparent;color:var(--text);border:1px solid var(--border);border-radius:12px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">📤 Invite More Players</button>' +
-        '<button data-action="refresh" style="background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:10px;font-size:12px;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">🔄 Refresh Player List</button>' +
+        '<button data-action="refresh" onclick="refreshPartyPlayers()" style="background:var(--dark3);color:var(--text);border:1px solid var(--neon);border-radius:12px;padding:12px;font-size:13px;font-weight:700;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;width:100%;">🔄 Refresh Player List</button>' +
         '</div>';
     }
   } else {
@@ -2453,21 +2453,14 @@ function renderWaitingMicBlock() {
   const myPlayer = state.partyPlayers.find(p => p.player_id === state.currentUser?.id);
   const micReady = myPlayer?.mic_ready || false;
 
-  if (micReady) {
-    return `<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
-      <span style="font-size:24px;">✅</span>
-      <div>
-        <div style="font-size:13px;font-weight:700;color:var(--teal);">Microphone Ready</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">You're all set to speak your answers</div>
-      </div>
-    </div>`;
-  }
-  if (perm === 'granted') {
-    // Update DB that this player is mic-ready
-    markMicReady();
-    return `<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;">
-      <div style="font-size:13px;font-weight:700;color:var(--teal);">✅ Microphone Ready</div>
-    </div>`;
+  if (micReady || perm === 'granted') {
+    return '<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">' +
+      '<span style="font-size:24px;">✅</span>' +
+      '<div>' +
+        '<div style="font-size:13px;font-weight:700;color:var(--teal);">Microphone Ready</div>' +
+        '<div style="font-size:11px;color:var(--muted);margin-top:2px;">You are all set to speak your answers</div>' +
+      '</div>' +
+    '</div>';
   }
   return `<div style="background:rgba(255,58,140,0.06);border:1px solid rgba(255,58,140,0.3);border-radius:14px;padding:16px;">
     <div style="font-size:13px;font-weight:700;color:var(--pink);margin-bottom:6px;">🎙️ Enable Your Microphone</div>
@@ -2715,11 +2708,7 @@ initAuth();
       Waiting for the host to start the game…
     </div>
 
-    <!-- Debug panel -->
-    <div style="margin-top:8px;">
-      <button onclick="debugWaitingRoom()" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:12px;color:var(--muted);cursor:pointer;touch-action:manipulation;">🔍 Check Connection</button>
-      <div id="waiting-debug" style="font-size:11px;color:var(--muted);padding:8px;text-align:center;min-height:16px;"></div>
-    </div>
+
   </div>
 </div>
 
