@@ -345,7 +345,7 @@ button { touch-action:manipulation; }
 </head>
 <body>
 <audio id="song-audio" preload="auto" style="display:none"></audio>
-<div class="screen" id="screen-home"><div class="home-inner"><div class="logo-box">🎵</div><div class="home-title">BEAT<br>MASTER</div><div class="home-tagline">Hear the tune. Beat the buzzer. Drop the beat.</div><div class="home-sub">Are you a music master?</div><div class="home-actions"><button class="btn-primary" onclick="requireAuth()">▶ &nbsp;Play Now</button><button class="btn-secondary" onclick="gotoJoin()" style="width:100%;font-size:15px;font-weight:800;margin-top:-4px;">🔑 Join a Room</button><div style="display:flex;gap:8px;"><button class="btn-secondary" style="flex:1;font-size:13px;" id="profile-btn" onclick="handleProfileBtn()">👤 Profile</button><button class="btn-secondary" style="flex:1;font-size:13px;" id="leaderboard-btn" onclick="goto('leaderboard')">🏆 Leaderboard</button></div></div><div class="stats-row"><div class="stat-item"><div class="stat-num" id="stat-played">0</div><div class="stat-lbl">Played</div></div><div class="stat-item"><div class="stat-num" id="stat-wins">0</div><div class="stat-lbl">Wins</div></div><div class="stat-item"><div class="stat-num" id="stat-best">0</div><div class="stat-lbl">Best</div></div></div></div></div>
+<div class="screen" id="screen-home"><div class="home-inner"><div class="logo-box">🎵</div><div class="home-title">BEAT<br>MASTER</div><div class="home-tagline">Hear the tune. Beat the buzzer. Drop the beat.</div><div class="home-sub">Are you a music master?</div><div class="home-actions"><button class="btn-primary" onclick="requireAuth()">▶ &nbsp;Play Now</button><div style="display:flex;gap:8px;"><button class="btn-secondary" style="flex:1;font-size:13px;" id="profile-btn" onclick="handleProfileBtn()">👤 Profile</button><button class="btn-secondary" style="flex:1;font-size:13px;" id="leaderboard-btn" onclick="goto('leaderboard')">🏆 Leaderboard</button></div></div><div class="stats-row"><div class="stat-item"><div class="stat-num" id="stat-played">0</div><div class="stat-lbl">Played</div></div><div class="stat-item"><div class="stat-num" id="stat-wins">0</div><div class="stat-lbl">Wins</div></div><div class="stat-item"><div class="stat-num" id="stat-best">0</div><div class="stat-lbl">Best</div></div></div></div></div>
 <div class="screen hidden" id="screen-modeselect"><div class="page-header"><div class="back-btn" onclick="goto('home')">←</div><div><div class="page-title">Choose Your Game</div><div class="page-sub">How do you want to play?</div></div></div><div class="page-body"><div class="mode-grid" style="grid-template-columns:1fr;gap:14px;"><div class="mode-card" onclick="selectMode('solo')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🎯</div><div><div class="mode-name">Solo Challenge</div><div class="mode-desc">Beat the buzzer. Test your knowledge. No opponents.</div></div></div><div class="mode-card" onclick="selectMode('party')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🏠</div><div><div class="mode-name">Private Party</div><div class="mode-desc">Create your game room. Invite your friends. Challenge each other.</div></div></div><div class="mode-card disabled" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="soon-tag">COMING SOON</div><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🌍</div><div><div class="mode-name">Play Globally</div><div class="mode-desc">Create a public game. Wait for players to join. Challenge the world.</div></div></div></div></div></div>
 <div class="screen hidden" id="screen-genreselect"><div class="page-header"><div class="back-btn" onclick="goto('modeselect')">←</div><div><div class="page-title">Pick Your Genres</div><div class="page-sub">Select one, several, or all.</div></div></div><div class="page-body"><div class="genre-actions-row" id="genre-actions-row"></div><div class="genre-grid" id="genre-grid"></div><div class="genre-selected-summary" id="genre-summary"></div></div><div class="continue-wrap"><button class="btn-primary" id="genre-continue-btn" disabled onclick="genreContinue()">Continue →</button></div></div>
 <div class="screen hidden" id="screen-settings"><div class="page-header"><div class="back-btn" onclick="goto('genreselect')">←</div><div><div class="page-title">Finish Game Setup</div><div class="page-sub" id="settings-mode-sub">Solo Challenge</div></div></div><div class="page-body" id="settings-body"></div></div>
@@ -457,33 +457,35 @@ const state = {
   pauseVotes:{}, restartVotes:{}, footerRestartVotes:{}, pausedTimerRemaining:0, pausedAudioTime:0,
   // Party mode realtime state
   partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false, _waitingPoll: null,
-  partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [],
+  partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [], _partyHeartbeat: null, _gameStartPoll: null,
   currentUser: null, currentProfile: null, _pendingAvatarFile: null,
 };
 
 function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s,genre:gid}))); }); return pool; }
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
 function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting'){
-    // Reset mic block only if permission unknown (first time)
-    // If already granted this session, preserve state
-    if (state.micPermission === 'unknown') {
-      state._micBlockRendered = false;
-      state._micMarkedReady = false;
-      // Quick sync check of browser permission
-      if (navigator.permissions) {
-        navigator.permissions.query({name:'microphone'}).then(s => {
-          if (s.state === 'granted') state.micPermission = 'granted';
-        }).catch(()=>{});
-      }
-    }
     renderWaitingRoom();
-    setTimeout(() => refreshPartyPlayers(), 500);
+    // Immediate refresh + aggressive polling every 2 seconds
+    setTimeout(() => refreshPartyPlayers(), 200);
+    setTimeout(() => refreshPartyPlayers(), 1000);
+    clearInterval(state._waitingPoll);
+    state._waitingPoll = setInterval(() => {
+      if (state.screen === 'waiting') {
+        refreshPartyPlayers();
+      } else {
+        clearInterval(state._waitingPoll);
+        state._waitingPoll = null;
+      }
+    }, 2000);
   } if(name==='join')prefillJoinCode(); if(name==='party-setup'){
     renderPartySetupPlayers();
     renderInvitePeopleList();
   } }
 function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
 function clearAllTimers() {
+  if (state._waitingPoll) { clearInterval(state._waitingPoll); state._waitingPoll = null; }
+  if (state._gameStartPoll) { clearInterval(state._gameStartPoll); state._gameStartPoll = null; }
+  if (state._partyHeartbeat) { clearInterval(state._partyHeartbeat); state._partyHeartbeat = null; }
   if (state._waitingPoll) { clearInterval(state._waitingPoll); state._waitingPoll = null; } Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
 function norm(s) { return (s||'').toLowerCase().replace(/[\u2018\u2019']/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
 function wordMatch(answer,target) { const aw=norm(answer).split(' ').filter(w=>w.length>1); const tw=norm(target).split(' ').filter(w=>w.length>1); if(!tw.length)return norm(answer).includes(norm(target)); const hits=tw.filter(t=>aw.some(a=>a.includes(t)||t.includes(a))); return hits.length/tw.length>=0.55; }
@@ -502,10 +504,6 @@ function unlockAudio() {
   } catch(e) {}
 }
 
-function gotoJoin() {
-  if (!state.currentUser) { sessionStorage.setItem('afterLoginGoto','join'); goto('register'); }
-  else { goto('join'); }
-}
 function genreContinue() {
   if (state.genres.length === 0) { alert('Please select at least one genre!'); return; }
   if (state.mode === 'party') {
@@ -937,40 +935,25 @@ async function fetchAndPlaySong(song) {
   }
 }
 function updateTimerRing(val,max) { const circ=2*Math.PI*40; const arc=document.getElementById('timer-arc'); const num=document.getElementById('timer-num'); if(!arc||!num)return; const pct=val/max; arc.style.strokeDasharray=`${pct*circ} ${circ}`; const isLow=pct<=0.3; arc.style.stroke=isLow?'var(--pink)':'var(--teal)'; num.style.color=isLow?'var(--pink)':'var(--text)'; num.textContent=val; }
-function beginRound() {
-  if(state.mode==='party') state.partyBuzzedPlayerId=null;
-  clearAllTimers(); const isBonusRound=state.songsPlayed===state.nextBonusAt&&state.bonusPool.length>0; if(isBonusRound){state.currentSong=state.bonusPool.shift(); state.nextBonusAt=state.songsPlayed+4+Math.floor(Math.random()*3);}else{state.currentSong=state.songs[state.songIdx%state.songs.length];} state.phase='playing'; state.buzzQueue=[]; state.buzzTimes={}; state.roundTimeAtBuzz=0; state.spokenText=''; state.micActive=false; state.skipVotes=[]; state.roundTime=20; state.answerTime=7; if(state.mode==='solo'){document.getElementById('round-tag').textContent=`SONG ${state.songsPlayed+1}/${soloSongLimit(state.targetScore)}`;}else{document.getElementById('round-tag').textContent='RND '+state.round;} updateTimerRing(20,20); updateInfoRow(); if(isBonusRound){showBonusBanner(state.currentSong); document.getElementById('screen-game').classList.add('bonus-active');}else{document.getElementById('screen-game').classList.remove('bonus-active');} setWaveform(false,true); setStatus('⏳ Loading preview…',false); renderActionArea(); if(state.mode==='party')scheduleAI(); tickRound();
-  if (state.mode==='party' && state.partyIsHost) {
+function beginRound() { if(state.mode==='party') state.partyBuzzedPlayerId=null; clearAllTimers(); const isBonusRound=state.songsPlayed===state.nextBonusAt&&state.bonusPool.length>0; if(isBonusRound){state.currentSong=state.bonusPool.shift(); state.nextBonusAt=state.songsPlayed+4+Math.floor(Math.random()*3);}else{state.currentSong=state.songs[state.songIdx%state.songs.length];} state.phase='playing'; state.buzzQueue=[]; state.buzzTimes={}; state.roundTimeAtBuzz=0; state.spokenText=''; state.micActive=false; state.skipVotes=[]; state.roundTime=20; state.answerTime=7; if(state.mode==='solo'){document.getElementById('round-tag').textContent=`SONG ${state.songsPlayed+1}/${soloSongLimit(state.targetScore)}`;}else{document.getElementById('round-tag').textContent='RND '+state.round;} updateTimerRing(20,20); updateInfoRow(); if(isBonusRound){showBonusBanner(state.currentSong); document.getElementById('screen-game').classList.add('bonus-active');}else{document.getElementById('screen-game').classList.remove('bonus-active');} setWaveform(false,true); setStatus('⏳ Loading preview…',false); renderActionArea(); if(state.mode==='party')scheduleAI(); tickRound(); if (state.mode==='party' && state.partyIsHost) {
     partyFetchAndBroadcast(state.currentSong, state.round);
+  } else if (state.mode==='party' && !state.partyIsHost) {
+    setStatus('⏳ Waiting for song…', false);
+    renderActionArea();
   } else {
     fetchAndPlaySong(state.currentSong);
   }
 }
 
-async function partyFetchAndBroadcast(song, roundNum) {
+async function inviteePlaySong(song) {
   await fetchAndPlaySong(song);
-  // Only broadcast if still on same round and still host
-  if (state.round === roundNum && state.mode === 'party' && state.partyIsHost && state.partyRoom) {
-    await partyBroadcastSong({
-      title: song.title,
-      artist: song.artist,
-      year: song.year,
-      previewUrl: audio.src,
-      startOffset: audio.currentTime || 0,
-      isBonus: song.isBonus || false,
-    });
-  }
+  if (state.phase === 'playing') tickRound();
 }
 function tickRound() {
   if(state.phase!=='playing') return;
   if(state.roundTime<=0) {
-    // Party invitee: wait for host signal instead of ending round locally
-    if(state.mode==='party' && !state.partyIsHost) {
-      setStatus('⏳ Waiting for next song…', false);
-      return; // Don't call endRound - wait for host broadcast
-    }
-    endRound(null,null,null,true);
-    return;
+    if(state.mode==='party' && !state.partyIsHost) { setStatus('⏳ Waiting for next song…',false); return; }
+    endRound(null,null,null,true); return;
   }
   state.timers.round=setTimeout(()=>{state.roundTime--; updateTimerRing(state.roundTime,20); tickRound();},1000);
 }
@@ -1051,30 +1034,10 @@ function stopMic() { state.micActive=false; if(state.recognition){try{state.reco
 function soloSkip() { if(state.phase!=='playing')return; clearAllTimers(); stopAudio(); state.totalSkips++; endRound(null,null,state.currentSong); }
 function partySkipVote(playerIdx) { if(state.phase!=='playing')return; if(state.skipVotes.includes(playerIdx))return; state.skipVotes.push(playerIdx); renderActionArea(); if(state.skipVotes.length>=state.players.length){clearAllTimers(); stopAudio(); endRound(null,null,state.currentSong);} }
 function endRound(playerIdx,result,song,timedOut=false) { clearAllTimers(); stopAudio(); stopMic(); state.phase='result';
-  // If invitee has a pending song waiting, apply it after result screen
-  if (state._pendingSong && !state.partyIsHost) {
-    const pending = state._pendingSong;
-    state._pendingSong = null;
-    setTimeout(() => {
-      if (state.phase === 'result' || state.phase === 'playing') {
-        state.round = pending.round;
-        state.partyBuzzedPlayerId = null;
-        state.phase = 'playing';
-        state.currentSong = pending.song;
-        clearAllTimers();
-        stopAudio();
-        goto('game');
-        setStatus('⏳ Loading preview…', false);
-        renderActionArea();
-        tickRound();
-        fetchAndPlaySong(pending.song);
-      }
-    }, 2000);
-  }
-  // Signal invitees that round ended
   if (state.mode==='party' && state.partyIsHost && state.partyRoom) {
-    sb.from('game_rooms').update({ current_phase: 'result', buzzed_by: null, buzz_time: null })
-      .eq('id', state.partyRoom.id).then(()=>{});
+    sb.from('game_rooms').update({ current_phase: 'result', buzzed_by: null, buzz_time: null,
+      settings: { ...(state.partyRoom.settings||{}), buzzedBy: null, roundTime: 0 }
+    }).eq('id', state.partyRoom.id).then(()=>{});
   } const scored=result&&result.pts>0; if(scored){state.players[playerIdx].score+=result.pts; state.consecutiveNoScore=0;}else{state.consecutiveNoScore++; if(timedOut)state.totalSkips++;} showResult(playerIdx,result,song||state.currentSong,timedOut); }
 function showResult(playerIdx,result,song,timedOut=false) { goto('result'); const scored=result&&result.pts>0; const skipped=playerIdx===null&&!timedOut; const isBonus=!!song.isBonus; const screen=document.getElementById('screen-result'); if(isBonus&&scored){screen.style.background='radial-gradient(ellipse 70% 60% at 50% 50%, rgba(255,215,0,0.12), transparent 70%), var(--dark)';}else{screen.style.background='';} const typeInfo=isBonus?(BONUS_TYPE_LABELS[song.bonusType]||{label:'⚡ Bonus',color:'var(--neon)'}):null; document.getElementById('res-icon').textContent=timedOut?'⏰':isBonus?(scored?'⭐':skipped?'⏰':'💀'):(skipped?'⏩':scored?'🎯':'❌'); const vEl=document.getElementById('res-verdict'); if(isBonus&&scored){vEl.textContent='BONUS!';vEl.className='result-verdict correct';vEl.style.color='#FFD700';}else if(timedOut){vEl.textContent="TIME'S UP!";vEl.className='result-verdict wrong';vEl.style.color='var(--pink)';}else{vEl.style.color='';vEl.textContent=skipped?'SKIPPED':scored?'CORRECT!':'WRONG!';vEl.className='result-verdict '+(skipped?'skip':scored?'correct':'wrong');} const who=document.getElementById('res-who'); if(isBonus){const typeLabel=typeInfo?typeInfo.label:'⚡ Bonus Round'; who.innerHTML=`<span style="background:${typeInfo?.color||'var(--neon)'}22;border:1px solid ${typeInfo?.color||'var(--neon)'}44;color:${typeInfo?.color||'var(--neon)'};padding:3px 10px;border-radius:20px;font-size:10px;letter-spacing:2px;">${typeLabel}</span>`;}else{who.textContent=(playerIdx!==null&&state.players[playerIdx])?state.players[playerIdx].avatar+' '+state.players[playerIdx].name:''; who.innerHTML=who.textContent;} let ptsMsg=''; if(result&&result.pts>0){if(isBonus){if(result.hasTitle&&result.hasArtist)ptsMsg=`+${result.pts} pts · Theme + Source! 🌟`; else if(result.hasTitle)ptsMsg=`+${result.pts} pts · Got the theme!`; else ptsMsg=`+${result.pts} pts · Got the source!`;}else{if(result.hasTitle&&result.hasArtist)ptsMsg=`+${result.pts} pts · Song + Artist! 🎉`; else if(result.hasTitle)ptsMsg=`+${result.pts} pt · Song title!`; else ptsMsg=`+${result.pts} pt · Artist!`;}}else if(!skipped){ptsMsg=isBonus?'No bonus points this round':'Wrong answer — no points';} document.getElementById('res-pts').textContent=ptsMsg; const revLabel=document.querySelector('#screen-result .rev-label'); if(isBonus){if(revLabel)revLabel.textContent='The theme was'; document.getElementById('res-song').textContent='🎵 '+song.title; document.getElementById('res-artist').innerHTML=`<span style="color:${typeInfo?.color||'var(--teal)'}">${song.artist}</span>`;}else{if(revLabel)revLabel.textContent='The song was'; document.getElementById('res-song').textContent='🎵 '+song.title; document.getElementById('res-artist').textContent=song.artist; document.getElementById('res-artist').style.color='';} document.getElementById('res-year').textContent=song.year; document.getElementById('res-scores').innerHTML=state.players.map((p,i)=>`${i>0?'<div class="mini-sep">—</div>':''}<div class="mini-score"><div class="mini-num">${p.score}</div><div class="mini-name">${p.avatar} ${p.name}</div></div>`).join('');
   if(state.mode==='solo'){state.songsPlayed++; const limit=soloSongLimit(state.targetScore); const youWon=state.players[0].score>=state.targetScore; const tooManySkips=!youWon&&state.totalSkips>=20; const outOfSongs=!youWon&&state.songsPlayed>=limit; const youLost=tooManySkips||outOfSongs; const hintEl=document.querySelector('#screen-result .next-hint'); if(youWon){if(hintEl)hintEl.textContent='🏆 You win! Calculating grade…';}else if(tooManySkips){if(hintEl)hintEl.textContent='💀 20 time-outs/skips — game over…';}else if(outOfSongs){if(hintEl)hintEl.textContent='💀 Out of songs — game over…';}else{const songsLeft=limit-state.songsPlayed; const ptsNeeded=state.targetScore-state.players[0].score; const skipsLeft=20-state.totalSkips; if(hintEl)hintEl.innerHTML=`${songsLeft} song${songsLeft!==1?'s':''} left · need ${ptsNeeded} more pt${ptsNeeded!==1?'s':''} · <span style="color:${skipsLeft<=5?'var(--pink)':'var(--muted)'}">missed: ${state.totalSkips}/20</span>`;} const resultActionsEl=document.getElementById('result-actions'); if(resultActionsEl)resultActionsEl.innerHTML=''; const delay=(youWon||youLost)?2400:3500; state.timers.next=setTimeout(()=>{if(youWon||youLost){showGameOver(youWon?state.players[0]:null);return;} state.round++; state.songIdx=(state.songIdx+1)%state.songs.length; if(state.songIdx===0)state.songs=shuffle(buildSongPool()); goto('game'); beginRound();},delay);}else{const winner=state.players.find(p=>p.score>=state.targetScore); const allLose=state.consecutiveNoScore>=10; const hintEl=document.querySelector('#screen-result .next-hint'); if(hintEl)hintEl.textContent=winner||allLose?'':'Next song loading...'; const resultActionsEl=document.getElementById('result-actions'); if(resultActionsEl)resultActionsEl.innerHTML=''; const delay=(winner||allLose)?2800:3500; state.timers.next=setTimeout(()=>{if(winner||allLose){showGameOver(winner);return;} state.round++; state.songIdx=(state.songIdx+1)%state.songs.length; if(state.songIdx===0)state.songs=shuffle(buildSongPool()); goto('game'); beginRound();},delay);}
@@ -1098,29 +1061,7 @@ function getSoloGrade(songsUsed,won) {
   if(songsUsed<=cMax) return{letter:'D',label:'Decent',    color:'#54A0FF',     msg:`Got there in ${sStr}. More practice needed.`};
   return{letter:'C',label:'Close Call',color:'var(--pink)',msg:`Just scraped through in ${sStr}. Very close!`};
 }
-function showGameOver(winner) {
-  // Clean up party room when game ends
-  if (state.mode === 'party' && state.partyRoom) {
-    const roomId = state.partyRoom.id;
-    // Mark room as finished then delete after delay
-    sb.from('game_rooms').update({ status: 'finished' })
-      .eq('id', roomId)
-      .then(() => {
-        // Delete room and players after 30 seconds
-        setTimeout(() => {
-          sb.from('room_players').delete().eq('room_id', roomId).then(() => {});
-          sb.from('game_rooms').delete().eq('id', roomId).then(() => {});
-        }, 30000);
-      });
-    // Clear local party state
-    clearInterval(state._gameStartPoll);
-    clearInterval(state._waitingPoll);
-    state.partyRoom = null;
-    state.partyPlayers = [];
-    state.partyIsHost = false;
-    if (state.partyChannel) { try { sb.removeChannel(state.partyChannel); } catch(e) {} state.partyChannel = null; }
-  }
-  saveGameResult(winner); state.stats.played++; const myScore=state.players.find(p=>p.name==='You')?.score||0; if(winner&&(winner.name==='You'||state.mode==='solo'))state.stats.wins++; state.stats.best=Math.max(state.stats.best,myScore); updateHomeStats(); goto('gameover'); if(state.mode==='solo'){const won=!!winner; const grade=getSoloGrade(state.songsPlayed,won); const elapsed=Math.round((Date.now()-state.gameStartTime)/1000); const mins=Math.floor(elapsed/60),secs=elapsed%60; const timeStr=mins>0?`${mins}m ${secs}s`:`${secs}s`; document.getElementById('go-trophy').textContent=won?grade.letter:'💀'; document.getElementById('go-trophy').style.cssText=won?`font-size:80px;font-weight:900;color:${grade.color};text-shadow:0 0 40px ${grade.color};font-family:'Segoe UI',system-ui,sans-serif;margin-bottom:4px;animation:trophyIn 0.6s cubic-bezier(0.175,0.885,0.32,1.275);`:''; document.getElementById('go-label').textContent=grade.label; document.getElementById('go-label').style.color=grade.color; document.getElementById('go-name').textContent=won?`${myScore} pts · ${state.songsPlayed} songs`:'GAME OVER'; document.getElementById('go-name').style.color=won?grade.color:'var(--pink)'; document.getElementById('go-sub').textContent=grade.msg; document.getElementById('go-cards').innerHTML=`<div class="final-card ${won?'win':''}"><div class="fc-name">⏱ Time</div><div class="fc-num" style="font-size:32px">${timeStr}</div></div><div class="final-card ${won?'win':''}"><div class="fc-name">🎵 Songs</div><div class="fc-num" style="font-size:32px">${state.songsPlayed}/${soloSongLimit(state.targetScore)}</div></div><div class="final-card ${won?'win':''}"><div class="fc-name">⭐ Score</div><div class="fc-num" style="font-size:32px">${myScore}/${state.targetScore}</div></div>`;}else{document.getElementById('go-trophy').textContent=winner?'🏆':'😤'; document.getElementById('go-trophy').style.cssText=''; document.getElementById('go-label').textContent=winner?'🎉 Winner!':'No Winner'; document.getElementById('go-label').style.color='var(--neon)'; document.getElementById('go-name').textContent=winner?winner.name:'Nobody'; document.getElementById('go-name').style.color=winner?'var(--neon)':'var(--muted)'; document.getElementById('go-sub').textContent=winner?`${winner.name} is the music master! 🎵`:"10 rounds with no points. Try a different genre!"; document.getElementById('go-cards').innerHTML=state.players.map((p,i)=>`<div class="final-card ${winner&&winner.name===p.name?'win':''}"><div class="fc-name">${p.avatar} ${p.name}</div><div class="fc-num">${p.score}</div></div>`).join('');} }
+function showGameOver(winner) { saveGameResult(winner); state.stats.played++; const myScore=state.players.find(p=>p.name==='You')?.score||0; if(winner&&(winner.name==='You'||state.mode==='solo'))state.stats.wins++; state.stats.best=Math.max(state.stats.best,myScore); updateHomeStats(); goto('gameover'); if(state.mode==='solo'){const won=!!winner; const grade=getSoloGrade(state.songsPlayed,won); const elapsed=Math.round((Date.now()-state.gameStartTime)/1000); const mins=Math.floor(elapsed/60),secs=elapsed%60; const timeStr=mins>0?`${mins}m ${secs}s`:`${secs}s`; document.getElementById('go-trophy').textContent=won?grade.letter:'💀'; document.getElementById('go-trophy').style.cssText=won?`font-size:80px;font-weight:900;color:${grade.color};text-shadow:0 0 40px ${grade.color};font-family:'Segoe UI',system-ui,sans-serif;margin-bottom:4px;animation:trophyIn 0.6s cubic-bezier(0.175,0.885,0.32,1.275);`:''; document.getElementById('go-label').textContent=grade.label; document.getElementById('go-label').style.color=grade.color; document.getElementById('go-name').textContent=won?`${myScore} pts · ${state.songsPlayed} songs`:'GAME OVER'; document.getElementById('go-name').style.color=won?grade.color:'var(--pink)'; document.getElementById('go-sub').textContent=grade.msg; document.getElementById('go-cards').innerHTML=`<div class="final-card ${won?'win':''}"><div class="fc-name">⏱ Time</div><div class="fc-num" style="font-size:32px">${timeStr}</div></div><div class="final-card ${won?'win':''}"><div class="fc-name">🎵 Songs</div><div class="fc-num" style="font-size:32px">${state.songsPlayed}/${soloSongLimit(state.targetScore)}</div></div><div class="final-card ${won?'win':''}"><div class="fc-name">⭐ Score</div><div class="fc-num" style="font-size:32px">${myScore}/${state.targetScore}</div></div>`;}else{document.getElementById('go-trophy').textContent=winner?'🏆':'😤'; document.getElementById('go-trophy').style.cssText=''; document.getElementById('go-label').textContent=winner?'🎉 Winner!':'No Winner'; document.getElementById('go-label').style.color='var(--neon)'; document.getElementById('go-name').textContent=winner?winner.name:'Nobody'; document.getElementById('go-name').style.color=winner?'var(--neon)':'var(--muted)'; document.getElementById('go-sub').textContent=winner?`${winner.name} is the music master! 🎵`:"10 rounds with no points. Try a different genre!"; document.getElementById('go-cards').innerHTML=state.players.map((p,i)=>`<div class="final-card ${winner&&winner.name===p.name?'win':''}"><div class="fc-name">${p.avatar} ${p.name}</div><div class="fc-num">${p.score}</div></div>`).join('');} }
 function updateHomeStats() { const el1=document.getElementById('stat-played'); const el2=document.getElementById('stat-wins'); const el3=document.getElementById('stat-best'); if(el1)el1.textContent=state.stats.played; if(el2)el2.textContent=state.stats.wins; if(el3)el3.textContent=state.stats.best; }
 function renderScorePanel() { const panel=document.getElementById('score-panel'); panel.innerHTML=state.players.map((p,i)=>`${i>0?'<div class="score-vs">VS</div>':''}<div class="score-box" id="scorebox-${i}"><div class="score-player">${p.avatar} ${p.name}</div><div class="score-num" id="score-num-${i}">${p.score}</div></div>`).join(''); }
 function updateScorePanel() { state.players.forEach((p,i)=>{const el=document.getElementById('score-num-'+i); if(el)el.textContent=p.score;}); }
@@ -1310,9 +1251,8 @@ async function initAuth() {
           // Auto-join the room after login
           sessionStorage.removeItem('pendingJoinCode')
           autoJoinRoom(pending)
-        } else if (sessionStorage.getItem('afterLoginGoto')) {
-          const g = sessionStorage.getItem('afterLoginGoto'); sessionStorage.removeItem('afterLoginGoto'); goto(g);
         } else {
+          // Normal login - go to mode select
           goto('modeselect')
         }
       }
@@ -1335,17 +1275,6 @@ async function initAuth() {
 }
 
 async function loadProfile() {
-  // Clean up stale rooms older than 2 hours on login
-  try {
-    const twoHoursAgo = new Date(Date.now() - 2*60*60*1000).toISOString();
-    const { data: staleRooms } = await sb.from('game_rooms').select('id').lt('created_at', twoHoursAgo);
-    if (staleRooms?.length) {
-      for (const r of staleRooms) {
-        await sb.from('room_players').delete().eq('room_id', r.id);
-        await sb.from('game_rooms').delete().eq('id', r.id);
-      }
-    }
-  } catch(e) {}
   const { data } = await sb.from('profiles')
     .select('*')
     .eq('id', state.currentUser.id)
@@ -1997,7 +1926,6 @@ async function autoJoinRoom(code) {
       state.genres = room.settings.genres || [];
       state.targetScore = room.settings.targetScore || 5;
     }
-    screenLog('autoJoin room:'+room.id.slice(0,8)+' isHost:'+state.partyIsHost);
     subscribeToRoom(room.id);
     await refreshPartyPlayers();
     goto('waiting');
@@ -2038,6 +1966,10 @@ async function joinRoomByCode() {
       if (btn) { btn.textContent = 'Join Game →'; btn.disabled = false; }
       return;
     }
+
+    // Check player count
+    const { count } = await sb.from('room_players').select('*', {count:'exact',head:true}).eq('room_id', room.id);
+    if (count >= 6) { if (errEl) errEl.textContent = 'This room is full (6 players max).'; if (btn) { btn.textContent = 'Join Game →'; btn.disabled = false; } return; }
 
     // Join
     await sb.from('room_players').upsert({
@@ -2102,9 +2034,7 @@ async function refreshPartyPlayers() {
       profiles: profileMap[p.player_id] || { nickname: 'Player', avatar_url: null }
     }));
     console.log('[refresh] got', state.partyPlayers.length, 'players');
-    if (state.screen === 'waiting') {
-      renderWaitingRoom(true);
-    }
+    if (state.screen === 'waiting') renderWaitingRoom();
     if (state.screen === 'party-setup') renderPartySetupPlayers();
   } catch(e) {
     console.error('[refresh] exception:', e.message);
@@ -2137,36 +2067,29 @@ async function leaveRoom() {
 }
 
 // ── REALTIME SUBSCRIPTION ──
-function screenLog(msg) {
-  var el = document.getElementById('screen-log');
-  if (!el) return;
-  el.style.display = 'block';
-  el.innerHTML += '<div>' + new Date().toLocaleTimeString() + ' ' + msg + '</div>';
-  el.scrollTop = el.scrollHeight;
-}
-
-async function inviteePlaySong(song, elapsedSeconds) {
-  // Always do fresh iTunes search - CDN URLs are not cross-device compatible
-  // fetchAndPlaySong handles everything including waveform and status
+async function partyFetchAndBroadcast(song, roundNum) {
   await fetchAndPlaySong(song);
-  // Only start timer AFTER song is loaded and playing
-  // fetchAndPlaySong is awaited so audio is ready now
-  if (state.phase === 'playing') tickRound();
-}
-
-async function partyBroadcastSong(song) {
-  if (!state.partyRoom || !state.partyIsHost) return;
-  await sb.from('game_rooms').update({
-    current_phase: 'playing',
-    buzzed_by: null,
-    buzz_time: null,
-    round: state.round || 1,
-    settings: {
-      ...(state.partyRoom.settings || {}),
-      currentSong: { title: song.title, artist: song.artist, year: song.year, previewUrl: song.previewUrl, startOffset: song.startOffset || 0 },
-      roundStartedAt: Date.now(),
+  if (state.round !== roundNum || !state.partyIsHost || !state.partyRoom) return;
+  await partyBroadcastSong({
+    title: song.title, artist: song.artist, year: song.year,
+    previewUrl: audio.src, startOffset: audio.currentTime || 0,
+    isBonus: song.isBonus || false,
+  });
+  // Start heartbeat to sync timer and buzz state with invitee
+  clearInterval(state._partyHeartbeat);
+  state._partyHeartbeat = setInterval(async () => {
+    if (!state.partyIsHost || !state.partyRoom || state.screen !== 'game') {
+      clearInterval(state._partyHeartbeat); state._partyHeartbeat = null; return;
     }
-  }).eq('id', state.partyRoom.id);
+    try {
+      await sb.from('game_rooms').update({
+        settings: { ...(state.partyRoom.settings || {}),
+          roundTime: state.roundTime,
+          buzzedBy: state.partyBuzzedPlayerId || null,
+        }
+      }).eq('id', state.partyRoom.id);
+    } catch(e) {}
+  }, 2000);
 }
 
 function subscribeToRoom(roomId) {
@@ -2181,58 +2104,48 @@ function subscribeToRoom(roomId) {
       filter: 'id=eq.' + roomId
     }, async (payload) => {
       console.log('[realtime] game_rooms change:', payload.new?.status, payload.new?.current_phase);
-      const prevPhase = state.partyRoom?.current_phase;
       state.partyRoom = payload.new;
 
-      // Invitee: sync from host broadcasts
+      // Invitee sync from host
       if (!state.partyIsHost) {
         const newPhase = payload.new?.current_phase;
         const newSong = payload.new?.settings?.currentSong;
         const newRound = payload.new?.round;
-        screenLog('broadcast: phase='+newPhase+' round='+newRound+' hasSong='+(!!newSong)+' myRound='+state.round+' screen='+state.screen);
+        const newRoundTime = payload.new?.settings?.roundTime;
+        const newBuzzedBy = payload.new?.settings?.buzzedBy;
+
+        // Sync buzz state
+        if (newBuzzedBy !== undefined) state.partyBuzzedPlayerId = newBuzzedBy || null;
 
         if (state.screen === 'game' || state.screen === 'result') {
-          if (newPhase === 'playing' && newSong && newRound && newRound !== state.round) {
-            // Host broadcast a new song
-            // Only jump if invitee is not mid-answer and round timer has run enough
-            const canAdvance = state.phase !== 'answering' && state.phase !== 'submitting';
-            if (canAdvance) {
-              console.log('[realtime] advancing to round:', newRound, 'song:', newSong?.title);
-              screenLog('ADVANCE round:'+newRound+' phase:'+state.phase);
-              state.round = newRound;
-              state.partyBuzzedPlayerId = null;
-              state.phase = 'playing';
-              state.currentSong = newSong;
-              clearAllTimers();
-              stopAudio();
-              // Use host's roundStartedAt to sync timer
-              const rsa = payload.new?.settings?.roundStartedAt;
-              const elapsed = rsa ? Math.floor((Date.now() - rsa) / 1000) : 0;
-              state.roundTime = Math.max(3, 20 - elapsed);
-              setStatus('⏳ Loading preview…', false);
-              renderActionArea();
-              // Fetch and play song, then start timer
-              inviteePlaySong(newSong, elapsed);
-            } else {
-              // Store pending song - will start after current answer resolves
-              state._pendingSong = { song: newSong, round: newRound };
-              console.log('[realtime] stored pending song for round:', newRound);
-            }
+          if (newSong && newRound && newRound !== state.round) {
+            // New song from host - start playing it
+            state.round = newRound;
+            state.partyBuzzedPlayerId = null;
+            state.phase = 'playing';
+            state.currentSong = newSong;
+            state.roundTime = 20;
+            clearAllTimers();
+            stopAudio();
+            if (state.screen === 'result') goto('game');
+            setStatus('⏳ Loading preview…', false);
+            renderActionArea();
+            inviteePlaySong(newSong);
+          } else if (newRoundTime !== undefined && state.phase === 'playing') {
+            // Sync timer from heartbeat
+            state.roundTime = newRoundTime;
+            updateTimerRing(state.roundTime, 20);
+            renderActionArea(); // update buzz button state
+          } else if (newPhase === 'result' && state.phase === 'playing') {
+            // Host ended round
+            endRound(null, null, state.currentSong, true);
           }
-        } else if (state.screen === 'waiting' && newPhase === 'playing' && newSong) {
-          // Game just started - invitee enters game
-          state.round = newRound || 1;
-          state.currentSong = newSong;
         }
       }
 
       if (payload.new?.status === 'playing' && state.screen === 'waiting') {
-        clearInterval(state._gameStartPoll);
-        screenLog('REALTIME GAME START players:'+state.partyPlayers.length);
-        if (payload.new.settings?.genres) state.genres = payload.new.settings.genres;
-        if (payload.new.settings?.targetScore) state.targetScore = payload.new.settings.targetScore;
         await refreshPartyPlayers();
-        if (state.screen !== 'game') startPartyGame();
+        startPartyGame();
       }
       if (payload.new?.status === 'finished' && state.screen !== 'home') {
         alert('The host ended the game.');
@@ -2250,33 +2163,11 @@ function subscribeToRoom(roomId) {
     })
     .subscribe((status) => {
       console.log('[realtime] channel status:', status);
-      if (status === 'SUBSCRIBED') refreshPartyPlayers();
+      if (status === 'SUBSCRIBED') {
+        // Do an immediate refresh when subscription is confirmed
+        refreshPartyPlayers();
+      }
     });
-
-  // Fallback poll for game start (invitee only)
-  console.log('[subscribeToRoom] partyIsHost:', state.partyIsHost, '- poll will start:', !state.partyIsHost);
-  if (!state.partyIsHost) {
-    clearInterval(state._gameStartPoll);
-    screenLog('poll started for room:'+roomId.slice(0,8));
-    state._gameStartPoll = setInterval(async () => {
-      if (state.screen !== 'waiting') { clearInterval(state._gameStartPoll); return; }
-      try {
-        const currentRoomId = state.partyRoom?.id || roomId;
-        screenLog('poll roomId:'+currentRoomId.slice(0,6)+' isHost:'+state.partyIsHost);
-        const { data } = await sb.from('game_rooms').select('status,settings').eq('id', currentRoomId).single();
-        screenLog('status:'+data?.status);
-        if (data?.status === 'playing') {
-          clearInterval(state._gameStartPoll);
-          screenLog('GAME STARTED players:'+state.partyPlayers.length);
-          if (data.settings?.genres) state.genres = data.settings.genres;
-          if (data.settings?.targetScore) state.targetScore = data.settings.targetScore;
-          // Always refresh players then start
-          await refreshPartyPlayers();
-          if (state.screen !== 'game') startPartyGame();
-        }
-      } catch(e) {}
-    }, 2000);
-  }
 }
 
 
@@ -2510,11 +2401,11 @@ async function debugWaitingRoom() {
           out.innerHTML += '<br>✅ Join query OK: ' + (d2||[]).length + ' rows';
           state.partyPlayers = d2 || [];
         }
-        renderWaitingRoom(true);
+        renderWaitingRoom();
       } catch(e2) {
         out.innerHTML += '<br>⚠️ Join timed out, using simple data';
         state.partyPlayers = (data||[]).map(p => ({...p, profiles: {nickname: 'Player'}}));
-        renderWaitingRoom(true);
+        renderWaitingRoom();
       }
     }
   } catch(e) {
@@ -2530,23 +2421,17 @@ async function debugWaitingRoom() {
   }
 }
 
-function renderWaitingRoom(skipMicBlock) {
-  if (!skipMicBlock) {
-    // Only check mic once using a flag
-    if (!state._micBlockRendered) {
-      state._micBlockRendered = true;
-      const micBlock = document.getElementById('waiting-mic-block');
-      if (micBlock) micBlock.innerHTML = renderWaitingMicBlock();
-      // Check permission once, update mic block only
-      if (state.micPermission === 'unknown' && navigator.permissions) {
-        navigator.permissions.query({ name: 'microphone' }).then(status => {
-          if (status.state === 'granted') { state.micPermission = 'granted'; markMicReady(); }
-          else if (status.state === 'denied') { state.micPermission = 'denied'; const mb = document.getElementById('waiting-mic-block'); if(mb) mb.innerHTML = renderWaitingMicBlock(); }
-        }).catch(() => {});
-      }
-      if (state.micPermission === 'granted') markMicReady();
-    }
+function renderWaitingRoom() {
+  // Check mic permission status first
+  if (state.micPermission === 'unknown' && navigator.permissions) {
+    navigator.permissions.query({ name: 'microphone' }).then(status => {
+      if (status.state === 'granted') { state.micPermission = 'granted'; markMicReady(); }
+      else if (status.state === 'denied') { state.micPermission = 'denied'; }
+      renderWaitingRoom();
+    }).catch(() => {});
   }
+  // If mic already granted, auto-mark ready
+  if (state.micPermission === 'granted') markMicReady();
 
   const code = state.partyRoom?.code || '';
   const codeEl = document.getElementById('waiting-room-code');
@@ -2644,21 +2529,30 @@ function renderWaitingRoom(skipMicBlock) {
 
 function renderWaitingMicBlock() {
   const perm = state.micPermission;
-  // Show ready if permission granted (don't rely on DB mic_ready which may lag)
-  if (perm === 'granted') {
-    return '<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">' +
-      '<span style="font-size:24px;">✅</span>' +
-      '<div><div style="font-size:13px;font-weight:700;color:var(--teal);">Microphone Ready</div>' +
-      '<div style="font-size:11px;color:var(--muted);margin-top:2px;">You are all set to speak your answers</div></div>' +
-    '</div>';
+  const myPlayer = state.partyPlayers.find(p => p.player_id === state.currentUser?.id);
+  const micReady = myPlayer?.mic_ready || false;
+
+  if (micReady) {
+    return `<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;">
+      <span style="font-size:24px;">✅</span>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:var(--teal);">Microphone Ready</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px;">You're all set to speak your answers</div>
+      </div>
+    </div>`;
   }
-  // Show enable button
-  return '<div style="background:rgba(255,58,140,0.06);border:1px solid rgba(255,58,140,0.3);border-radius:14px;padding:16px;">' +
-    '<div style="font-size:13px;font-weight:700;color:var(--pink);margin-bottom:6px;">🎙️ Enable Your Microphone</div>' +
-    '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">Tap below and then tap <b style="color:var(--text)">Allow</b> when your browser asks.</div>' +
-    '<button data-action="enable-mic" style="width:100%;background:var(--pink);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:13px;cursor:pointer;touch-action:manipulation;">Enable Microphone to Play</button>' +
-    '<button data-action="skip-mic" style="width:100%;background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:12px;padding:10px;font-size:12px;cursor:pointer;touch-action:manipulation;margin-top:8px;">Continue without mic</button>' +
-  '</div>';
+  if (perm === 'granted') {
+    // Update DB that this player is mic-ready
+    markMicReady();
+    return `<div style="background:rgba(0,229,204,0.06);border:1px solid rgba(0,229,204,0.3);border-radius:14px;padding:14px 16px;">
+      <div style="font-size:13px;font-weight:700;color:var(--teal);">✅ Microphone Ready</div>
+    </div>`;
+  }
+  return `<div style="background:rgba(255,58,140,0.06);border:1px solid rgba(255,58,140,0.3);border-radius:14px;padding:16px;">
+    <div style="font-size:13px;font-weight:700;color:var(--pink);margin-bottom:6px;">🎙️ Enable Your Microphone</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.6;">You need to allow microphone access to play. Tap below and then tap <b style="color:var(--text)">Allow</b> when your browser asks.</div>
+    <button onclick="waitingRoomEnableMic()" style="width:100%;background:var(--pink);border:none;border-radius:12px;color:#fff;font-size:14px;font-weight:700;padding:13px;cursor:pointer;font-family:inherit;">Enable Microphone to Play</button>
+  </div>`;
 }
 
 async function waitingRoomEnableMic() {
@@ -2687,8 +2581,7 @@ async function markMicReady() {
     .eq('room_id', state.partyRoom.id)
     .eq('player_id', state.currentUser.id);
   state.micPermission = 'granted';
-  const mb = document.getElementById('waiting-mic-block');
-  if (mb) mb.innerHTML = renderWaitingMicBlock();
+  renderWaitingRoom();
 }
 
 async function skipMicAndContinue() {
@@ -2700,36 +2593,23 @@ async function skipMicAndContinue() {
       .eq('player_id', state.currentUser.id);
   }
   state.micPermission = 'denied';
-  const mb2 = document.getElementById('waiting-mic-block');
-  if (mb2) mb2.innerHTML = renderWaitingMicBlock();
+  renderWaitingRoom();
 }
 
 // ── HOST STARTS GAME ──
 async function hostStartGame() {
   if (!state.partyIsHost || !state.partyRoom) return;
-  const btn = document.querySelector('[data-action="start-game"]');
-  if (btn) { btn.textContent = 'Starting…'; btn.disabled = true; }
-
-  const existingSettings = state.partyRoom.settings || {};
-  const { error } = await sb.from('game_rooms').update({
+  const song = buildPartySongList();
+  // Signal all players to start via room status change
+  await sb.from('game_rooms').update({
     status: 'playing',
+    current_phase: 'playing',
     settings: {
-      genres: existingSettings.genres || state.genres || [],
-      targetScore: existingSettings.targetScore || state.targetScore || 5,
+      ...state.partyRoom.settings,
+      songList: song,
       startedAt: Date.now(),
     }
   }).eq('id', state.partyRoom.id);
-
-  if (error) {
-    console.error('[hostStartGame] DB update failed:', error.message, error.code);
-    screenLog('START ERROR: ' + error.message);
-    if (btn) { btn.textContent = '🎵 Start Game!'; btn.disabled = false; }
-    alert('Could not start game: ' + error.message);
-    return;
-  }
-  console.log('[hostStartGame] DB updated to playing, starting game');
-  screenLog('HOST: DB set to playing, starting game');
-  state.partyRoom.status = 'playing'; // update local state too
   startPartyGame();
 }
 
@@ -2752,10 +2632,6 @@ function startPartyGame() {
   state.songsPlayed = 0;
   state.totalSkips = 0;
   state.gameStartTime = Date.now();
-  // Ensure required state is set
-  if (!state.genres || state.genres.length === 0) state.genres = Object.keys(SONGS);
-  if (!state.targetScore || state.targetScore < 1) state.targetScore = 5;
-  if (!state.winCondition) state.winCondition = 'score';
   state.songs = shuffle(buildSongPool());
   state.songIdx = 0;
   state.bonusPool = shuffle([...BONUS_FLAT]);
@@ -2798,36 +2674,19 @@ async function submitPartyAnswer() {
   clearTimeout(state.timers.answer);
   const myPlayer = state.players.find(p => p.isMe);
   const result = checkAnswer(state.spokenText, state.currentSong);
+  if (result.pts > 0 && myPlayer) myPlayer.score += result.pts;
 
-  if (result.pts > 0) {
-    // Correct answer - score and end round
-    if (myPlayer) myPlayer.score += result.pts;
-    if (state.partyRoom && state.currentUser && myPlayer) {
-      sb.from('room_players').update({ score: myPlayer.score || 0 })
-        .eq('room_id', state.partyRoom.id)
-        .eq('player_id', state.currentUser.id)
-        .then(({error}) => { if(error) console.warn('[score]', error.message); });
-    }
-    await sb.from('game_rooms').update({ current_phase: 'playing', buzzed_by: null, buzz_time: null })
-      .eq('id', state.partyRoom.id);
-    endRound(0, result, state.currentSong);
-  } else {
-    // Wrong answer - reset buzz so OTHER player can try
-    state.partyBuzzedPlayerId = null;
-    state.phase = 'playing';
-    state.spokenText = '';
-    // Resume song and round timer
-    resumeAudio();
-    setWaveform(true);
-    setStatus('❌ Wrong! Others can buzz in…', false);
-    renderActionArea();
-    // Clear buzz in DB so others see button enabled
-    await sb.from('game_rooms').update({ current_phase: 'playing', buzzed_by: null, buzz_time: null })
-      .eq('id', state.partyRoom.id);
-    // Resume round timer from where it was
-    tickRound();
-    startMic(); // restart mic listening
+  // Sync score to DB
+  if (state.partyRoom && state.currentUser) {
+    await sb.from('room_players').update({ score: myPlayer?.score || 0 })
+      .eq('room_id', state.partyRoom.id)
+      .eq('player_id', state.currentUser.id);
   }
+  // Clear buzz on room
+  await sb.from('game_rooms').update({ current_phase: 'playing', buzzed_by: null, buzz_time: null })
+    .eq('id', state.partyRoom.id);
+
+  endRound(0, result, state.currentSong);
 }
 
 function renderPartyGameArea() {
@@ -2931,9 +2790,6 @@ initAuth();
     <div id="waiting-guest-msg" style="display:none;text-align:center;padding:12px;font-size:13px;color:var(--muted);">
       Waiting for the host to start the game…
     </div>
-
-    <!-- On-screen debug log (tap to clear) -->
-    <div id="screen-log" onclick="this.innerHTML=''" style="margin-top:8px;background:#000;border:1px solid #333;border-radius:8px;padding:8px;font-size:10px;color:#0f0;font-family:monospace;max-height:120px;overflow-y:auto;display:none;"></div>
 
     <!-- Debug panel -->
     <div style="margin-top:8px;">
