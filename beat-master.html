@@ -1968,11 +1968,9 @@ async function joinRoomByCode() {
   if (btn) { btn.textContent = 'Joining…'; btn.disabled = true; }
   try {
     // Find the room
-    const roomPromise = sb.from('game_rooms').select('*').eq('code', code).single();
-    const timeoutPromise = new Promise((_,rej) => setTimeout(() => rej(new Error('Timed out')), 8000));
-    const { data: room, error } = await Promise.race([roomPromise, timeoutPromise]);
+    const { data: room, error } = await sb.from('game_rooms').select('*').eq('code', code).single();
     if (error || !room) {
-      if (errEl) errEl.textContent = error?.message === 'Timed out' ? 'Connection timed out. Try again.' : 'Room not found. Check the code and try again.';
+      if (errEl) errEl.textContent = 'Room not found. Check the code and try again.';
       if (btn) { btn.textContent = 'Join Game →'; btn.disabled = false; }
       return;
     }
@@ -1982,16 +1980,11 @@ async function joinRoomByCode() {
       return;
     }
 
-    // Join room
-    const { error: joinErr } = await sb.from('room_players').upsert({
+    // Join
+    await sb.from('room_players').upsert({
       room_id: room.id, player_id: state.currentUser.id,
       is_host: false, mic_ready: false, score: 0,
     }, { onConflict: 'room_id,player_id' });
-    if (joinErr) {
-      if (errEl) errEl.textContent = 'Could not join: ' + joinErr.message;
-      if (btn) { btn.textContent = 'Join Game →'; btn.disabled = false; }
-      return;
-    }
 
     state.partyRoom = room;
     state.partyIsHost = false;
