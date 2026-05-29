@@ -457,7 +457,7 @@ const state = {
   pauseVotes:{}, restartVotes:{}, footerRestartVotes:{}, pausedTimerRemaining:0, pausedAudioTime:0,
   // Party mode realtime state
   partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false, _waitingPoll: null,
-  partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [], partySeed: 0,
+  partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [], partySeed: 0, _gameStartPoll: null,
   currentUser: null, currentProfile: null, _pendingAvatarFile: null,
 };
 
@@ -792,6 +792,34 @@ async function fetchAndPlaySong(song) {
   setWaveform(false, true);
   setStatus('⏳ Loading preview…', false);
 
+  // If song already has a previewUrl (prefetched), play it directly - no search
+  if (song.previewUrl) {
+    try {
+      audio.crossOrigin = 'anonymous';
+      audio.src = song.previewUrl;
+      audio.volume = 0.9;
+      await new Promise((resolve, reject) => {
+        const onReady = () => { audio.removeEventListener('canplaythrough', onReady); audio.removeEventListener('error', onErr); resolve(); };
+        const onErr = (e) => { audio.removeEventListener('canplaythrough', onReady); audio.removeEventListener('error', onErr); reject(e); };
+        audio.addEventListener('canplaythrough', onReady, { once: true });
+        audio.addEventListener('error', onErr, { once: true });
+        audio.load();
+      });
+      if (state.phase !== 'playing') return;
+      audio.currentTime = (song.isBonus ? 0 : 8);
+      state.audioReady = true;
+      state.audioLoading = false;
+      await audio.play();
+      const isBonusSong = song.isBonus;
+      setStatus(isBonusSong ? '⚡ Name the theme + its source for 5 pts!' : '🎵 Song is playing — buzz in when you know it!', false);
+      setWaveform(true, false);
+      return; // done - no iTunes search needed
+    } catch(e) {
+      console.warn('[fetchAndPlaySong] prefetched URL failed, searching iTunes:', e.message);
+      // fall through to iTunes search
+    }
+  }
+
   // Bonus songs (TV themes, game music, movie scores) get broader search
   const isSpecial = song.isBonus || song.genre === 'movies' || song.genre === 'themes';
   const queryStr = song.searchQuery || (song.title + ' ' + song.artist);
@@ -946,14 +974,17 @@ function beginRound() { if(state.mode==='party') state.partyBuzzedPlayerId=null;
   setStatus('⏳ Loading preview…',false);
   if(state.mode==='party') scheduleAI();
   tickRound();
+  // Host: use prefetched URL if available BEFORE playing
+  if (state.mode==='party' && state.partyIsHost) {
+    const prefetched = state.partyRoom?.settings?.prefetchedSongs;
+    if (prefetched && prefetched[state.songIdx] && prefetched[state.songIdx].previewUrl) {
+      state.currentSong = { ...state.currentSong, previewUrl: prefetched[state.songIdx].previewUrl };
+    }
+  }
   fetchAndPlaySong(state.currentSong);
   if (state.mode==='party' && state.partyIsHost) {
-    // Broadcast round start after audio loads so invitee syncs timer
-    setTimeout(async () => {
-      if (state.partyIsHost && state.partyRoom && state.phase==='playing') {
-        await partyBroadcastRound();
-      }
-    }, 500);
+    // Broadcast round start + song index + timestamp
+    partyBroadcastRound().catch(e => console.warn('[broadcast]', e));
   }
 }
 async function inviteePlayFromHost(song) {
@@ -2115,15 +2146,48 @@ async function leaveRoom() {
 }
 
 // ── REALTIME SUBSCRIPTION ──
+async function prefetchPartySongs() {
+  // Fetch iTunes URLs for first 6 songs upfront
+  if (!state.partyIsHost || !state.partyRoom) return;
+  const songs = state.songs.slice(0, 6);
+  const fetched = [];
+  for (const song of songs) {
+    try {
+      const q = encodeURIComponent((song.searchQuery || song.title + ' ' + song.artist));
+      const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=5&country=US');
+      const data = await res.json();
+      const best = (data.results || []).find(r => r.previewUrl);
+      fetched.push({
+        title: song.title, artist: song.artist, year: song.year,
+        genre: song.genre, isBonus: song.isBonus || false,
+        previewUrl: best ? best.previewUrl : null,
+      });
+    } catch(e) {
+      fetched.push({ title: song.title, artist: song.artist, year: song.year, previewUrl: null });
+    }
+  }
+  // Store prefetched songs in game_rooms
+  const settings = state.partyRoom.settings || {};
+  await sb.from('game_rooms').update({
+    settings: { ...settings, prefetchedSongs: fetched }
+  }).eq('id', state.partyRoom.id);
+  // Update local state
+  state.partyRoom.settings = { ...settings, prefetchedSongs: fetched };
+  console.log('[prefetch] done:', fetched.length, 'songs');
+}
+
 async function partyBroadcastRound() {
-  // Broadcast round start to invitees - they already know the song from the seed
   if (!state.partyRoom || !state.partyIsHost) return;
   const settings = state.partyRoom.settings || {};
+  const now = Date.now();
+  // Update game_rooms with current round info
   await sb.from('game_rooms').update({
     current_phase: 'playing',
     round: state.round || 1,
-    settings: { ...settings, roundStartedAt: Date.now() }
+    settings: { ...settings, roundStartedAt: now, currentSongIdx: state.songIdx }
   }).eq('id', state.partyRoom.id);
+  // Update local partyRoom
+  if (state.partyRoom.settings) state.partyRoom.settings.roundStartedAt = now;
 }
 
 function subscribeToRoom(roomId) {
@@ -2148,24 +2212,8 @@ function subscribeToRoom(roomId) {
       if (!state.partyIsHost && (state.screen === 'game' || state.screen === 'result')) {
         const newRound = payload.new?.round;
         const newPhase = payload.new?.current_phase;
-        const rsa = payload.new?.settings?.roundStartedAt;
-
         if (newRound && newRound !== state.round && newPhase === 'playing') {
-          // Host started a new round - invitee advances to same song index
-          stopMic();
-          state.round = newRound;
-          state.songIdx = newRound - 1; // round 1 = song index 0
-          state.partyBuzzedPlayerId = null;
-          state.phase = 'playing';
-          state.currentSong = state.songs[state.songIdx];
-          // Sync timer
-          state.roundTime = rsa ? Math.max(5, 20 - Math.floor((Date.now()-rsa)/1000)) : 20;
-          clearAllTimers(); stopAudio();
-          if (state.screen === 'result') goto('game');
-          setStatus('⏳ Loading preview…', false);
-          renderActionArea();
-          fetchAndPlaySong(state.currentSong);
-          setTimeout(() => { if (state.phase === 'playing') tickRound(); }, 2000);
+          handleHostRoundChange(payload.new);
         } else if (newPhase === 'result' && state.phase !== 'result') {
           stopMic(); state.partyBuzzedPlayerId = null;
           endRound(null, null, state.currentSong, true);
@@ -2188,11 +2236,57 @@ function subscribeToRoom(roomId) {
     })
     .subscribe((status) => {
       console.log('[realtime] channel status:', status);
-      if (status === 'SUBSCRIBED') {
-        // Do an immediate refresh when subscription is confirmed
-        refreshPartyPlayers();
-      }
+      if (status === 'SUBSCRIBED') refreshPartyPlayers();
     });
+
+  // Fallback poll for invitees - catches game start and round changes
+  if (!state.partyIsHost) {
+    clearInterval(state._gameStartPoll);
+    state._gameStartPoll = setInterval(async () => {
+      try {
+        const { data } = await sb.from('game_rooms').select('*').eq('id', roomId).single();
+        if (!data) return;
+        if (data.status === 'playing' && state.screen === 'waiting') {
+          state.partyRoom = data;
+          await refreshPartyPlayers();
+          startPartyGame();
+          return;
+        }
+        if ((state.screen === 'game' || state.screen === 'result') && data.round && data.round !== state.round) {
+          state.partyRoom = data;
+          handleHostRoundChange(data);
+        }
+        if (data.status === 'finished' && state.screen !== 'home') {
+          clearInterval(state._gameStartPoll);
+          alert('The host ended the game.');
+          goto('home');
+        }
+      } catch(e) {}
+    }, 2000);
+  }
+}
+
+function handleHostRoundChange(roomData) {
+  const newRound = roomData.round;
+  const newPhase = roomData.current_phase;
+  const rsa = roomData.settings?.roundStartedAt;
+  const songIdx = roomData.settings?.currentSongIdx ?? (newRound - 1);
+  if (newRound && newRound !== state.round && newPhase === 'playing') {
+    stopMic();
+    state.round = newRound;
+    state.songIdx = songIdx;
+    state.partyBuzzedPlayerId = null;
+    state.phase = 'playing';
+    const prefetched = roomData.settings?.prefetchedSongs;
+    state.currentSong = (prefetched && prefetched[songIdx]) ? prefetched[songIdx] : (state.songs[songIdx] || state.songs[0]);
+    state.roundTime = rsa ? Math.max(5, 20 - Math.floor((Date.now() - rsa) / 1000)) : 20;
+    clearAllTimers(); stopAudio();
+    if (state.screen === 'result') goto('game');
+    setStatus('⏳ Loading preview…', false);
+    renderActionArea();
+    fetchAndPlaySong(state.currentSong);
+    setTimeout(() => { if (state.phase === 'playing') tickRound(); }, 500);
+  }
 }
 
 
@@ -2640,24 +2734,55 @@ async function skipMicAndContinue() {
 // ── HOST STARTS GAME ──
 async function hostStartGame() {
   if (!state.partyIsHost || !state.partyRoom) return;
-  const song = buildPartySongList();
-  // Signal all players to start via room status change
+  const startBtn = document.querySelector('[data-action="start-game"]');
+  if (startBtn) { startBtn.textContent = '⏳ Loading songs…'; startBtn.disabled = true; }
+
   const existingSettings = state.partyRoom.settings || {};
   const seed = Math.floor(Math.random() * 2147483647);
   state.partySeed = seed;
+
+  // Build song order locally first
+  const pool = buildSongPool();
+  state.songs = seededShuffle(pool, seed);
+
+  // Prefetch first 8 songs WITH urls BEFORE starting
+  const toFetch = state.songs.slice(0, 8);
+  const prefetched = [];
+  for (const song of toFetch) {
+    try {
+      const q = encodeURIComponent(song.searchQuery || (song.title + ' ' + song.artist));
+      const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=5&country=US');
+      const data = await res.json();
+      const best = (data.results || []).find(r => r.previewUrl);
+      prefetched.push({ title: song.title, artist: song.artist, year: song.year,
+        genre: song.genre, isBonus: song.isBonus || false,
+        previewUrl: best ? best.previewUrl : null });
+    } catch(e) {
+      prefetched.push({ title: song.title, artist: song.artist, year: song.year, previewUrl: null });
+    }
+  }
+
+  // NOW set status=playing with the full prefetched list
   const { error: startErr } = await sb.from('game_rooms').update({
-    status: 'playing',
-    current_phase: 'playing',
-    round: 1,
-    settings: {
-      ...existingSettings,
+    status: 'playing', current_phase: 'playing', round: 1,
+    settings: { ...existingSettings,
       genres: state.genres || existingSettings.genres || [],
       targetScore: state.targetScore || existingSettings.targetScore || 5,
-      startedAt: Date.now(),
-      seed: seed,
+      startedAt: Date.now(), seed: seed,
+      prefetchedSongs: prefetched,
+      currentSongIdx: 0,
+      roundStartedAt: Date.now(),
     }
   }).eq('id', state.partyRoom.id);
-  if (startErr) { console.error('[hostStartGame]', startErr.message); alert('Could not start: '+startErr.message); return; }
+
+  if (startErr) {
+    console.error('[hostStartGame]', startErr.message);
+    alert('Could not start: ' + startErr.message);
+    if (startBtn) { startBtn.textContent = '🎵 Start Game!'; startBtn.disabled = false; }
+    return;
+  }
+  // Update local room settings
+  state.partyRoom.settings = { ...existingSettings, prefetchedSongs: prefetched, seed, roundStartedAt: Date.now(), currentSongIdx: 0 };
   startPartyGame();
 }
 
@@ -2685,6 +2810,15 @@ function startPartyGame() {
   const seed = state.partySeed || Date.now();
   state.songs = seededShuffle(pool, seed);
   state.songIdx = 0;
+  // Merge prefetched URLs into songs so song 1 plays immediately
+  const prefetched = state.partyRoom?.settings?.prefetchedSongs;
+  if (prefetched && prefetched.length) {
+    for (let i = 0; i < prefetched.length && i < state.songs.length; i++) {
+      if (prefetched[i] && prefetched[i].previewUrl) {
+        state.songs[i] = { ...state.songs[i], previewUrl: prefetched[i].previewUrl };
+      }
+    }
+  }
   state.bonusPool = shuffle([...BONUS_FLAT]);
   state.nextBonusAt = 3 + Math.floor(Math.random() * 3);
   state.partyBuzzedPlayerId = null;
