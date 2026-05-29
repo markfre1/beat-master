@@ -2887,12 +2887,13 @@ async function partyBuzzIn() {
   if (!myId || !state.partyRoom) return;
 
   state.partyBuzzedPlayerId = myId;
-  // Broadcast buzz to all players via room update
-  await sb.from('game_rooms').update({
+  // Broadcast buzz via settings (buzzedBy) - reliable, no schema dependency
+  const s = state.partyRoom.settings || {};
+  const { error } = await sb.from('game_rooms').update({
     current_phase: 'answering',
-    buzzed_by: myId,
-    buzz_time: new Date().toISOString(),
+    settings: { ...s, buzzedBy: myId, buzzTime: Date.now() }
   }).eq('id', state.partyRoom.id);
+  if (error) console.warn('[partyBuzzIn] update failed:', error.message);
 
   // Start local answer flow
   clearTimeout(state.timers.round);
@@ -2915,14 +2916,14 @@ async function submitPartyAnswer() {
   if (result && result.pts > 0) {
     if (myPlayer) myPlayer.score += result.pts;
     state.partyBuzzedPlayerId = null;
-    await sb.from('game_rooms').update({ current_phase: 'result', buzzed_by: null, buzz_time: null }).eq('id', state.partyRoom.id);
+    await sb.from('game_rooms').update({ current_phase: 'result', settings: { ...(state.partyRoom.settings||{}), buzzedBy: null } }).eq('id', state.partyRoom.id);
     endRound(0, result, state.currentSong);
   } else {
     state.partyBuzzedPlayerId = null;
     state.phase = 'playing';
     state.spokenText = '';
     state.roundTime = state.roundTimeAtBuzz || state.roundTime;
-    await sb.from('game_rooms').update({ current_phase: 'playing', buzzed_by: null, buzz_time: null }).eq('id', state.partyRoom.id);
+    await sb.from('game_rooms').update({ current_phase: 'playing', settings: { ...(state.partyRoom.settings||{}), buzzedBy: null } }).eq('id', state.partyRoom.id);
     resumeAudio(); setWaveform(true);
     setStatus('❌ Wrong! Buzz in if you know it…', false);
     renderActionArea(); tickRound();
@@ -2944,13 +2945,19 @@ function checkUrlJoinCode() {
   }
 }
 
-// Global buzzer click handler (backup for inline onclick)
-document.addEventListener('click', function(e) {
+// Global buzzer handler with debounce to prevent double-fire
+let _lastBuzzClick = 0;
+function handleBuzzClick(e) {
   const bz = e.target.closest('[data-buzz]');
-  if (bz && state.mode === 'party' && state.phase === 'playing' && !state.partyBuzzedPlayerId) {
+  if (!bz) return;
+  const now = Date.now();
+  if (now - _lastBuzzClick < 500) return; // debounce
+  _lastBuzzClick = now;
+  if (state.mode === 'party' && state.phase === 'playing' && !state.partyBuzzedPlayerId) {
     partyBuzzIn();
   }
-}, true);
+}
+document.addEventListener('click', handleBuzzClick);
 
 // Boot auth on load
 initAuth();
