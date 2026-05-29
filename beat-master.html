@@ -2880,8 +2880,9 @@ function startPartyGame() {
 
 // ── PARTY GAME BUZZER (realtime) ──
 async function partyBuzzIn() {
-  if (state.phase !== 'playing') return;
-  if (state.partyBuzzedPlayerId) return; // someone already buzzed
+  console.log('[partyBuzzIn] phase:', state.phase, 'buzzed:', state.partyBuzzedPlayerId, 'isHost:', state.partyIsHost);
+  if (state.phase !== 'playing') { console.log('[partyBuzzIn] blocked - not playing'); return; }
+  if (state.partyBuzzedPlayerId) { console.log('[partyBuzzIn] blocked - already buzzed'); return; }
   const myId = state.currentUser?.id;
   if (!myId || !state.partyRoom) return;
 
