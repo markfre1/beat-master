@@ -457,7 +457,7 @@ const state = {
   pauseVotes:{}, restartVotes:{}, footerRestartVotes:{}, pausedTimerRemaining:0, pausedAudioTime:0,
   // Party mode realtime state
   partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false, _waitingPoll: null,
-  partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [],
+  partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [], partySeed: 0,
   currentUser: null, currentProfile: null, _pendingAvatarFile: null,
 };
 
@@ -482,6 +482,7 @@ function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfi
     renderInvitePeopleList();
   } }
 function shuffle(arr) { const a=[...arr]; for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];} return a; }
+function seededShuffle(a,seed){const arr=[...a];let s=seed>>>0;for(let i=arr.length-1;i>0;i--){s=(Math.imul(s,1664525)+1013904223)>>>0;const j=s%(i+1);[arr[i],arr[j]]=[arr[j],arr[i]];}return arr;}
 function clearAllTimers() {
   if (state._waitingPoll) { clearInterval(state._waitingPoll); state._waitingPoll = null; } Object.values(state.timers).forEach(clearTimeout); state.timers={}; state.waveIntervals.forEach(clearInterval); state.waveIntervals=[]; }
 function norm(s) { return (s||'').toLowerCase().replace(/[\u2018\u2019']/g,"'").replace(/[^a-z0-9' ]/g,' ').replace(/\s+/g,' ').trim(); }
@@ -947,12 +948,12 @@ function beginRound() { if(state.mode==='party') state.partyBuzzedPlayerId=null;
   tickRound();
   fetchAndPlaySong(state.currentSong);
   if (state.mode==='party' && state.partyIsHost) {
+    // Broadcast round start after audio loads so invitee syncs timer
     setTimeout(async () => {
-      if (state.partyIsHost && state.partyRoom && audio.src && state.phase==='playing') {
-        state.currentSong.previewUrl = audio.src;
-        await partyBroadcastSong(state.currentSong);
+      if (state.partyIsHost && state.partyRoom && state.phase==='playing') {
+        await partyBroadcastRound();
       }
-    }, 2500);
+    }, 500);
   }
 }
 async function inviteePlayFromHost(song) {
@@ -1970,6 +1971,7 @@ async function autoJoinRoom(code) {
     if (room.settings) {
       state.genres = room.settings.genres || [];
       state.targetScore = room.settings.targetScore || 5;
+      if (room.settings.seed) state.partySeed = room.settings.seed;
     }
     subscribeToRoom(room.id);
     await refreshPartyPlayers();
@@ -2028,6 +2030,7 @@ async function joinRoomByCode() {
     if (room.settings) {
       state.genres = room.settings.genres || [];
       state.targetScore = room.settings.targetScore || 5;
+      if (room.settings.seed) state.partySeed = room.settings.seed;
     }
     subscribeToRoom(room.id);
     goto('waiting');
@@ -2112,17 +2115,14 @@ async function leaveRoom() {
 }
 
 // ── REALTIME SUBSCRIPTION ──
-async function partyBroadcastSong(song) {
+async function partyBroadcastRound() {
+  // Broadcast round start to invitees - they already know the song from the seed
   if (!state.partyRoom || !state.partyIsHost) return;
   const settings = state.partyRoom.settings || {};
   await sb.from('game_rooms').update({
     current_phase: 'playing',
     round: state.round || 1,
-    settings: { ...settings,
-      currentSong: { title: song.title, artist: song.artist, year: song.year,
-        previewUrl: song.previewUrl, startOffset: song.startOffset || 0 },
-      roundStartedAt: Date.now(),
-    }
+    settings: { ...settings, roundStartedAt: Date.now() }
   }).eq('id', state.partyRoom.id);
 }
 
@@ -2146,24 +2146,26 @@ function subscribeToRoom(roomId) {
 
       // Invitee: follow host round transitions
       if (!state.partyIsHost && (state.screen === 'game' || state.screen === 'result')) {
-        const newSong = payload.new?.settings?.currentSong;
         const newRound = payload.new?.round;
         const newPhase = payload.new?.current_phase;
-        if (newSong && newRound && newRound !== state.round) {
+        const rsa = payload.new?.settings?.roundStartedAt;
+
+        if (newRound && newRound !== state.round && newPhase === 'playing') {
+          // Host started a new round - invitee advances to same song index
           stopMic();
           state.round = newRound;
+          state.songIdx = newRound - 1; // round 1 = song index 0
           state.partyBuzzedPlayerId = null;
           state.phase = 'playing';
-          state.currentSong = newSong;
-          // Sync timer to host's start time
-          const rsa = payload.new?.settings?.roundStartedAt;
+          state.currentSong = state.songs[state.songIdx];
+          // Sync timer
           state.roundTime = rsa ? Math.max(5, 20 - Math.floor((Date.now()-rsa)/1000)) : 20;
           clearAllTimers(); stopAudio();
           if (state.screen === 'result') goto('game');
           setStatus('⏳ Loading preview…', false);
           renderActionArea();
-          // Use host's exact audio URL - no separate iTunes search
-          inviteePlayFromHost(newSong);
+          fetchAndPlaySong(state.currentSong);
+          setTimeout(() => { if (state.phase === 'playing') tickRound(); }, 2000);
         } else if (newPhase === 'result' && state.phase !== 'result') {
           stopMic(); state.partyBuzzedPlayerId = null;
           endRound(null, null, state.currentSong, true);
@@ -2641,14 +2643,18 @@ async function hostStartGame() {
   const song = buildPartySongList();
   // Signal all players to start via room status change
   const existingSettings = state.partyRoom.settings || {};
+  const seed = Math.floor(Math.random() * 2147483647);
+  state.partySeed = seed;
   const { error: startErr } = await sb.from('game_rooms').update({
     status: 'playing',
     current_phase: 'playing',
+    round: 1,
     settings: {
       ...existingSettings,
       genres: state.genres || existingSettings.genres || [],
       targetScore: state.targetScore || existingSettings.targetScore || 5,
       startedAt: Date.now(),
+      seed: seed,
     }
   }).eq('id', state.partyRoom.id);
   if (startErr) { console.error('[hostStartGame]', startErr.message); alert('Could not start: '+startErr.message); return; }
@@ -2674,7 +2680,10 @@ function startPartyGame() {
   state.songsPlayed = 0;
   state.totalSkips = 0;
   state.gameStartTime = Date.now();
-  state.songs = shuffle(buildSongPool());
+  // Use seed for deterministic song order - same for all players
+  const pool = buildSongPool();
+  const seed = state.partySeed || Date.now();
+  state.songs = seededShuffle(pool, seed);
   state.songIdx = 0;
   state.bonusPool = shuffle([...BONUS_FLAT]);
   state.nextBonusAt = 3 + Math.floor(Math.random() * 3);
