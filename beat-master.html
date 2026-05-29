@@ -345,7 +345,7 @@ button { touch-action:manipulation; }
 </head>
 <body>
 <audio id="song-audio" preload="auto" style="display:none"></audio>
-<div class="screen" id="screen-home"><div class="home-inner"><div class="logo-box">🎵</div><div class="home-title">BEAT<br>MASTER</div><div class="home-tagline">Hear the tune. Beat the buzzer. Drop the beat.</div><div class="home-sub">Are you a music master?</div><div class="home-actions"><button class="btn-primary" onclick="requireAuth()">▶ &nbsp;Play Now</button><div style="display:flex;gap:8px;"><button class="btn-secondary" style="flex:1;font-size:13px;" id="profile-btn" onclick="handleProfileBtn()">👤 Profile</button><button class="btn-secondary" style="flex:1;font-size:13px;" id="leaderboard-btn" onclick="goto('leaderboard')">🏆 Leaderboard</button></div></div><div class="stats-row"><div class="stat-item"><div class="stat-num" id="stat-played">0</div><div class="stat-lbl">Played</div></div><div class="stat-item"><div class="stat-num" id="stat-wins">0</div><div class="stat-lbl">Wins</div></div><div class="stat-item"><div class="stat-num" id="stat-best">0</div><div class="stat-lbl">Best</div></div></div></div></div>
+<div class="screen" id="screen-home"><div class="home-inner"><div class="logo-box">🎵</div><div class="home-title">BEAT<br>MASTER</div><div class="home-tagline">Hear the tune. Beat the buzzer. Drop the beat.</div><div class="home-sub">Are you a music master?</div><div class="home-actions"><button class="btn-primary" onclick="requireAuth()">▶ &nbsp;Play Now</button><button class="btn-secondary" onclick="gotoJoin()" style="width:100%;font-size:15px;font-weight:800;margin-top:-4px;">🔑 Join a Room</button><div style="display:flex;gap:8px;"><button class="btn-secondary" style="flex:1;font-size:13px;" id="profile-btn" onclick="handleProfileBtn()">👤 Profile</button><button class="btn-secondary" style="flex:1;font-size:13px;" id="leaderboard-btn" onclick="goto('leaderboard')">🏆 Leaderboard</button></div></div><div class="stats-row"><div class="stat-item"><div class="stat-num" id="stat-played">0</div><div class="stat-lbl">Played</div></div><div class="stat-item"><div class="stat-num" id="stat-wins">0</div><div class="stat-lbl">Wins</div></div><div class="stat-item"><div class="stat-num" id="stat-best">0</div><div class="stat-lbl">Best</div></div></div></div></div>
 <div class="screen hidden" id="screen-modeselect"><div class="page-header"><div class="back-btn" onclick="goto('home')">←</div><div><div class="page-title">Choose Your Game</div><div class="page-sub">How do you want to play?</div></div></div><div class="page-body"><div class="mode-grid" style="grid-template-columns:1fr;gap:14px;"><div class="mode-card" onclick="selectMode('solo')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🎯</div><div><div class="mode-name">Solo Challenge</div><div class="mode-desc">Beat the buzzer. Test your knowledge. No opponents.</div></div></div><div class="mode-card" onclick="selectMode('party')" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🏠</div><div><div class="mode-name">Private Party</div><div class="mode-desc">Create your game room. Invite your friends. Challenge each other.</div></div></div><div class="mode-card disabled" style="display:flex;align-items:center;gap:18px;text-align:left;padding:22px 20px;"><div class="soon-tag">COMING SOON</div><div class="mode-icon" style="font-size:clamp(36px,9vw,52px);margin-bottom:0;flex-shrink:0;">🌍</div><div><div class="mode-name">Play Globally</div><div class="mode-desc">Create a public game. Wait for players to join. Challenge the world.</div></div></div></div></div></div>
 <div class="screen hidden" id="screen-genreselect"><div class="page-header"><div class="back-btn" onclick="goto('modeselect')">←</div><div><div class="page-title">Pick Your Genres</div><div class="page-sub">Select one, several, or all.</div></div></div><div class="page-body"><div class="genre-actions-row" id="genre-actions-row"></div><div class="genre-grid" id="genre-grid"></div><div class="genre-selected-summary" id="genre-summary"></div></div><div class="continue-wrap"><button class="btn-primary" id="genre-continue-btn" disabled onclick="genreContinue()">Continue →</button></div></div>
 <div class="screen hidden" id="screen-settings"><div class="page-header"><div class="back-btn" onclick="goto('genreselect')">←</div><div><div class="page-title">Finish Game Setup</div><div class="page-sub" id="settings-mode-sub">Solo Challenge</div></div></div><div class="page-body" id="settings-body"></div></div>
@@ -456,17 +456,16 @@ const state = {
   bonusPool:[], nextBonusAt:0, skipVotes:[], totalSkips:0, paused:false, pauseRequester:null,
   pauseVotes:{}, restartVotes:{}, footerRestartVotes:{}, pausedTimerRemaining:0, pausedAudioTime:0,
   // Party mode realtime state
-  partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false, _waitingPoll: null, _micChecking: false,
+  partyRoom: null, partyPlayers: [], partyChannel: null, partyIsHost: false, _waitingPoll: null,
   partyBuzzedPlayerId: null, partyAnswerTimeLeft: 7, partyInvited: [],
   currentUser: null, currentProfile: null, _pendingAvatarFile: null,
 };
 
 function buildSongPool() { let pool=[]; state.genres.forEach(gid=>{ if(SONGS[gid]) pool.push(...SONGS[gid].map(s=>({...s,genre:gid}))); }); return pool; }
 function totalSongCount() { let c=0; state.genres.forEach(gid=>{ if(SONGS[gid]) c+=SONGS[gid].length; }); return c; }
-function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting'){
-    state._micChecking = false;
-    state._micMarkedReady = false;
+function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfirm(); state.paused=false; state.pauseVotes={}; state.pauseRequester=null; if(state.recognition){try{state.recognition.abort();}catch(e){} state.recognition=null;} state.micActive=false; state.screen=name; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); const el=document.getElementById('screen-'+name); if(el)el.classList.remove('hidden'); if(name==='genreselect')renderGenres(); if(name==='settings')renderSettings(); if(name==='game'){buildWaveform();renderScorePanel();} if(name==='profile')renderProfileScreen(); if(name==='leaderboard')renderLeaderboard(); if(name==='waiting'){ state._waitingListenerSet=false; if(state.micPermission!=='granted'){state._micBlockRendered=false;state._micMarkedReady=false;}
     renderWaitingRoom();
+    // Immediate refresh + aggressive polling every 2 seconds
     setTimeout(() => refreshPartyPlayers(), 200);
     setTimeout(() => refreshPartyPlayers(), 1000);
     clearInterval(state._waitingPoll);
@@ -502,6 +501,10 @@ function unlockAudio() {
   } catch(e) {}
 }
 
+function gotoJoin() {
+  if (!state.currentUser) { sessionStorage.setItem('afterLoginGoto','join'); goto('register'); }
+  else { goto('join'); }
+}
 function genreContinue() {
   if (state.genres.length === 0) { alert('Please select at least one genre!'); return; }
   if (state.mode === 'party') {
@@ -934,17 +937,13 @@ async function fetchAndPlaySong(song) {
 }
 function updateTimerRing(val,max) { const circ=2*Math.PI*40; const arc=document.getElementById('timer-arc'); const num=document.getElementById('timer-num'); if(!arc||!num)return; const pct=val/max; arc.style.strokeDasharray=`${pct*circ} ${circ}`; const isLow=pct<=0.3; arc.style.stroke=isLow?'var(--pink)':'var(--teal)'; num.style.color=isLow?'var(--pink)':'var(--text)'; num.textContent=val; }
 function beginRound() { if(state.mode==='party') state.partyBuzzedPlayerId=null; clearAllTimers(); const isBonusRound=state.songsPlayed===state.nextBonusAt&&state.bonusPool.length>0; if(isBonusRound){state.currentSong=state.bonusPool.shift(); state.nextBonusAt=state.songsPlayed+4+Math.floor(Math.random()*3);}else{state.currentSong=state.songs[state.songIdx%state.songs.length];} state.phase='playing'; state.buzzQueue=[]; state.buzzTimes={}; state.roundTimeAtBuzz=0; state.spokenText=''; state.micActive=false; state.skipVotes=[]; state.roundTime=20; state.answerTime=7; if(state.mode==='solo'){document.getElementById('round-tag').textContent=`SONG ${state.songsPlayed+1}/${soloSongLimit(state.targetScore)}`;}else{document.getElementById('round-tag').textContent='RND '+state.round;} updateTimerRing(20,20); updateInfoRow(); if(isBonusRound){showBonusBanner(state.currentSong); document.getElementById('screen-game').classList.add('bonus-active');}else{document.getElementById('screen-game').classList.remove('bonus-active');} setWaveform(false,true); setStatus('⏳ Loading preview…',false); renderActionArea(); if(state.mode==='party')scheduleAI(); tickRound(); fetchAndPlaySong(state.currentSong);
-  // Party host: broadcast song to invitee after it loads
   if (state.mode==='party' && state.partyIsHost) {
     setTimeout(async () => {
-      if (state.mode==='party' && state.partyIsHost && state.partyRoom && audio.src) {
-        await partyBroadcastSong({
-          title: state.currentSong.title, artist: state.currentSong.artist,
-          year: state.currentSong.year, previewUrl: audio.src,
-          startOffset: audio.currentTime || 0, isBonus: state.currentSong.isBonus || false,
-        });
+      if (state.partyIsHost && state.partyRoom && audio.src && state.phase==='playing') {
+        state.currentSong.previewUrl = audio.src;
+        await partyBroadcastSong(state.currentSong);
       }
-    }, 2000); // wait for audio to load
+    }, 2500);
   }
 }
 function tickRound() { if(state.phase!=='playing')return; if(state.roundTime<=0){endRound(null,null,null,true);return;} state.timers.round=setTimeout(()=>{state.roundTime--; updateTimerRing(state.roundTime,20); tickRound();},1000); }
@@ -1118,7 +1117,7 @@ function renderActionArea() { const area=document.getElementById('action-area');
         <div class="skip-vote-row">${skipAvatars}</div>
       </div>
     </div>`;}}
-  else if(state.phase==='answering'){const currentIdx=state.buzzQueue[0]??0; const currentPlayer=state.players[currentIdx]; const hasAnswer=!!state.spokenText; let queueHtml=''; if(state.buzzQueue.length>1){const waiting=state.buzzQueue.slice(1).map(i=>{const p=state.players[i]; return`<span style="background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;padding:3px 10px;font-size:11px;">${p.avatar} ${p.name}</span>`;}).join(''); queueHtml=`<div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-align:center;margin-bottom:6px;">NEXT UP: ${waiting}</div>`;} let micBtnHtml; const useTextFallback=!state.speechSupported||state.micPermission==='denied'||state.micPermission==='unsupported'; if(useTextFallback){const reason=!state.speechSupported?'Voice answers aren\'t supported in this browser — type your answer:':'Mic blocked — type your answer:'; micBtnHtml=`<div class="mic-status" style="color:var(--muted);margin-bottom:8px;">${reason}</div><input id="typed-answer-input" class="add-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Song title + artist…" style="width:100%;font-size:15px;padding:12px 14px;margin-bottom:8px;text-align:center;" value="${(state.spokenText||'').replace(/"/g,'&quot;')}" oninput="setTypedAnswer(this.value)" onkeydown="if(event.key==='Enter' && state.spokenText){submitAnswer()}">`;}else if(state.micActive){micBtnHtml=`<button class="mic-btn active" onclick="stopMic()" title="Stop recording">🎙️</button><div class="mic-status" style="color:var(--pink);">● Listening… speak your answer</div>`;}else if(hasAnswer){micBtnHtml=`<button class="mic-btn" onclick="startMic()" title="Re-record">🔄</button><div class="mic-status">Tap to re-record</div>`;}else{micBtnHtml=`<button class="mic-btn" onclick="startMic()" title="Start speaking">🎤</button><div class="mic-status" style="color:var(--pink);">Tap to start recording</div>`;} area.innerHTML=`${queueHtml}<div class="answer-panel"><div class="answer-header"><div class="answer-title">${currentPlayer?currentPlayer.avatar+' '+currentPlayer.name:'🎙️ Your Answer'}</div><div style="position:relative;width:46px;height:46px;"><svg width="46" height="46" viewBox="0 0 100 100" style="transform:rotate(-90deg)"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="8"/><circle cx="50" cy="50" r="40" fill="none" stroke="${state.answerTime<=2?'var(--pink)':'var(--neon)'}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${(state.answerTime/7)*251.2} 251.2"/></svg><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:${state.answerTime<=2?'var(--pink)':'var(--text)'}"> ${state.answerTime}</div></div></div>${micBtnHtml}${useTextFallback?'':`<div class="answer-display ${hasAnswer?'':'empty'}">${state.spokenText||'Listening for your answer…'}</div>`}<div class="answer-btns" style="margin-top:8px;"><button class="btn-secondary" style="font-size:13px;padding:12px" onclick="clearAnswer()">Clear Answer</button><button id="typed-submit-btn" class="btn-primary" style="font-size:13px;padding:12px;${hasAnswer?'':'opacity:0.35;'}" onclick="${state.mode==='party'?'submitPartyAnswer':'submitAnswer'}()" ${hasAnswer?'':'disabled'}>✓ Submit</button></div></div>`; if(useTextFallback){requestAnimationFrame(()=>{const inp=document.getElementById('typed-answer-input'); if(inp&&document.activeElement!==inp)inp.focus();});}
+  else if(state.phase==='answering'){const currentIdx=state.buzzQueue[0]??0; const currentPlayer=state.players[currentIdx]; const hasAnswer=!!state.spokenText; let queueHtml=''; if(state.buzzQueue.length>1){const waiting=state.buzzQueue.slice(1).map(i=>{const p=state.players[i]; return`<span style="background:rgba(255,255,255,0.05);border:1px solid var(--border);border-radius:8px;padding:3px 10px;font-size:11px;">${p.avatar} ${p.name}</span>`;}).join(''); queueHtml=`<div style="font-size:10px;color:var(--muted);letter-spacing:1px;text-align:center;margin-bottom:6px;">NEXT UP: ${waiting}</div>`;} let micBtnHtml; const useTextFallback=!state.speechSupported||state.micPermission==='denied'||state.micPermission==='unsupported'; if(useTextFallback){const reason=!state.speechSupported?'Voice answers aren\'t supported in this browser — type your answer:':'Mic blocked — type your answer:'; micBtnHtml=`<div class="mic-status" style="color:var(--muted);margin-bottom:8px;">${reason}</div><input id="typed-answer-input" class="add-input" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Song title + artist…" style="width:100%;font-size:15px;padding:12px 14px;margin-bottom:8px;text-align:center;" value="${(state.spokenText||'').replace(/"/g,'&quot;')}" oninput="setTypedAnswer(this.value)" onkeydown="if(event.key==='Enter' && state.spokenText){submitAnswer()}">`;}else if(state.micActive){micBtnHtml=`<button class="mic-btn active" onclick="stopMic()" title="Stop recording">🎙️</button><div class="mic-status" style="color:var(--pink);">● Listening… speak your answer</div>`;}else if(hasAnswer){micBtnHtml=`<button class="mic-btn" onclick="startMic()" title="Re-record">🔄</button><div class="mic-status">Tap to re-record</div>`;}else{micBtnHtml=`<button class="mic-btn" onclick="startMic()" title="Start speaking">🎤</button><div class="mic-status" style="color:var(--pink);">Tap to start recording</div>`;} area.innerHTML=`${queueHtml}<div class="answer-panel"><div class="answer-header"><div class="answer-title">${currentPlayer?currentPlayer.avatar+' '+currentPlayer.name:'🎙️ Your Answer'}</div><div style="position:relative;width:46px;height:46px;"><svg width="46" height="46" viewBox="0 0 100 100" style="transform:rotate(-90deg)"><circle cx="50" cy="50" r="40" fill="none" stroke="rgba(255,255,255,0.07)" stroke-width="8"/><circle cx="50" cy="50" r="40" fill="none" stroke="${state.answerTime<=2?'var(--pink)':'var(--neon)'}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${(state.answerTime/7)*251.2} 251.2"/></svg><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:900;color:${state.answerTime<=2?'var(--pink)':'var(--text)'}"> ${state.answerTime}</div></div></div>${micBtnHtml}${useTextFallback?'':`<div class="answer-display ${hasAnswer?'':'empty'}">${state.spokenText||'Listening for your answer…'}</div>`}<div class="answer-btns" style="margin-top:8px;"><button class="btn-secondary" style="font-size:13px;padding:12px" onclick="clearAnswer()">Clear Answer</button><button id="typed-submit-btn" class="btn-primary" style="font-size:13px;padding:12px;${hasAnswer?'':'opacity:0.35;'}" onclick="state.mode==='party'?submitPartyAnswer():submitAnswer()" ${hasAnswer?'':'disabled'}>✓ Submit</button></div></div>`; if(useTextFallback){requestAnimationFrame(()=>{const inp=document.getElementById('typed-answer-input'); if(inp&&document.activeElement!==inp)inp.focus();});}
   }
 }
 updateHomeStats();
@@ -1499,8 +1498,7 @@ async function renderProfileScreen() {
         ${avatarHtml}
         <div>
           <div style="font-size:22px;font-weight:900;letter-spacing:1px;">${p?.nickname || 'Player'}</div>
-          <div style="font-size:12px;color:var(--neon);margin-top:2px;">${state.currentUser?.email || ''}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:2px;letter-spacing:0.5px;">${memberSince ? 'Member since ' + memberSince : ''}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:4px;letter-spacing:0.5px;">${memberSince ? 'Member since ' + memberSince : ''}</div>
         </div>
       </div>
 
@@ -2021,7 +2019,7 @@ async function refreshPartyPlayers() {
       profiles: profileMap[p.player_id] || { nickname: 'Player', avatar_url: null }
     }));
     console.log('[refresh] got', state.partyPlayers.length, 'players');
-    if (state.screen === 'waiting') renderWaitingRoom(true); // skip mic block to prevent flickering
+    if (state.screen === 'waiting') renderWaitingRoom(true);
     if (state.screen === 'party-setup') renderPartySetupPlayers();
   } catch(e) {
     console.error('[refresh] exception:', e.message);
@@ -2056,13 +2054,13 @@ async function leaveRoom() {
 // ── REALTIME SUBSCRIPTION ──
 async function partyBroadcastSong(song) {
   if (!state.partyRoom || !state.partyIsHost) return;
+  const settings = state.partyRoom.settings || {};
   await sb.from('game_rooms').update({
     current_phase: 'playing',
     round: state.round || 1,
-    settings: {
-      ...(state.partyRoom.settings || {}),
+    settings: { ...settings,
       currentSong: { title: song.title, artist: song.artist, year: song.year,
-        previewUrl: song.previewUrl, startOffset: song.startOffset || 0, isBonus: song.isBonus || false },
+        previewUrl: song.previewUrl, startOffset: song.startOffset || 0 },
       roundStartedAt: Date.now(),
     }
   }).eq('id', state.partyRoom.id);
@@ -2086,31 +2084,26 @@ function subscribeToRoom(roomId) {
         startPartyGame();
       }
 
-      // Invitee: sync to next song when host broadcasts it
+      // Invitee: follow host round transitions
       if (!state.partyIsHost && (state.screen === 'game' || state.screen === 'result')) {
         const newSong = payload.new?.settings?.currentSong;
         const newRound = payload.new?.round;
         const newPhase = payload.new?.current_phase;
-
         if (newSong && newRound && newRound !== state.round) {
-          // Host started new round - follow
           stopMic();
           state.round = newRound;
           state.partyBuzzedPlayerId = null;
           state.phase = 'playing';
           state.currentSong = newSong;
           state.roundTime = 20;
-          clearAllTimers();
-          stopAudio();
+          clearAllTimers(); stopAudio();
           if (state.screen === 'result') goto('game');
           setStatus('⏳ Loading preview…', false);
           renderActionArea();
           fetchAndPlaySong(newSong);
-          setTimeout(() => { if (state.phase === 'playing') tickRound(); }, 2000);
+          setTimeout(() => { if (state.phase==='playing') tickRound(); }, 2000);
         } else if (newPhase === 'result' && state.phase !== 'result') {
-          // Host ended round - invitee follows
-          stopMic();
-          state.partyBuzzedPlayerId = null;
+          stopMic(); state.partyBuzzedPlayerId = null;
           endRound(null, null, state.currentSong, true);
         }
       }
@@ -2390,31 +2383,18 @@ async function debugWaitingRoom() {
 }
 
 function renderWaitingRoom(skipMicBlock) {
-  // Only update mic block once - not on every poll refresh
-  if (!skipMicBlock) {
+  if (!skipMicBlock && !state._micBlockRendered) {
+    state._micBlockRendered = true;
     const micBlock = document.getElementById('waiting-mic-block');
     if (micBlock) micBlock.innerHTML = renderWaitingMicBlock();
-    // One-time permission check - set flag to avoid loops
-    if (state.micPermission === 'unknown' && navigator.permissions && !state._micChecking) {
-      state._micChecking = true;
+    if (state.micPermission === 'unknown' && navigator.permissions) {
       navigator.permissions.query({ name: 'microphone' }).then(status => {
-        state._micChecking = false;
-        if (status.state === 'granted') {
-          state.micPermission = 'granted';
-          markMicReady();
-          // Only update the mic block, not the whole screen
-          const mb = document.getElementById('waiting-mic-block');
-          if (mb) mb.innerHTML = renderWaitingMicBlock();
-        } else if (status.state === 'denied') {
-          state.micPermission = 'denied';
-          const mb = document.getElementById('waiting-mic-block');
-          if (mb) mb.innerHTML = renderWaitingMicBlock();
-        }
-      }).catch(() => { state._micChecking = false; });
+        if (status.state === 'granted' && !state._micMarkedReady) { state.micPermission = 'granted'; markMicReady(); }
+        else if (status.state === 'denied') { state.micPermission = 'denied'; const mb=document.getElementById('waiting-mic-block'); if(mb) mb.innerHTML=renderWaitingMicBlock(); }
+      }).catch(() => {});
     }
-    if (state.micPermission === 'granted') markMicReady();
+    if (state.micPermission === 'granted' && !state._micMarkedReady) markMicReady();
   }
-
   const code = state.partyRoom?.code || '';
   const codeEl = document.getElementById('waiting-room-code');
   const badgeEl = document.getElementById('waiting-code-badge');
@@ -2450,6 +2430,24 @@ function renderWaitingRoom(skipMicBlock) {
       }).join('');
       listEl.querySelectorAll('.kick-btn[data-pid]').forEach(btn => {
         btn.addEventListener('click', () => kickPlayer(btn.dataset.pid));
+      });
+    }
+  }
+
+  // Persistent button listener - set once
+  if (!state._waitingListenerSet) {
+    state._waitingListenerSet = true;
+    const ws = document.getElementById('screen-waiting');
+    if (ws) {
+      ws.addEventListener('click', function(e) {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const a = btn.getAttribute('data-action');
+        if (a==='start-game') hostStartGame();
+        if (a==='refresh') refreshPartyPlayers();
+        if (a==='invite-more') shareInviteLink();
+        if (a==='enable-mic') waitingRoomEnableMic();
+        if (a==='skip-mic') skipMicAndContinue();
       });
     }
   }
@@ -2554,13 +2552,11 @@ async function waitingRoomEnableMic() {
 
 async function markMicReady() {
   if (!state.partyRoom || !state.currentUser) return;
-  if (state._micMarkedReady) return; // already marked, don't repeat
+  if (state._micMarkedReady) return;
   state._micMarkedReady = true;
-  await sb.from('room_players')
-    .update({ mic_ready: true })
-    .eq('room_id', state.partyRoom.id)
-    .eq('player_id', state.currentUser.id);
-  // Only update mic block, not entire screen
+  state.micPermission = 'granted';
+  await sb.from('room_players').update({ mic_ready: true })
+    .eq('room_id', state.partyRoom.id).eq('player_id', state.currentUser.id);
   const mb = document.getElementById('waiting-mic-block');
   if (mb) mb.innerHTML = renderWaitingMicBlock();
 }
@@ -2582,15 +2578,18 @@ async function hostStartGame() {
   if (!state.partyIsHost || !state.partyRoom) return;
   const song = buildPartySongList();
   // Signal all players to start via room status change
-  await sb.from('game_rooms').update({
+  const existingSettings = state.partyRoom.settings || {};
+  const { error: startErr } = await sb.from('game_rooms').update({
     status: 'playing',
     current_phase: 'playing',
     settings: {
-      ...state.partyRoom.settings,
-      songList: song,
+      ...existingSettings,
+      genres: state.genres || existingSettings.genres || [],
+      targetScore: state.targetScore || existingSettings.targetScore || 5,
       startedAt: Date.now(),
     }
   }).eq('id', state.partyRoom.id);
+  if (startErr) { console.error('[hostStartGame]', startErr.message); alert('Could not start: '+startErr.message); return; }
   startPartyGame();
 }
 
@@ -2655,35 +2654,22 @@ async function submitPartyAnswer() {
   clearTimeout(state.timers.answer);
   const myPlayer = state.players.find(p => p.isMe);
   const result = checkAnswer(state.spokenText, state.currentSong);
-
   if (result && result.pts > 0) {
-    // Correct answer - score and end round
     if (myPlayer) myPlayer.score += result.pts;
-    if (state.partyRoom && state.currentUser) {
-      sb.from('room_players').update({ score: myPlayer?.score || 0 })
-        .eq('room_id', state.partyRoom.id)
-        .eq('player_id', state.currentUser.id).then(()=>{});
-    }
     state.partyBuzzedPlayerId = null;
-    await sb.from('game_rooms').update({ current_phase: 'result', buzzed_by: null, buzz_time: null })
-      .eq('id', state.partyRoom.id);
+    await sb.from('game_rooms').update({ current_phase: 'result', buzzed_by: null, buzz_time: null }).eq('id', state.partyRoom.id);
     endRound(0, result, state.currentSong);
   } else {
-    // Wrong answer - reset buzz, let others try
     state.partyBuzzedPlayerId = null;
     state.phase = 'playing';
     state.spokenText = '';
     state.roundTime = state.roundTimeAtBuzz || state.roundTime;
-    await sb.from('game_rooms').update({ current_phase: 'playing', buzzed_by: null, buzz_time: null })
-      .eq('id', state.partyRoom.id);
-    resumeAudio();
-    setWaveform(true);
+    await sb.from('game_rooms').update({ current_phase: 'playing', buzzed_by: null, buzz_time: null }).eq('id', state.partyRoom.id);
+    resumeAudio(); setWaveform(true);
     setStatus('❌ Wrong! Buzz in if you know it…', false);
-    renderActionArea();
-    tickRound();
+    renderActionArea(); tickRound();
   }
 }
-
 
 function renderPartyGameArea() {
   if (state.screen !== 'game') return;
