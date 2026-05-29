@@ -946,7 +946,55 @@ function beginRound() { if(state.mode==='party') state.partyBuzzedPlayerId=null;
     }, 2500);
   }
 }
-function tickRound() { if(state.phase!=='playing')return; if(state.roundTime<=0){endRound(null,null,null,true);return;} state.timers.round=setTimeout(()=>{state.roundTime--; updateTimerRing(state.roundTime,20); tickRound();},1000); }
+async function inviteePlayFromHost(song) {
+  // Play the exact same URL the host is playing
+  stopAudio();
+  if (!song.previewUrl) {
+    // Fallback to iTunes search if no URL provided
+    await fetchAndPlaySong(song);
+    setTimeout(() => { if (state.phase === 'playing') tickRound(); }, 500);
+    return;
+  }
+  try {
+    audio.src = song.previewUrl;
+    audio.volume = 0.9;
+    audio.currentTime = song.startOffset || 0;
+    await audio.play();
+    setWaveform(true, false);
+    state.audioReady = true;
+    setStatus('🎵 Song is playing — buzz in when you know it!', false);
+    renderActionArea();
+    tickRound();
+  } catch(e) {
+    console.warn('[inviteePlayFromHost] failed:', e.message, '- falling back to search');
+    await fetchAndPlaySong(song);
+    setTimeout(() => { if (state.phase === 'playing') tickRound(); }, 500);
+  }
+}
+
+function tickRound() {
+  if (state.phase !== 'playing') return;
+  // Invitee in party mode: don't end round locally, wait for host signal
+  if (state.mode === 'party' && !state.partyIsHost) {
+    if (state.roundTime <= 0) {
+      setStatus('⏳ Waiting for next song…', false);
+      return; // don't call endRound - host will signal
+    }
+    state.timers.round = setTimeout(() => {
+      state.roundTime--;
+      updateTimerRing(state.roundTime, 20);
+      tickRound();
+    }, 1000);
+    return;
+  }
+  // Host / solo mode: normal timer
+  if (state.roundTime <= 0) { endRound(null, null, null, true); return; }
+  state.timers.round = setTimeout(() => {
+    state.roundTime--;
+    updateTimerRing(state.roundTime, 20);
+    tickRound();
+  }, 1000);
+}
 function scheduleAI() { const rates={easy:0.42,normal:0.70,legend:0.90}; const minT={easy:12,normal:7,legend:3}; const maxT={easy:26,normal:19,legend:9}; if(Math.random()>(rates[state.difficulty]||0.70))return; const delay=(minT[state.difficulty]+Math.random()*(maxT[state.difficulty]-minT[state.difficulty]))*1000; state.timers.ai=setTimeout(()=>{if(state.phase!=='playing')return; const aiIdx=state.players.findIndex(p=>p.avatar==='🤖'); if(aiIdx===-1)return; clearTimeout(state.timers.round); state.roundTimeAtBuzz=state.roundTime; state.buzzQueue=[aiIdx]; state.phase='answering'; pauseAudio(); setWaveform(false); setStatus('🤖 AI buzzed in!',false); renderActionArea(); state.timers.aianswer=setTimeout(()=>{const pts=state.currentSong.isBonus?5:3; endRound(aiIdx,{hasTitle:true,hasArtist:true,pts},state.currentSong);},1800);},delay); }
 function playerBuzz(playerIdx) { if(playerIdx===undefined)playerIdx=0; if(state.phase!=='playing')return; if(state.buzzQueue.includes(playerIdx))return; state.buzzTimes[playerIdx]=Date.now(); state.buzzQueue.push(playerIdx); if(state.buzzQueue.length===1){clearTimeout(state.timers.round); clearTimeout(state.timers.ai); state.roundTimeAtBuzz=state.roundTime; state.phase='answering'; state.answerTime=7; state.spokenText=''; pauseAudio(); setWaveform(false); startAnswerFor(playerIdx);}else{renderActionArea();} }
 function startAnswerFor(playerIdx) { state.answerTime=7; state.spokenText=''; state._finalTranscript=''; stopMic(); const p=state.players[playerIdx]; setStatus(`🎙️ ${p?p.avatar+' '+p.name:'You'} — speak your answer now!`,true); renderActionArea(); startMic(); tickAnswer(); }
@@ -2095,13 +2143,15 @@ function subscribeToRoom(roomId) {
           state.partyBuzzedPlayerId = null;
           state.phase = 'playing';
           state.currentSong = newSong;
-          state.roundTime = 20;
+          // Sync timer to host's start time
+          const rsa = payload.new?.settings?.roundStartedAt;
+          state.roundTime = rsa ? Math.max(5, 20 - Math.floor((Date.now()-rsa)/1000)) : 20;
           clearAllTimers(); stopAudio();
           if (state.screen === 'result') goto('game');
           setStatus('⏳ Loading preview…', false);
           renderActionArea();
-          fetchAndPlaySong(newSong);
-          setTimeout(() => { if (state.phase==='playing') tickRound(); }, 2000);
+          // Use host's exact audio URL - no separate iTunes search
+          inviteePlayFromHost(newSong);
         } else if (newPhase === 'result' && state.phase !== 'result') {
           stopMic(); state.partyBuzzedPlayerId = null;
           endRound(null, null, state.currentSong, true);
@@ -2617,6 +2667,8 @@ function startPartyGame() {
   state.bonusPool = shuffle([...BONUS_FLAT]);
   state.nextBonusAt = 3 + Math.floor(Math.random() * 3);
   state.partyBuzzedPlayerId = null;
+  // Stop waiting room poll when game starts
+  if (state._waitingPoll) { clearInterval(state._waitingPoll); state._waitingPoll = null; }
   goto('game');
   beginRound();
 }
