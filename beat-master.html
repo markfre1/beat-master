@@ -1149,7 +1149,7 @@ function renderActionArea() { const area=document.getElementById('action-area');
     // Main buzzer
     let mainBuzzer = '';
     if (!isBuzzed) {
-      mainBuzzer = `<button class="buzzer-btn" data-buzz="1" onclick="partyBuzzIn()">
+      mainBuzzer = `<button class="buzzer-btn" data-buzz="1">
         <div class="bz-label">BUZZ IN</div>
         <div class="bz-sub">tap when you know it</div>
       </button>
@@ -2192,19 +2192,12 @@ function subscribeToRoom(roomId) {
       event: '*', schema: 'public', table: 'game_rooms',
       filter: 'id=eq.' + roomId
     }, async (payload) => {
-      console.log('[realtime] game_rooms change:', payload.new?.status);
+      // Realtime only updates the room reference; the invitee poll drives all game logic
       state.partyRoom = payload.new;
-      if (payload.new?.status === 'playing' && state.screen === 'waiting') {
+      // Host game start signal for invitee still in waiting room
+      if (!state.partyIsHost && payload.new?.status === 'playing' && state.screen === 'waiting') {
         await refreshPartyPlayers();
         startPartyGame();
-      }
-
-      // Invitee round sync is handled by the poll (every 1s) to avoid conflicts
-
-      if (payload.new?.status === 'finished' && state.screen !== 'home') {
-        alert('The host ended the game.');
-        state.partyRoom = null; state.partyPlayers = []; state.partyIsHost = false;
-        goto('home');
       }
     })
     // Listen for player joins/leaves/mic updates
