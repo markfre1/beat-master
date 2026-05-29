@@ -1015,18 +1015,9 @@ async function inviteePlayFromHost(song) {
 
 function tickRound() {
   if (state.phase !== 'playing') return;
-  // Invitee in party mode: don't end round locally, wait for host signal
+  // Invitee in party mode: timer driven by poll, not local ticker
   if (state.mode === 'party' && !state.partyIsHost) {
-    if (state.roundTime <= 0) {
-      setStatus('⏳ Waiting for next song…', false);
-      return; // don't call endRound - host will signal
-    }
-    state.timers.round = setTimeout(() => {
-      state.roundTime--;
-      updateTimerRing(state.roundTime, 20);
-      tickRound();
-    }, 1000);
-    return;
+    return; // poll updates roundTime and display
   }
   // Host / solo mode: normal timer
   if (state.roundTime <= 0) { endRound(null, null, null, true); return; }
@@ -2208,17 +2199,7 @@ function subscribeToRoom(roomId) {
         startPartyGame();
       }
 
-      // Invitee: follow host round transitions
-      if (!state.partyIsHost && (state.screen === 'game' || state.screen === 'result')) {
-        const newRound = payload.new?.round;
-        const newPhase = payload.new?.current_phase;
-        if (newRound && newRound !== state.round && newPhase === 'playing') {
-          handleHostRoundChange(payload.new);
-        } else if (newPhase === 'result' && state.phase !== 'result') {
-          stopMic(); state.partyBuzzedPlayerId = null;
-          endRound(null, null, state.currentSong, true);
-        }
-      }
+      // Invitee round sync is handled by the poll (every 1s) to avoid conflicts
 
       if (payload.new?.status === 'finished' && state.screen !== 'home') {
         alert('The host ended the game.');
@@ -2239,31 +2220,87 @@ function subscribeToRoom(roomId) {
       if (status === 'SUBSCRIBED') refreshPartyPlayers();
     });
 
-  // Fallback poll for invitees - catches game start and round changes
+  // SINGLE invitee poll - drives everything from host's DB state
   if (!state.partyIsHost) {
     clearInterval(state._gameStartPoll);
     state._gameStartPoll = setInterval(async () => {
       try {
         const { data } = await sb.from('game_rooms').select('*').eq('id', roomId).single();
         if (!data) return;
-        if (data.status === 'playing' && state.screen === 'waiting') {
-          state.partyRoom = data;
-          await refreshPartyPlayers();
-          startPartyGame();
-          return;
-        }
-        if ((state.screen === 'game' || state.screen === 'result') && data.round && data.round !== state.round) {
-          state.partyRoom = data;
-          handleHostRoundChange(data);
-        }
+        state.partyRoom = data;
+        const s = data.settings || {};
+
+        // Game over
         if (data.status === 'finished' && state.screen !== 'home') {
           clearInterval(state._gameStartPoll);
           alert('The host ended the game.');
           goto('home');
+          return;
         }
-      } catch(e) {}
-    }, 2000);
+
+        // Game start - enter game
+        if (data.status === 'playing' && state.screen === 'waiting') {
+          await refreshPartyPlayers();
+          startPartyGame();
+          return;
+        }
+
+        if (state.screen !== 'game' && state.screen !== 'result') return;
+
+        // New round started by host
+        if (data.round && data.round !== state.round && data.current_phase === 'playing') {
+          inviteeStartRound(data);
+          return;
+        }
+
+        // Host ended round (result phase)
+        if (data.current_phase === 'result' && state.phase === 'playing') {
+          state.phase = 'result';
+          state.partyBuzzedPlayerId = null;
+          stopMic(); stopAudio();
+          setStatus('⏳ Waiting for next song…', false);
+          renderActionArea();
+          return;
+        }
+
+        // Sync buzz state and timer display while playing
+        if (state.phase === 'playing') {
+          const hostBuzz = s.buzzedBy || data.buzzed_by || null;
+          if (hostBuzz !== state.partyBuzzedPlayerId) {
+            state.partyBuzzedPlayerId = hostBuzz;
+            renderActionArea();
+          }
+          // Sync timer from host's roundStartedAt
+          if (s.roundStartedAt) {
+            const remaining = Math.max(0, 20 - Math.floor((Date.now() - s.roundStartedAt)/1000));
+            if (Math.abs(remaining - state.roundTime) > 1) {
+              state.roundTime = remaining;
+              updateTimerRing(state.roundTime, 20);
+            }
+          }
+        }
+      } catch(e) { console.warn('[poll]', e.message); }
+    }, 1000);
   }
+}
+
+function inviteeStartRound(data) {
+  const s = data.settings || {};
+  const songIdx = s.currentSongIdx ?? (data.round - 1);
+  stopMic(); stopAudio(); clearAllTimers();
+  state.round = data.round;
+  state.songIdx = songIdx;
+  state.partyBuzzedPlayerId = null;
+  state.phase = 'playing';
+  state.buzzQueue = []; state.spokenText = ''; state.skipVotes = [];
+  // Get song from prefetched list
+  const prefetched = s.prefetchedSongs;
+  state.currentSong = (prefetched && prefetched[songIdx]) ? prefetched[songIdx] : (state.songs[songIdx] || state.songs[0]);
+  state.roundTime = s.roundStartedAt ? Math.max(5, 20 - Math.floor((Date.now()-s.roundStartedAt)/1000)) : 20;
+  if (state.screen === 'result') goto('game');
+  setStatus('⏳ Loading preview…', false);
+  renderActionArea();
+  fetchAndPlaySong(state.currentSong);
 }
 
 function handleHostRoundChange(roomData) {
@@ -2565,6 +2602,12 @@ function renderWaitingRoom(skipMicBlock) {
   // Live player list
   const listEl = document.getElementById('waiting-players-list');
   if (listEl) {
+    // Only rebuild if player list content changed (prevents flashing)
+    const listHash = state.partyPlayers.map(p => (p.player_id||'')+(p.mic_ready?'1':'0')).join(',');
+    if (listEl.dataset.hash === listHash) {
+      // No change - skip rebuild
+    } else {
+    listEl.dataset.hash = listHash;
     if (state.partyPlayers.length === 0) {
       listEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--muted);font-size:13px;">Waiting for players to join…<br><span style="font-size:11px;opacity:0.6;">Share the invite link so they can join</span></div>';
     } else {
@@ -2590,6 +2633,7 @@ function renderWaitingRoom(skipMicBlock) {
         btn.addEventListener('click', () => kickPlayer(btn.dataset.pid));
       });
     }
+    } // end hash check
   }
 
   // Persistent button listener - set once
@@ -2828,21 +2872,9 @@ function startPartyGame() {
     // Host starts round 1 normally
     beginRound();
   } else {
-    // Invitee plays song 0 directly from prefetched list, synced to host's start
-    const settings = state.partyRoom?.settings || {};
-    const songIdx = settings.currentSongIdx || 0;
-    const rsa = settings.roundStartedAt;
-    state.round = 1;
-    state.songIdx = songIdx;
-    state.phase = 'playing';
-    state.partyBuzzedPlayerId = null;
-    state.currentSong = state.songs[songIdx] || state.songs[0];
-    state.roundTime = rsa ? Math.max(5, 20 - Math.floor((Date.now()-rsa)/1000)) : 20;
-    state.buzzQueue = []; state.spokenText = ''; state.skipVotes = [];
-    setStatus('⏳ Loading preview…', false);
-    renderActionArea();
-    fetchAndPlaySong(state.currentSong);
-    setTimeout(() => { if (state.phase === 'playing') tickRound(); }, 500);
+    // Invitee: play song 0 from host's setup
+    state.round = 0; // force inviteeStartRound to trigger
+    inviteeStartRound(state.partyRoom);
   }
 }
 
