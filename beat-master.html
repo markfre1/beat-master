@@ -1158,7 +1158,7 @@ function renderActionArea() { const area=document.getElementById('action-area');
     // Main buzzer
     let mainBuzzer = '';
     if (!isBuzzed) {
-      mainBuzzer = `<button class="buzzer-btn" onclick="partyBuzzIn()">
+      mainBuzzer = `<button class="buzzer-btn" data-buzz="1" onclick="partyBuzzIn()">
         <div class="bz-label">BUZZ IN</div>
         <div class="bz-sub">tap when you know it</div>
       </button>
@@ -2822,10 +2822,28 @@ function startPartyGame() {
   state.bonusPool = shuffle([...BONUS_FLAT]);
   state.nextBonusAt = 3 + Math.floor(Math.random() * 3);
   state.partyBuzzedPlayerId = null;
-  // Stop waiting room poll when game starts
   if (state._waitingPoll) { clearInterval(state._waitingPoll); state._waitingPoll = null; }
   goto('game');
-  beginRound();
+  if (state.partyIsHost) {
+    // Host starts round 1 normally
+    beginRound();
+  } else {
+    // Invitee plays song 0 directly from prefetched list, synced to host's start
+    const settings = state.partyRoom?.settings || {};
+    const songIdx = settings.currentSongIdx || 0;
+    const rsa = settings.roundStartedAt;
+    state.round = 1;
+    state.songIdx = songIdx;
+    state.phase = 'playing';
+    state.partyBuzzedPlayerId = null;
+    state.currentSong = state.songs[songIdx] || state.songs[0];
+    state.roundTime = rsa ? Math.max(5, 20 - Math.floor((Date.now()-rsa)/1000)) : 20;
+    state.buzzQueue = []; state.spokenText = ''; state.skipVotes = [];
+    setStatus('⏳ Loading preview…', false);
+    renderActionArea();
+    fetchAndPlaySong(state.currentSong);
+    setTimeout(() => { if (state.phase === 'playing') tickRound(); }, 500);
+  }
 }
 
 // ── PARTY GAME BUZZER (realtime) ──
@@ -2892,6 +2910,14 @@ function checkUrlJoinCode() {
     if (el) el.value = code
   }
 }
+
+// Global buzzer click handler (backup for inline onclick)
+document.addEventListener('click', function(e) {
+  const bz = e.target.closest('[data-buzz]');
+  if (bz && state.mode === 'party' && state.phase === 'playing' && !state.partyBuzzedPlayerId) {
+    partyBuzzIn();
+  }
+}, true);
 
 // Boot auth on load
 initAuth();
