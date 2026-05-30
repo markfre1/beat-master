@@ -1035,22 +1035,15 @@ function tickAnswer() { if(state.phase!=='answering')return; if(state.answerTime
 function handleAnswerTimeout() {
   if(state.phase!=='answering')return;
   stopMic(); clearTimeout(state.timers.answer);
-  // Party mode: answer timed out - lock out this player, resume for others
+  // Party mode: my answer timed out - locked out (one chance), others unaffected
   if (state.mode === 'party') {
     const myId = state.currentUser?.id;
     if (myId && !state.partyLockedOut.includes(myId)) state.partyLockedOut.push(myId);
     state.partyBuzzedPlayerId = null;
     state.phase = 'playing';
     state.spokenText = '';
-    const allLocked = state.players.every(p => state.partyLockedOut.includes(p.id));
-    sb.from('game_rooms').update({ current_phase:'playing',
-      settings:{...(state.partyRoom.settings||{}), buzzedBy:null}
-    }).eq('id', state.partyRoom.id);
-    if (allLocked && state.partyIsHost) {
-      endRound(null, null, state.currentSong, true);
-      return;
-    }
-    resumeAudio(); setWaveform(true);
+    try { audio.pause(); } catch(e) {}
+    setWaveform(false);
     setStatus('⏱ Time up — you are out for this song.', false);
     renderActionArea();
     if (state.partyIsHost) tickRound();
@@ -2260,8 +2253,8 @@ function subscribeToRoom(roomId) {
           // Invitee buzzed - host pauses and waits
           state.partyBuzzedPlayerId = buzzer;
           state.phase = 'answering';
-          clearTimeout(state.timers.round);
-          pauseAudio();
+          clearAllTimers();
+          try { audio.pause(); } catch(e){}
           setWaveform(false);
           const who = state.players.find(p => p.id === buzzer);
           setStatus('🔔 ' + (who?.name || 'Player') + ' buzzed in!', false);
@@ -2333,48 +2326,25 @@ function subscribeToRoom(roomId) {
           return;
         }
 
-        // Host ended round (result phase)
-        if (data.current_phase === 'result' && state.phase === 'playing') {
+        // Host signaled round won/ended - stop regardless of my phase
+        if (data.current_phase === 'result' && state.phase !== 'result') {
           state.phase = 'result';
           state.partyBuzzedPlayerId = null;
-          stopMic(); stopAudio();
-          setStatus('⏳ Waiting for next song…', false);
+          clearAllTimers(); stopMic(); stopAudio();
+          const winner = s.winnerName;
+          setStatus(winner ? ('🎯 ' + winner + ' got it!') : '⏳ Next song…', false);
           renderActionArea();
           return;
         }
 
-        // While playing: sync buzz state and timer
+        // While playing: just sync the timer from host (buzz does NOT pause others)
         if (state.phase === 'playing') {
-          const buzzer = s.buzzedBy || null;
-          if (buzzer && buzzer !== state.currentUser?.id) {
-            // Someone else (host) buzzed - invitee pauses and waits
-            state.partyBuzzedPlayerId = buzzer;
-            state.phase = 'answering';
-            clearAllTimers();
-            pauseAudio(); setWaveform(false);
-            const who = state.players.find(p => p.id === buzzer);
-            setStatus('🔔 ' + (who?.name || 'Player') + ' buzzed in!', false);
-            renderActionArea();
-          } else {
-            // Sync timer from host
-            if (s.roundStartedAt) {
-              const remaining = Math.max(0, 20 - Math.floor((Date.now() - s.roundStartedAt)/1000));
-              if (Math.abs(remaining - state.roundTime) > 1) {
-                state.roundTime = remaining;
-                updateTimerRing(state.roundTime, 20);
-              }
+          if (s.roundStartedAt) {
+            const remaining = Math.max(0, 20 - Math.floor((Date.now() - s.roundStartedAt)/1000));
+            if (Math.abs(remaining - state.roundTime) > 1) {
+              state.roundTime = remaining;
+              updateTimerRing(state.roundTime, 20);
             }
-          }
-        } else if (state.phase === 'answering' && state.partyBuzzedPlayerId !== state.currentUser?.id) {
-          // Invitee was waiting on someone else's buzz - check if it cleared
-          const buzzer = s.buzzedBy || null;
-          if (!buzzer && data.current_phase === 'playing') {
-            // Buzz cleared (wrong answer) - resume playing
-            state.partyBuzzedPlayerId = null;
-            state.phase = 'playing';
-            resumeAudio(); setWaveform(true);
-            setStatus('🎵 Song is playing — buzz in when you know it!', false);
-            renderActionArea();
           }
         }
       } catch(e) { console.warn('[poll]', e.message); }
@@ -2985,34 +2955,21 @@ function startPartyGame() {
 
 // ── PARTY GAME BUZZER (realtime) ──
 function partyBuzzIn() {
-  console.log('[partyBuzzIn] phase:', state.phase, 'buzzed:', state.partyBuzzedPlayerId, 'isHost:', state.partyIsHost);
-  if (state.phase !== 'playing') { console.log('[partyBuzzIn] blocked - not playing'); return; }
-  if (state.partyBuzzedPlayerId) { console.log('[partyBuzzIn] blocked - already buzzed'); return; }
+  if (state.phase !== 'playing') return;
+  if (state.partyBuzzedPlayerId) return;
   const myId = state.currentUser?.id;
   if (!myId || !state.partyRoom) return;
-
-  // 1) Set ALL local state SYNCHRONOUSLY first (before any await)
+  // LOCAL buzz only - pause MY audio, others keep playing
   state.partyBuzzedPlayerId = myId;
   state.phase = 'answering';
   state.roundTimeAtBuzz = state.roundTime;
   state.answerTime = 7;
   state.spokenText = '';
-  clearAllTimers();
   try { audio.pause(); } catch(e) {}
   setWaveform(false);
-  console.log('[partyBuzzIn] set answering, rendering panel');
   renderActionArea();
   startMicForAnswer();
   tickAnswer();
-
-  // 2) Then broadcast to DB (fire and forget - local state already set)
-  const s = state.partyRoom.settings || {};
-  sb.from('game_rooms').update({
-    current_phase: 'answering',
-    settings: { ...s, buzzedBy: myId, buzzTime: Date.now() }
-  }).eq('id', state.partyRoom.id).then(({error}) => {
-    if (error) console.warn('[partyBuzzIn] DB update failed:', error.message);
-  });
 }
 
 function startMicForAnswer() {
@@ -3022,7 +2979,6 @@ function startMicForAnswer() {
 
 async function submitPartyAnswer() {
   if (state.phase !== 'answering') return;
-  // Capture any typed answer from the input box
   const inp = document.getElementById('typed-answer-input');
   if (inp && inp.value) state.spokenText = inp.value;
   state.phase = 'submitting';
@@ -3031,37 +2987,44 @@ async function submitPartyAnswer() {
   const myId = state.currentUser?.id;
   const myPlayer = state.players.find(p => p.isMe);
   const result = checkAnswer(state.spokenText, state.currentSong);
-  console.log('[submitParty] text:', state.spokenText, 'song:', state.currentSong?.title, '/', state.currentSong?.artist, 'pts:', result?.pts);
 
   if (result && result.pts > 0) {
-    // CORRECT - first correct wins, round ends for everyone
+    // CORRECT - everyone stops, winner shown, then advance
     if (myPlayer) myPlayer.score += result.pts;
     if (state.partyRoom && myId) {
       sb.from('room_players').update({ score: myPlayer?.score || 0 })
         .eq('room_id', state.partyRoom.id).eq('player_id', myId).then(()=>{});
     }
     state.partyBuzzedPlayerId = null;
+    // Signal everyone: round won
     await sb.from('game_rooms').update({
       current_phase: 'result',
-      settings: { ...(state.partyRoom.settings||{}), buzzedBy: null, winnerName: myPlayer?.name || 'Someone', winnerSong: state.currentSong?.title }
+      settings: { ...(state.partyRoom.settings||{}), winnerName: myPlayer?.name || 'Player', winnerSong: state.currentSong?.title }
     }).eq('id', state.partyRoom.id);
     endRound(0, result, state.currentSong);
   } else {
-    // WRONG - resume song, this player can try again until timer ends
+    // WRONG - I'm locked out (one chance). My song stays stopped, I wait.
+    // Others are unaffected and keep playing.
+    if (myId && !state.partyLockedOut.includes(myId)) state.partyLockedOut.push(myId);
     state.partyBuzzedPlayerId = null;
     state.phase = 'playing';
     state.spokenText = '';
-    await sb.from('game_rooms').update({
-      current_phase: 'playing',
-      settings: { ...(state.partyRoom.settings||{}), buzzedBy: null }
-    }).eq('id', state.partyRoom.id);
-    resumeAudio(); setWaveform(true);
-    setStatus('❌ Not quite — buzz in to try again!', false);
+    try { audio.pause(); } catch(e) {}
+    setWaveform(false);
+    setStatus('❌ Wrong — you are out for this song.', false);
     renderActionArea();
+    // If everyone is now locked out, host ends the round
+    const allLocked = state.players.length > 0 && state.players.every(p => state.partyLockedOut.includes(p.id));
+    if (allLocked && state.partyIsHost) {
+      await sb.from('game_rooms').update({ current_phase: 'result',
+        settings: { ...(state.partyRoom.settings||{}) }
+      }).eq('id', state.partyRoom.id);
+      endRound(null, null, state.currentSong, true);
+      return;
+    }
     if (state.partyIsHost) tickRound();
   }
 }
-
 
 function renderPartyGameArea() {
   if (state.screen !== 'game') return;
