@@ -1015,6 +1015,7 @@ async function inviteePlayFromHost(song) {
 
 function tickRound() {
   if (state.phase !== 'playing') return;
+  if(state.mode==='party') console.log('[tickRound] running, phase:', state.phase, 'roundTime:', state.roundTime);
   // Invitee in party mode: timer driven by poll, not local ticker
   if (state.mode === 'party' && !state.partyIsHost) {
     return; // poll updates roundTime and display
@@ -2254,6 +2255,7 @@ function subscribeToRoom(roomId) {
       // HOST reacts to a buzz from another player (the invitee)
       if (state.partyIsHost && state.screen === 'game' && state.phase === 'playing') {
         const buzzer = ns.buzzedBy;
+        console.log('[host realtime] buzzer:', buzzer, 'me:', state.currentUser?.id, 'myBuzz:', state.partyBuzzedPlayerId);
         if (buzzer && buzzer !== state.currentUser?.id && !state.partyBuzzedPlayerId) {
           // Invitee buzzed - host pauses and waits
           state.partyBuzzedPlayerId = buzzer;
@@ -2377,6 +2379,7 @@ function subscribeToRoom(roomId) {
 }
 
 function inviteeStartRound(data) {
+  state.mode = 'party';
   const s = data.settings || {};
   const songIdx = s.currentSongIdx ?? (data.round - 1);
   stopMic(); stopAudio(); clearAllTimers();
@@ -2929,6 +2932,7 @@ function buildPartySongList() {
 }
 
 function startPartyGame() {
+  state.mode = 'party';
   // Build players array from room_players
   state.players = state.partyPlayers.map(rp => ({
     id: rp.player_id,
@@ -3011,19 +3015,19 @@ function startMicForAnswer() {
 
 async function submitPartyAnswer() {
   if (state.phase !== 'answering') return;
+  // Capture any typed answer from the input box
+  const inp = document.getElementById('typed-answer-input');
+  if (inp && inp.value) state.spokenText = inp.value;
   state.phase = 'submitting';
   stopMic();
   clearTimeout(state.timers.answer);
   const myId = state.currentUser?.id;
   const myPlayer = state.players.find(p => p.isMe);
   const result = checkAnswer(state.spokenText, state.currentSong);
-  console.log('[submitParty] spokenText:', state.spokenText, 'result:', result);
-
-  // Lock this player out - they used their one chance
-  if (myId && !state.partyLockedOut.includes(myId)) state.partyLockedOut.push(myId);
+  console.log('[submitParty] text:', state.spokenText, 'song:', state.currentSong?.title, '/', state.currentSong?.artist, 'pts:', result?.pts);
 
   if (result && result.pts > 0) {
-    // CORRECT - round ends immediately for everyone
+    // CORRECT - first correct wins, round ends for everyone
     if (myPlayer) myPlayer.score += result.pts;
     if (state.partyRoom && myId) {
       sb.from('room_players').update({ score: myPlayer?.score || 0 })
@@ -3032,29 +3036,22 @@ async function submitPartyAnswer() {
     state.partyBuzzedPlayerId = null;
     await sb.from('game_rooms').update({
       current_phase: 'result',
-      settings: { ...(state.partyRoom.settings||{}), buzzedBy: null }
+      settings: { ...(state.partyRoom.settings||{}), buzzedBy: null, winnerName: myPlayer?.name || 'Someone', winnerSong: state.currentSong?.title }
     }).eq('id', state.partyRoom.id);
     endRound(0, result, state.currentSong);
   } else {
-    // WRONG - this player locked out, song resumes for others
+    // WRONG - resume song, this player can try again until timer ends
     state.partyBuzzedPlayerId = null;
     state.phase = 'playing';
     state.spokenText = '';
-    // Check if everyone is now locked out
-    const allLocked = state.players.every(p => state.partyLockedOut.includes(p.id));
     await sb.from('game_rooms').update({
       current_phase: 'playing',
       settings: { ...(state.partyRoom.settings||{}), buzzedBy: null }
     }).eq('id', state.partyRoom.id);
-    if (allLocked && state.partyIsHost) {
-      // Everyone tried and missed - end round
-      endRound(null, null, state.currentSong, true);
-      return;
-    }
     resumeAudio(); setWaveform(true);
-    setStatus('❌ Wrong! You are out for this song.', false);
+    setStatus('❌ Not quite — buzz in to try again!', false);
     renderActionArea();
-    if (state.partyIsHost) tickRound(); // only host runs the round timer
+    if (state.partyIsHost) tickRound();
   }
 }
 
