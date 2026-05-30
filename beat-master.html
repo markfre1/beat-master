@@ -2192,12 +2192,44 @@ function subscribeToRoom(roomId) {
       event: '*', schema: 'public', table: 'game_rooms',
       filter: 'id=eq.' + roomId
     }, async (payload) => {
-      // Realtime only updates the room reference; the invitee poll drives all game logic
       state.partyRoom = payload.new;
+      const ns = payload.new?.settings || {};
+
       // Host game start signal for invitee still in waiting room
       if (!state.partyIsHost && payload.new?.status === 'playing' && state.screen === 'waiting') {
         await refreshPartyPlayers();
         startPartyGame();
+        return;
+      }
+
+      // HOST reacts to a buzz from another player (the invitee)
+      if (state.partyIsHost && state.screen === 'game' && state.phase === 'playing') {
+        const buzzer = ns.buzzedBy;
+        if (buzzer && buzzer !== state.currentUser?.id && !state.partyBuzzedPlayerId) {
+          // Invitee buzzed - host pauses and waits
+          state.partyBuzzedPlayerId = buzzer;
+          state.phase = 'answering';
+          clearTimeout(state.timers.round);
+          pauseAudio();
+          setWaveform(false);
+          const who = state.players.find(p => p.id === buzzer);
+          setStatus('🔔 ' + (who?.name || 'Player') + ' buzzed in!', false);
+          renderActionArea();
+          // Give the invitee 8 seconds to answer, then resume if no result
+          state.timers.answer = setTimeout(() => {
+            if (state.phase === 'answering' && state.partyBuzzedPlayerId === buzzer) {
+              // Invitee didn't score in time - resume
+              state.partyBuzzedPlayerId = null;
+              state.phase = 'playing';
+              sb.from('game_rooms').update({ current_phase: 'playing',
+                settings: { ...(state.partyRoom.settings||{}), buzzedBy: null }
+              }).eq('id', state.partyRoom.id);
+              resumeAudio(); setWaveform(true);
+              setStatus('🎵 Song is playing — buzz in when you know it!', false);
+              renderActionArea();
+            }
+          }, 9000);
+        }
       }
     })
     // Listen for player joins/leaves/mic updates
@@ -2256,20 +2288,38 @@ function subscribeToRoom(roomId) {
           return;
         }
 
-        // Sync buzz state and timer display while playing
+        // While playing: sync buzz state and timer
         if (state.phase === 'playing') {
-          const hostBuzz = s.buzzedBy || data.buzzed_by || null;
-          if (hostBuzz !== state.partyBuzzedPlayerId) {
-            state.partyBuzzedPlayerId = hostBuzz;
+          const buzzer = s.buzzedBy || null;
+          if (buzzer && buzzer !== state.currentUser?.id) {
+            // Someone else (host) buzzed - invitee pauses and waits
+            state.partyBuzzedPlayerId = buzzer;
+            state.phase = 'answering';
+            clearAllTimers();
+            pauseAudio(); setWaveform(false);
+            const who = state.players.find(p => p.id === buzzer);
+            setStatus('🔔 ' + (who?.name || 'Player') + ' buzzed in!', false);
             renderActionArea();
-          }
-          // Sync timer from host's roundStartedAt
-          if (s.roundStartedAt) {
-            const remaining = Math.max(0, 20 - Math.floor((Date.now() - s.roundStartedAt)/1000));
-            if (Math.abs(remaining - state.roundTime) > 1) {
-              state.roundTime = remaining;
-              updateTimerRing(state.roundTime, 20);
+          } else {
+            // Sync timer from host
+            if (s.roundStartedAt) {
+              const remaining = Math.max(0, 20 - Math.floor((Date.now() - s.roundStartedAt)/1000));
+              if (Math.abs(remaining - state.roundTime) > 1) {
+                state.roundTime = remaining;
+                updateTimerRing(state.roundTime, 20);
+              }
             }
+          }
+        } else if (state.phase === 'answering' && state.partyBuzzedPlayerId !== state.currentUser?.id) {
+          // Invitee was waiting on someone else's buzz - check if it cleared
+          const buzzer = s.buzzedBy || null;
+          if (!buzzer && data.current_phase === 'playing') {
+            // Buzz cleared (wrong answer) - resume playing
+            state.partyBuzzedPlayerId = null;
+            state.phase = 'playing';
+            resumeAudio(); setWaveform(true);
+            setStatus('🎵 Song is playing — buzz in when you know it!', false);
+            renderActionArea();
           }
         }
       } catch(e) { console.warn('[poll]', e.message); }
