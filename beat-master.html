@@ -1176,7 +1176,7 @@ function renderActionArea() { const area=document.getElementById('action-area');
     if (!isBuzzed && iAmLockedOut) {
       mainBuzzer = `<div style="text-align:center;padding:20px;color:var(--muted);font-size:15px;">✋ You are out for this song<br><span style="font-size:12px;opacity:0.7;">Wait for the next one…</span></div>`;
     } else if (!isBuzzed) {
-      mainBuzzer = `<button class="buzzer-btn" data-buzz="1">
+      mainBuzzer = `<button class="buzzer-btn" data-buzz="1" onclick="handleBuzzClick(event)" ontouchend="handleBuzzClick(event)">
         <div class="bz-label">BUZZ IN</div>
         <div class="bz-sub">tap when you know it</div>
       </button>
@@ -1232,6 +1232,7 @@ function renderActionArea() { const area=document.getElementById('action-area');
     if(state.mode==='party'){
       const iBuzzed = state.partyBuzzedPlayerId === state.currentUser?.id;
       const buzzerP = state.players.find(p=>p.id===state.partyBuzzedPlayerId);
+      console.log('[render answering] iBuzzed:', iBuzzed, 'buzzedId:', state.partyBuzzedPlayerId, 'myId:', state.currentUser?.id, 'isHost:', state.partyIsHost);
       if(iBuzzed){
         // I buzzed - show my answer panel
         const hasAnswer=!!state.spokenText;
