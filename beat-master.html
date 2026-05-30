@@ -2967,31 +2967,40 @@ function startPartyGame() {
 }
 
 // ── PARTY GAME BUZZER (realtime) ──
-async function partyBuzzIn() {
+function partyBuzzIn() {
   console.log('[partyBuzzIn] phase:', state.phase, 'buzzed:', state.partyBuzzedPlayerId, 'isHost:', state.partyIsHost);
   if (state.phase !== 'playing') { console.log('[partyBuzzIn] blocked - not playing'); return; }
   if (state.partyBuzzedPlayerId) { console.log('[partyBuzzIn] blocked - already buzzed'); return; }
   const myId = state.currentUser?.id;
   if (!myId || !state.partyRoom) return;
 
+  // 1) Set ALL local state SYNCHRONOUSLY first (before any await)
   state.partyBuzzedPlayerId = myId;
-  // Broadcast buzz via settings (buzzedBy) - reliable, no schema dependency
-  const s = state.partyRoom.settings || {};
-  const { error } = await sb.from('game_rooms').update({
-    current_phase: 'answering',
-    settings: { ...s, buzzedBy: myId, buzzTime: Date.now() }
-  }).eq('id', state.partyRoom.id);
-  if (error) console.warn('[partyBuzzIn] update failed:', error.message);
-
-  // Start local answer flow
-  clearAllTimers();
-  state.roundTimeAtBuzz = state.roundTime;
   state.phase = 'answering';
+  state.roundTimeAtBuzz = state.roundTime;
   state.answerTime = 7;
   state.spokenText = '';
+  clearAllTimers();
   try { audio.pause(); } catch(e) {}
   setWaveform(false);
-  startAnswerFor(0);
+  console.log('[partyBuzzIn] set answering, rendering panel');
+  renderActionArea();
+  startMicForAnswer();
+  tickAnswer();
+
+  // 2) Then broadcast to DB (fire and forget - local state already set)
+  const s = state.partyRoom.settings || {};
+  sb.from('game_rooms').update({
+    current_phase: 'answering',
+    settings: { ...s, buzzedBy: myId, buzzTime: Date.now() }
+  }).eq('id', state.partyRoom.id).then(({error}) => {
+    if (error) console.warn('[partyBuzzIn] DB update failed:', error.message);
+  });
+}
+
+function startMicForAnswer() {
+  // Start mic for answering, ignore errors (text fallback available)
+  try { startMic(); } catch(e) { console.warn('[mic]', e); }
 }
 
 async function submitPartyAnswer() {
