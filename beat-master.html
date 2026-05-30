@@ -721,7 +721,44 @@ function beginGame() {
   state.bonusPool=shuffle([...BONUS_FLAT]); state.nextBonusAt=3+Math.floor(Math.random()*3);
   goto('game'); beginRound();
 }
-function rematch() { state.players.forEach(p=>p.score=0); state.round=1; state.consecutiveNoScore=0; state.songsPlayed=0; state.totalSkips=0; state.gameStartTime=Date.now(); state.songs=shuffle(buildSongPool()); state.songIdx=0; state.bonusPool=shuffle([...BONUS_FLAT]); state.nextBonusAt=3+Math.floor(Math.random()*3); goto('game'); beginRound(); }
+function rematch() {
+  if (state.mode==='party') {
+    if (!state.partyIsHost) return; // only host can restart
+    // Reset scores and start a fresh party game
+    state.players.forEach(p=>p.score=0);
+    partyRematch();
+    return;
+  }
+  state.players.forEach(p=>p.score=0); state.round=1; state.consecutiveNoScore=0; state.songsPlayed=0; state.totalSkips=0; state.gameStartTime=Date.now(); state.songs=shuffle(buildSongPool()); state.songIdx=0; state.bonusPool=shuffle([...BONUS_FLAT]); state.nextBonusAt=3+Math.floor(Math.random()*3); goto('game'); beginRound();
+}
+
+async function partyRematch() {
+  if (!state.partyIsHost || !state.partyRoom) return;
+  // Reset room to waiting, then back to playing with fresh seed
+  const seed = Math.floor(Math.random() * 2147483647);
+  state.partySeed = seed;
+  const pool = buildSongPool();
+  state.songs = seededShuffle(pool, seed);
+  state.songIdx = 0;
+  // Reset DB scores
+  await sb.from('room_players').update({ score: 0 }).eq('room_id', state.partyRoom.id);
+  // Prefetch songs
+  const toFetch = state.songs.slice(0, 8);
+  const prefetched = [];
+  for (const song of toFetch) {
+    try {
+      const q = encodeURIComponent(song.searchQuery || (song.title + ' ' + song.artist));
+      const res = await fetch('https://itunes.apple.com/search?term=' + q + '&entity=song&limit=5&country=US');
+      const data = await res.json();
+      const best = (data.results || []).find(r => r.previewUrl);
+      prefetched.push({ title: song.title, artist: song.artist, year: song.year, genre: song.genre, isBonus: song.isBonus||false, previewUrl: best?best.previewUrl:null });
+    } catch(e) { prefetched.push({ title: song.title, artist: song.artist, year: song.year, previewUrl: null }); }
+  }
+  const settings = { ...(state.partyRoom.settings||{}), seed, prefetchedSongs: prefetched, currentSongIdx: 0, roundStartedAt: Date.now(), buzzedBy: null, winnerName: null };
+  await sb.from('game_rooms').update({ status:'playing', current_phase:'playing', round: 1, settings }).eq('id', state.partyRoom.id);
+  state.partyRoom.settings = settings;
+  startPartyGame();
+}
 function buildWaveform() { const wf=document.getElementById('waveform'); if(!wf)return; wf.innerHTML=''; const bars=Math.min(26,Math.floor(window.innerWidth/14)); for(let i=0;i<bars;i++){const b=document.createElement('div'); b.className='wbar'; const h=14+Math.random()*44; b.style.height=h+'px'; b.style.animationDelay=(i*0.065%0.75)+'s'; b.style.animationDuration=(0.45+(i%5)*0.09)+'s'; wf.appendChild(b);} }
 function setWaveform(playing,loading) { document.querySelectorAll('.wbar').forEach(b=>{b.classList.toggle('off',!playing&&!loading); b.classList.toggle('loading',!!loading);}); }
 function gameFooterEnd() { if(state.mode==='party' && !state.partyIsHost){ showFooterConfirm('leave-party'); return; } showFooterConfirm('end'); }
@@ -2299,15 +2336,20 @@ function subscribeToRoom(roomId) {
         state.partyRoom = data;
         const s = data.settings || {};
 
-        // Game over - show final screen
+        // Game over - show final screen (keep polling for rematch)
         if (data.status === 'finished' && state.screen !== 'home' && state.screen !== 'gameover') {
-          clearInterval(state._gameStartPoll);
-          state._gameStartPoll = null;
           clearAllTimers(); stopAudio(); stopMic();
-          // Determine winner from players by score
           const sorted = [...state.players].sort((a,b)=>b.score-a.score);
           const winner = sorted[0] && sorted[0].score>0 ? sorted[0] : null;
           showGameOver(winner);
+          return;
+        }
+        // Host started a rematch - invitee rejoins the new game
+        if (data.status === 'playing' && state.screen === 'gameover') {
+          // Reload songs from new seed and enter game
+          if (data.settings?.seed) state.partySeed = data.settings.seed;
+          await refreshPartyPlayers();
+          startPartyGame();
           return;
         }
 
