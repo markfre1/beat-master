@@ -2171,14 +2171,14 @@ async function partyBroadcastRound() {
   if (!state.partyRoom || !state.partyIsHost) return;
   const settings = state.partyRoom.settings || {};
   const now = Date.now();
-  // Update game_rooms with current round info
+  const newSettings = { ...settings, roundStartedAt: now, currentSongIdx: state.songIdx, buzzedBy: null };
   await sb.from('game_rooms').update({
     current_phase: 'playing',
     round: state.round || 1,
-    settings: { ...settings, roundStartedAt: now, currentSongIdx: state.songIdx }
+    settings: newSettings
   }).eq('id', state.partyRoom.id);
-  // Update local partyRoom
-  if (state.partyRoom.settings) state.partyRoom.settings.roundStartedAt = now;
+  // Update local partyRoom with cleared buzz
+  state.partyRoom.settings = newSettings;
 }
 
 function subscribeToRoom(roomId) {
@@ -2859,6 +2859,7 @@ async function hostStartGame() {
       prefetchedSongs: prefetched,
       currentSongIdx: 0,
       roundStartedAt: Date.now(),
+      buzzedBy: null,
     }
   }).eq('id', state.partyRoom.id);
 
@@ -2869,7 +2870,7 @@ async function hostStartGame() {
     return;
   }
   // Update local room settings
-  state.partyRoom.settings = { ...existingSettings, prefetchedSongs: prefetched, seed, roundStartedAt: Date.now(), currentSongIdx: 0 };
+  state.partyRoom.settings = { ...existingSettings, prefetchedSongs: prefetched, seed, roundStartedAt: Date.now(), currentSongIdx: 0, buzzedBy: null };
   startPartyGame();
 }
 
@@ -2939,14 +2940,14 @@ async function partyBuzzIn() {
   if (error) console.warn('[partyBuzzIn] update failed:', error.message);
 
   // Start local answer flow
-  clearTimeout(state.timers.round);
+  clearAllTimers();
   state.roundTimeAtBuzz = state.roundTime;
   state.phase = 'answering';
   state.answerTime = 7;
   state.spokenText = '';
-  pauseAudio();
+  try { audio.pause(); } catch(e) {}
   setWaveform(false);
-  startAnswerFor(0); // player 0 is always "me" in party realtime mode
+  startAnswerFor(0);
 }
 
 async function submitPartyAnswer() {
