@@ -476,7 +476,7 @@ function goto(name) { clearAllTimers(); stopAudio(); stopMic(); closeFooterConfi
         clearInterval(state._waitingPoll);
         state._waitingPoll = null;
       }
-    }, 2000);
+    }, 5000);
   } if(name==='join')prefillJoinCode(); if(name==='party-setup'){
     renderPartySetupPlayers();
     renderInvitePeopleList();
@@ -2242,9 +2242,22 @@ function subscribeToRoom(roomId) {
     .on('postgres_changes', {
       event: '*', schema: 'public', table: 'room_players',
       filter: 'room_id=eq.' + roomId
-    }, async (payload) => {
+    }, (payload) => {
       console.log('[realtime] room_players change:', payload.eventType, payload.new?.player_id);
-      await refreshPartyPlayers();
+      // Update player list directly from payload - do NOT re-query (causes hang inside realtime cb)
+      if (!state.partyPlayers) state.partyPlayers = [];
+      if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+        const np = payload.new;
+        const existing = state.partyPlayers.findIndex(p => p.player_id === np.player_id);
+        const playerObj = { ...np, profiles: { nickname: 'Player', avatar_url: null } };
+        if (existing >= 0) state.partyPlayers[existing] = { ...state.partyPlayers[existing], ...np };
+        else state.partyPlayers.push(playerObj);
+      } else if (payload.eventType === 'DELETE') {
+        state.partyPlayers = state.partyPlayers.filter(p => p.player_id !== payload.old?.player_id);
+      }
+      console.log('[realtime] player list now:', state.partyPlayers.length);
+      if (state.screen === 'waiting') renderWaitingRoom(true);
+      if (state.screen === 'party-setup') renderPartySetupPlayers();
     })
     .subscribe((status) => {
       console.log('[realtime] channel status:', status);
