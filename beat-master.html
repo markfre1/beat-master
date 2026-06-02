@@ -783,47 +783,14 @@ function renderPauseVoteScreen() { const requester=state.players[state.pauseRequ
 function castPauseVote(playerIdx,vote) { state.pauseVotes[playerIdx]=vote; renderPauseVoteScreen(); const allVoted=state.players.every((_,i)=>state.pauseVotes[i]!==undefined); if(!allVoted)return; const allAgreed=state.players.every((_,i)=>state.pauseVotes[i]==='agreed'); if(allAgreed){document.getElementById('pause-sub').textContent='All players agreed. Game is paused.'; document.getElementById('pause-vote-area').innerHTML=''; document.getElementById('pause-actions').innerHTML=`<button class="btn-primary" style="font-size:16px;padding:16px;max-width:280px;width:100%" onclick="resumeGame()">▶ Resume</button><button class="btn-secondary" style="font-size:14px;max-width:280px;width:100%" onclick="goto('home')">🏠 Quit to Home</button>`;}else{cancelPause();} }
 function cancelPause() { state.pauseVotes={}; state.pauseRequester=null; resumeGame(); }
 function resumeGame() { state.paused=false; state.pauseVotes={}; state.pauseRequester=null; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); document.getElementById('screen-game').classList.remove('hidden'); if(audio.src){audio.currentTime=state.pausedAudioTime; audio.play().catch(()=>{}); setWaveform(true,false);} state.roundTime=state.pausedTimerRemaining; updateTimerRing(state.roundTime,20); tickRound(); if(state.mode==='party')scheduleAI(); }
-const audio=document.getElementById('song-audio'); audio.volume=0.85;
+const audio=document.getElementById('song-audio'); audio.volume=0.9;
 function stopAudio() { try{audio.pause();audio.src='';}catch(e){} state.audioReady=false; state.audioLoading=false; }
 function pauseAudio() { try{audio.pause();}catch(e){} }
 function resumeAudio() { if(audio.src&&!audio.ended){audio.play().catch(()=>{});} }
 const BONUS_TYPE_LABELS = { tv:{label:'📺 TV Theme',color:'#A29BFE'}, games:{label:'🎮 Video Game Theme',color:'#00CEC9'}, popculture:{label:'🎬 Pop Culture',color:'#FFD700'} };
 function showBonusBanner(song) { const existing=document.getElementById('bonus-banner'); if(existing)existing.remove(); const typeInfo=BONUS_TYPE_LABELS[song.bonusType]||{label:'⚡ Bonus',color:'var(--neon)'}; const banner=document.createElement('div'); banner.id='bonus-banner'; banner.innerHTML=`<div class="bonus-type-tag" style="background:${typeInfo.color}20;border-color:${typeInfo.color}50;color:${typeInfo.color}">${typeInfo.label}</div><div class="bonus-title">⚡ BONUS ROUND</div><div class="bonus-sub">Name the theme — worth <b style="color:var(--neon)">5 pts</b> (double points)!</div><div class="bonus-hint">${song.hint||''}</div>`; banner.style.cssText=`position:fixed;top:0;left:0;right:0;z-index:999;background:linear-gradient(135deg,rgba(123,79,255,0.95),rgba(0,229,204,0.9));padding:18px 20px 16px;text-align:center;animation:bonusSlide 0.4s cubic-bezier(0.175,0.885,0.32,1.275);`; document.body.appendChild(banner); setTimeout(()=>{if(banner.parentNode)banner.style.opacity='0'; banner.style.transition='opacity 0.5s'; setTimeout(()=>banner.remove(),500);},3500); }
 // Detects a non-silent start offset in the audio using Web Audio API
-// Returns the offset (seconds) where sound actually begins, capped at maxScan seconds
-async function findSoundStart(audioElement, maxScan=15) {
-  try {
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    const duration = audioElement.duration || 30;
-    const scanEnd = Math.min(duration - 2, maxScan);
-    // Sample a few offsets quickly and find first one with decent volume
-    const checkPoints = [0, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-    for (const t of checkPoints) {
-      if (t >= scanEnd) break;
-      // Set position and briefly analyze
-      audioElement.currentTime = t;
-      await new Promise(r => setTimeout(r, 80)); // brief wait for seek
-      if (!audioElement.paused) {
-        // If audio is playing, check volume via analyser
-        const src = ctx.createMediaElementSource(audioElement);
-        const analyser = ctx.createAnalyser();
-        analyser.fftSize = 256;
-        src.connect(analyser);
-        analyser.connect(ctx.destination);
-        const data = new Uint8Array(analyser.frequencyBinCount);
-        analyser.getByteFrequencyData(data);
-        const avg = data.reduce((a,b)=>a+b,0)/data.length;
-        src.disconnect();
-        analyser.disconnect();
-        ctx.close();
-        if (avg > 5) return t;
-      }
-    }
-    ctx.close();
-  } catch(e) { /* Web Audio not available, fall through */ }
-  return 0;
-}
-
+function updateTimerRing(val,max) { const circ=2*Math.PI*40; const arc=document.getElementById('timer-arc'); const num=document.getElementById('timer-num'); if(!arc||!num)return; const pct=val/max; arc.style.strokeDasharray=`${pct*circ} ${circ}`; const isLow=pct<=0.3; arc.style.stroke=isLow?'var(--pink)':'var(--teal)'; num.style.color=isLow?'var(--pink)':'var(--text)'; num.textContent=val; }
 async function fetchAndPlaySong(song) {
   stopAudio();
   state.audioLoading = true;
@@ -1002,7 +969,7 @@ async function fetchAndPlaySong(song) {
     }
   }
 }
-function updateTimerRing(val,max) { const circ=2*Math.PI*40; const arc=document.getElementById('timer-arc'); const num=document.getElementById('timer-num'); if(!arc||!num)return; const pct=val/max; arc.style.strokeDasharray=`${pct*circ} ${circ}`; const isLow=pct<=0.3; arc.style.stroke=isLow?'var(--pink)':'var(--teal)'; num.style.color=isLow?'var(--pink)':'var(--text)'; num.textContent=val; }
+
 function beginRound() { if(state.mode==='party'){ state.partyBuzzedPlayerId=null; state.partyLockedOut=[]; } clearAllTimers(); const isBonusRound=state.songsPlayed===state.nextBonusAt&&state.bonusPool.length>0; if(isBonusRound){state.currentSong=state.bonusPool.shift(); state.nextBonusAt=state.songsPlayed+4+Math.floor(Math.random()*3);}else{state.currentSong=state.songs[state.songIdx%state.songs.length];} state.phase='playing'; state.buzzQueue=[]; state.buzzTimes={}; state.roundTimeAtBuzz=0; state.spokenText=''; state.micActive=false; state.skipVotes=[]; state.roundTime=20; state.answerTime=7; if(state.mode==='solo'){document.getElementById('round-tag').textContent=`SONG ${state.songsPlayed+1}/${soloSongLimit(state.targetScore)}`;}else{document.getElementById('round-tag').textContent='RND '+state.round;} updateTimerRing(20,20); updateInfoRow(); if(isBonusRound){showBonusBanner(state.currentSong); document.getElementById('screen-game').classList.add('bonus-active');}else{document.getElementById('screen-game').classList.remove('bonus-active');} setWaveform(false,true); renderActionArea();
   // Party invitee: don't fetch song - wait for host broadcast
   if (state.mode==='party' && !state.partyIsHost) {
@@ -1023,31 +990,6 @@ function beginRound() { if(state.mode==='party'){ state.partyBuzzedPlayerId=null
   if (state.mode==='party' && state.partyIsHost) {
     // Broadcast round start + song index + timestamp
     partyBroadcastRound().catch(e => console.warn('[broadcast]', e));
-  }
-}
-async function inviteePlayFromHost(song) {
-  // Play the exact same URL the host is playing
-  stopAudio();
-  if (!song.previewUrl) {
-    // Fallback to iTunes search if no URL provided
-    await fetchAndPlaySong(song);
-    setTimeout(() => { if (state.phase === 'playing') tickRound(); }, 500);
-    return;
-  }
-  try {
-    audio.src = song.previewUrl;
-    audio.volume = 0.9;
-    audio.currentTime = song.startOffset || 0;
-    await audio.play();
-    setWaveform(true, false);
-    state.audioReady = true;
-    setStatus('🎵 Song is playing — buzz in when you know it!', false);
-    renderActionArea();
-    tickRound();
-  } catch(e) {
-    console.warn('[inviteePlayFromHost] failed:', e.message, '- falling back to search');
-    await fetchAndPlaySong(song);
-    setTimeout(() => { if (state.phase === 'playing') tickRound(); }, 500);
   }
 }
 
@@ -1157,7 +1099,12 @@ function setTypedAnswer(val) { state.spokenText=(val||'').trim(); const btn=docu
 function stopMic() { state.micActive=false; if(state.recognition){try{state.recognition.stop();}catch(e){} state.recognition=null;} }
 function soloSkip() { if(state.phase!=='playing')return; clearAllTimers(); stopAudio(); state.totalSkips++; endRound(null,null,state.currentSong); }
 function partySkipVote(playerIdx) { if(state.phase!=='playing')return; if(state.skipVotes.includes(playerIdx))return; state.skipVotes.push(playerIdx); renderActionArea(); if(state.skipVotes.length>=state.players.length){clearAllTimers(); stopAudio(); endRound(null,null,state.currentSong);} }
-function endRound(playerIdx,result,song,timedOut=false) { clearAllTimers(); stopAudio(); stopMic(); state.phase='result'; const scored=result&&result.pts>0; if(scored){state.players[playerIdx].score+=result.pts; state.consecutiveNoScore=0;}else{state.consecutiveNoScore++; if(timedOut)state.totalSkips++;} showResult(playerIdx,result,song||state.currentSong,timedOut); }
+function endRound(playerIdx,result,song,timedOut=false) { clearAllTimers(); stopAudio(); stopMic(); state.phase='result'; const scored=result&&result.pts>0; if(scored){state.players[playerIdx].score+=result.pts; state.consecutiveNoScore=0;}else{state.consecutiveNoScore++; if(timedOut)state.totalSkips++;}
+  // Party host: signal invitee the round ended (so they stop and wait for next song)
+  if(state.mode==='party' && state.partyIsHost && state.partyRoom){
+    sb.from('game_rooms').update({ current_phase:'result', settings:{...(state.partyRoom.settings||{}), buzzedBy:null} }).eq('id', state.partyRoom.id).then(()=>{});
+  }
+  showResult(playerIdx,result,song||state.currentSong,timedOut); }
 function showResult(playerIdx,result,song,timedOut=false) { goto('result'); const scored=result&&result.pts>0; const skipped=playerIdx===null&&!timedOut; const isBonus=!!song.isBonus; const screen=document.getElementById('screen-result'); if(isBonus&&scored){screen.style.background='radial-gradient(ellipse 70% 60% at 50% 50%, rgba(255,215,0,0.12), transparent 70%), var(--dark)';}else{screen.style.background='';} const typeInfo=isBonus?(BONUS_TYPE_LABELS[song.bonusType]||{label:'⚡ Bonus',color:'var(--neon)'}):null; document.getElementById('res-icon').textContent=timedOut?'⏰':isBonus?(scored?'⭐':skipped?'⏰':'💀'):(skipped?'⏩':scored?'🎯':'❌'); const vEl=document.getElementById('res-verdict'); if(isBonus&&scored){vEl.textContent='BONUS!';vEl.className='result-verdict correct';vEl.style.color='#FFD700';}else if(timedOut){vEl.textContent="TIME'S UP!";vEl.className='result-verdict wrong';vEl.style.color='var(--pink)';}else{vEl.style.color='';vEl.textContent=skipped?'SKIPPED':scored?'CORRECT!':'WRONG!';vEl.className='result-verdict '+(skipped?'skip':scored?'correct':'wrong');} const who=document.getElementById('res-who'); if(isBonus){const typeLabel=typeInfo?typeInfo.label:'⚡ Bonus Round'; who.innerHTML=`<span style="background:${typeInfo?.color||'var(--neon)'}22;border:1px solid ${typeInfo?.color||'var(--neon)'}44;color:${typeInfo?.color||'var(--neon)'};padding:3px 10px;border-radius:20px;font-size:10px;letter-spacing:2px;">${typeLabel}</span>`;}else{who.textContent=(playerIdx!==null&&state.players[playerIdx])?state.players[playerIdx].avatar+' '+state.players[playerIdx].name:''; who.innerHTML=who.textContent;} let ptsMsg=''; if(result&&result.pts>0){if(isBonus){if(result.hasTitle&&result.hasArtist)ptsMsg=`+${result.pts} pts · Theme + Source! 🌟`; else if(result.hasTitle)ptsMsg=`+${result.pts} pts · Got the theme!`; else ptsMsg=`+${result.pts} pts · Got the source!`;}else{if(result.hasTitle&&result.hasArtist)ptsMsg=`+${result.pts} pts · Song + Artist! 🎉`; else if(result.hasTitle)ptsMsg=`+${result.pts} pt · Song title!`; else ptsMsg=`+${result.pts} pt · Artist!`;}}else if(!skipped){ptsMsg=isBonus?'No bonus points this round':'Wrong answer — no points';} document.getElementById('res-pts').textContent=ptsMsg; const revLabel=document.querySelector('#screen-result .rev-label'); if(isBonus){if(revLabel)revLabel.textContent='The theme was'; document.getElementById('res-song').textContent='🎵 '+song.title; document.getElementById('res-artist').innerHTML=`<span style="color:${typeInfo?.color||'var(--teal)'}">${song.artist}</span>`;}else{if(revLabel)revLabel.textContent='The song was'; document.getElementById('res-song').textContent='🎵 '+song.title; document.getElementById('res-artist').textContent=song.artist; document.getElementById('res-artist').style.color='';} document.getElementById('res-year').textContent=song.year; document.getElementById('res-scores').innerHTML=state.players.map((p,i)=>`${i>0?'<div class="mini-sep">—</div>':''}<div class="mini-score"><div class="mini-num">${p.score}</div><div class="mini-name">${p.avatar} ${p.name}</div></div>`).join('');
   if(state.mode==='solo'){state.songsPlayed++; const limit=soloSongLimit(state.targetScore); const youWon=state.players[0].score>=state.targetScore; const tooManySkips=!youWon&&state.totalSkips>=20; const outOfSongs=!youWon&&state.songsPlayed>=limit; const youLost=tooManySkips||outOfSongs; const hintEl=document.querySelector('#screen-result .next-hint'); if(youWon){if(hintEl)hintEl.textContent='🏆 You win! Calculating grade…';}else if(tooManySkips){if(hintEl)hintEl.textContent='💀 20 time-outs/skips — game over…';}else if(outOfSongs){if(hintEl)hintEl.textContent='💀 Out of songs — game over…';}else{const songsLeft=limit-state.songsPlayed; const ptsNeeded=state.targetScore-state.players[0].score; const skipsLeft=20-state.totalSkips; if(hintEl)hintEl.innerHTML=`${songsLeft} song${songsLeft!==1?'s':''} left · need ${ptsNeeded} more pt${ptsNeeded!==1?'s':''} · <span style="color:${skipsLeft<=5?'var(--pink)':'var(--muted)'}">missed: ${state.totalSkips}/20</span>`;} const resultActionsEl=document.getElementById('result-actions'); if(resultActionsEl)resultActionsEl.innerHTML=''; const delay=(youWon||youLost)?2400:3500; state.timers.next=setTimeout(()=>{if(youWon||youLost){showGameOver(youWon?state.players[0]:null);return;} state.round++; state.songIdx=(state.songIdx+1)%state.songs.length; if(state.songIdx===0)state.songs=shuffle(buildSongPool()); goto('game'); beginRound();},delay);}else{const winner=state.players.find(p=>p.score>=state.targetScore); const allLose=state.consecutiveNoScore>=10; const hintEl=document.querySelector('#screen-result .next-hint'); if(hintEl)hintEl.textContent=winner||allLose?'':'Next song loading...'; const resultActionsEl=document.getElementById('result-actions'); if(resultActionsEl)resultActionsEl.innerHTML=''; const delay=(winner||allLose)?2800:3500; state.timers.next=setTimeout(()=>{if(winner||allLose){showGameOver(winner);return;}
   // Party invitee: don't advance locally - wait for host broadcast
