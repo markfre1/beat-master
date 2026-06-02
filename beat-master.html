@@ -2091,32 +2091,44 @@ async function refreshPartyPlayers() {
   }
   try {
     console.log('[refresh] fetching room_players for room:', state.partyRoom.id, 'isHost:', state.partyIsHost);
-    // Simple query first - no joins to avoid schema cache issues
     const { data, error } = await sb.from('room_players')
       .select('*')
       .eq('room_id', state.partyRoom.id)
       .order('joined_at');
     if (error) {
-      console.error('[refresh] error:', error.message);
+      console.error('[refresh] room_players error:', error.message);
       return;
     }
-    // Fetch profiles separately for each player
-    const playerIds = (data||[]).map(p => p.player_id);
-    let profileMap = {};
-    if (playerIds.length > 0) {
-      const { data: profiles } = await sb.from('profiles')
-        .select('id, nickname, avatar_url')
-        .in('id', playerIds);
-      (profiles||[]).forEach(p => { profileMap[p.id] = p; });
-    }
-    // Merge profiles into player data
+    console.log('[refresh] got', (data||[]).length, 'players');
+    // Set players immediately from room_players (do NOT let profile lookup block this)
     state.partyPlayers = (data||[]).map(p => ({
       ...p,
-      profiles: profileMap[p.player_id] || { nickname: 'Player', avatar_url: null }
+      profiles: { nickname: 'Player', avatar_url: null }
     }));
-    console.log('[refresh] got', state.partyPlayers.length, 'players');
+    // Render right away with what we have
     if (state.screen === 'waiting') renderWaitingRoom(true);
     if (state.screen === 'party-setup') renderPartySetupPlayers();
+    // Then try to enrich with profiles - failure here must NOT break anything
+    try {
+      const playerIds = (data||[]).map(p => p.player_id);
+      if (playerIds.length > 0) {
+        const { data: profiles } = await sb.from('profiles')
+          .select('id, nickname, avatar_url')
+          .in('id', playerIds);
+        if (profiles && profiles.length) {
+          const profileMap = {};
+          profiles.forEach(p => { profileMap[p.id] = p; });
+          state.partyPlayers = state.partyPlayers.map(p => ({
+            ...p,
+            profiles: profileMap[p.player_id] || p.profiles
+          }));
+          if (state.screen === 'waiting') renderWaitingRoom(true);
+          if (state.screen === 'party-setup') renderPartySetupPlayers();
+        }
+      }
+    } catch(profErr) {
+      console.warn('[refresh] profile enrich failed (non-fatal):', profErr.message);
+    }
   } catch(e) {
     console.error('[refresh] exception:', e.message);
   }
