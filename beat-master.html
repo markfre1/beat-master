@@ -1065,7 +1065,7 @@ function tickRound() {
     tickRound();
   }, 1000);
 }
-function scheduleAI() { const rates={easy:0.42,normal:0.70,legend:0.90}; const minT={easy:12,normal:7,legend:3}; const maxT={easy:26,normal:19,legend:9}; if(Math.random()>(rates[state.difficulty]||0.70))return; const delay=(minT[state.difficulty]+Math.random()*(maxT[state.difficulty]-minT[state.difficulty]))*1000; state.timers.ai=setTimeout(()=>{if(state.phase!=='playing')return; const aiIdx=state.players.findIndex(p=>p.avatar==='🤖'); if(aiIdx===-1)return; clearTimeout(state.timers.round); state.roundTimeAtBuzz=state.roundTime; state.buzzQueue=[aiIdx]; state.phase='answering'; pauseAudio(); setWaveform(false); setStatus('🤖 AI buzzed in!',false); renderActionArea(); state.timers.aianswer=setTimeout(()=>{const pts=state.currentSong.isBonus?5:3; endRound(aiIdx,{hasTitle:true,hasArtist:true,pts},state.currentSong);},1800);},delay); }
+function scheduleAI() { if(state.mode==='party') return; const rates={easy:0.42,normal:0.70,legend:0.90}; const minT={easy:12,normal:7,legend:3}; const maxT={easy:26,normal:19,legend:9}; if(Math.random()>(rates[state.difficulty]||0.70))return; const delay=(minT[state.difficulty]+Math.random()*(maxT[state.difficulty]-minT[state.difficulty]))*1000; state.timers.ai=setTimeout(()=>{if(state.phase!=='playing')return; const aiIdx=state.players.findIndex(p=>p.avatar==='🤖'); if(aiIdx===-1)return; clearTimeout(state.timers.round); state.roundTimeAtBuzz=state.roundTime; state.buzzQueue=[aiIdx]; state.phase='answering'; pauseAudio(); setWaveform(false); setStatus('🤖 AI buzzed in!',false); renderActionArea(); state.timers.aianswer=setTimeout(()=>{const pts=state.currentSong.isBonus?5:3; endRound(aiIdx,{hasTitle:true,hasArtist:true,pts},state.currentSong);},1800);},delay); }
 function playerBuzz(playerIdx) { if(playerIdx===undefined)playerIdx=0; if(state.phase!=='playing')return; if(state.buzzQueue.includes(playerIdx))return; state.buzzTimes[playerIdx]=Date.now(); state.buzzQueue.push(playerIdx); if(state.buzzQueue.length===1){clearTimeout(state.timers.round); clearTimeout(state.timers.ai); state.roundTimeAtBuzz=state.roundTime; state.phase='answering'; state.answerTime=7; state.spokenText=''; pauseAudio(); setWaveform(false); startAnswerFor(playerIdx);}else{renderActionArea();} }
 function startAnswerFor(playerIdx) { state.answerTime=7; state.spokenText=''; state._finalTranscript=''; stopMic(); const p=state.players[playerIdx]; setStatus(`🎙️ ${p?p.avatar+' '+p.name:'You'} — speak your answer now!`,true); renderActionArea(); startMic(); tickAnswer(); }
 function tickAnswer() { if(state.phase!=='answering')return; if(state.answerTime<=0){if(state.phase==='answering')handleAnswerTimeout();return;} state.timers.answer=setTimeout(()=>{if(state.phase!=='answering')return; state.answerTime--; renderActionArea(); tickAnswer();},1000); }
@@ -1204,28 +1204,14 @@ function renderActionArea() { const area=document.getElementById('action-area');
 
     // Main buzzer - hidden if someone buzzed OR I'm locked out
     let mainBuzzer = '';
-    if (!isBuzzed && iAmLockedOut) {
+    if (iAmLockedOut) {
       mainBuzzer = `<div style="text-align:center;padding:20px;color:var(--muted);font-size:15px;">✋ You are out for this song<br><span style="font-size:12px;opacity:0.7;">Wait for the next one…</span></div>`;
-    } else if (!isBuzzed) {
+    } else {
       mainBuzzer = `<button class="buzzer-btn" data-buzz="1" onclick="handleBuzzClick(event)" ontouchend="handleBuzzClick(event)">
         <div class="bz-label">BUZZ IN</div>
         <div class="bz-sub">tap when you know it</div>
       </button>
       <div class="buzz-hint">🎙️ Buzz in first — then speak the song title + artist</div>`;
-    } else if (iMeBuzzed) {
-      mainBuzzer = `<button class="buzzer-btn teal" disabled>
-        <div class="bz-label">YOU BUZZED!</div>
-        <div class="bz-sub">speak your answer</div>
-      </button>`;
-    } else {
-      mainBuzzer = `<button class="buzzer-btn" disabled style="opacity:0.3;">
-        <div class="bz-label">BUZZ IN</div>
-        <div class="bz-sub">waiting…</div>
-      </button>
-      <div style="text-align:center;padding:8px 0;">
-        <div style="font-size:13px;font-weight:700;color:var(--neon);">${buzzedPlayer?.name || 'A player'} buzzed in!</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">Waiting for their answer… <span id="party-wait-timer" style="color:var(--pink);font-weight:700;">${state.answerTime}s</span></div>
-      </div>`;
     }
 
     // Small player cards
@@ -1272,12 +1258,9 @@ function renderActionArea() { const area=document.getElementById('action-area');
           '<div style="font-size:14px;color:var(--muted);">🎙️ Speak or type the song + artist</div>'+
           (state.spokenText?'<div style="font-size:16px;color:var(--text);background:var(--dark3);padding:10px 16px;border-radius:10px;max-width:90%;">'+state.spokenText+'</div>':'')+
           '<input id="typed-answer-input" type="text" placeholder="Type your answer…" value="'+(state.spokenText||'')+'" oninput="state.spokenText=this.value;" style="width:90%;max-width:300px;padding:12px;border-radius:10px;border:1px solid var(--border);background:var(--dark3);color:var(--text);font-size:15px;text-align:center;" />'+
-          '<button class="submit-answer-btn" style="background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px 32px;font-size:16px;font-weight:800;'+(hasAnswer?'':'opacity:0.4;')+'" onclick="submitPartyAnswer()" '+(hasAnswer?'':'disabled')+'>✓ Submit</button>'+
+          '<button class="submit-answer-btn" style="background:var(--accent);color:#fff;border:none;border-radius:12px;padding:14px 32px;font-size:16px;font-weight:800;" onclick="submitPartyAnswer()">✓ Submit</button>'+
           '</div>';
         requestAnimationFrame(()=>{const inp=document.getElementById('typed-answer-input'); if(inp&&document.activeElement!==inp&&!state.spokenText)inp.focus();});
-      } else {
-        // Someone else buzzed - show waiting
-        area.innerHTML='<div style="display:flex;flex-direction:column;align-items:center;gap:14px;"><div style="font-size:48px;">🔔</div><div style="font-size:20px;font-weight:800;color:var(--accent);">'+(buzzerP?buzzerP.avatar+' '+buzzerP.name:'Someone')+' buzzed in!</div><div style="font-size:13px;color:var(--muted);">Waiting for their answer…</div></div>';
       }
       return;
     }
@@ -2252,7 +2235,7 @@ async function partyBroadcastRound() {
   if (!state.partyRoom || !state.partyIsHost) return;
   const settings = state.partyRoom.settings || {};
   const now = Date.now();
-  const newSettings = { ...settings, roundStartedAt: now, currentSongIdx: state.songIdx, buzzedBy: null };
+  const newSettings = { ...settings, roundStartedAt: now, currentSongIdx: state.songIdx, buzzedBy: null, winnerName: null };
   await sb.from('game_rooms').update({
     current_phase: 'playing',
     round: state.round || 1,
@@ -2283,33 +2266,16 @@ function subscribeToRoom(roomId) {
         return;
       }
 
-      // HOST reacts to a buzz from another player (the invitee)
-      if (state.partyIsHost && state.screen === 'game' && state.phase === 'playing') {
-        const buzzer = ns.buzzedBy;
-        if (buzzer && buzzer !== state.currentUser?.id && !state.partyBuzzedPlayerId) {
-          // Invitee buzzed - host pauses and waits
-          state.partyBuzzedPlayerId = buzzer;
-          state.phase = 'answering';
-          clearAllTimers();
-          try { audio.pause(); } catch(e){}
-          setWaveform(false);
-          const who = state.players.find(p => p.id === buzzer);
-          setStatus('🔔 ' + (who?.name || 'Player') + ' buzzed in!', false);
-          renderActionArea();
-          // Give the invitee 8 seconds to answer, then resume if no result
-          state.timers.answer = setTimeout(() => {
-            if (state.phase === 'answering' && state.partyBuzzedPlayerId === buzzer) {
-              // Invitee didn't score in time - resume
-              state.partyBuzzedPlayerId = null;
-              state.phase = 'playing';
-              sb.from('game_rooms').update({ current_phase: 'playing',
-                settings: { ...(state.partyRoom.settings||{}), buzzedBy: null }
-              }).eq('id', state.partyRoom.id);
-              resumeAudio(); setWaveform(true);
-              setStatus('🎵 Song is playing — buzz in when you know it!', false);
-              renderActionArea();
-            }
-          }, 9000);
+      // Buzz is local-only. But if a player won (current_phase='result'), everyone stops.
+      if (state.partyIsHost && state.screen === 'game' && state.phase !== 'result' && payload.new?.current_phase === 'result') {
+        const winner = ns.winnerName;
+        if (winner) {
+          state.phase = 'result';
+          state.partyBuzzedPlayerId = null;
+          clearAllTimers(); try{audio.pause();}catch(e){} setWaveform(false);
+          setStatus('🎯 ' + winner + ' got it!', false);
+          // Find the winning player and credit handled by their own device; host just advances
+          endRound(null, {pts:0}, state.currentSong);
         }
       }
     })
@@ -2413,29 +2379,6 @@ function inviteeStartRound(data) {
   setStatus('⏳ Loading preview…', false);
   renderActionArea();
   fetchAndPlaySong(state.currentSong);
-}
-
-function handleHostRoundChange(roomData) {
-  const newRound = roomData.round;
-  const newPhase = roomData.current_phase;
-  const rsa = roomData.settings?.roundStartedAt;
-  const songIdx = roomData.settings?.currentSongIdx ?? (newRound - 1);
-  if (newRound && newRound !== state.round && newPhase === 'playing') {
-    stopMic();
-    state.round = newRound;
-    state.songIdx = songIdx;
-    state.partyBuzzedPlayerId = null;
-    state.phase = 'playing';
-    const prefetched = roomData.settings?.prefetchedSongs;
-    state.currentSong = (prefetched && prefetched[songIdx]) ? prefetched[songIdx] : (state.songs[songIdx] || state.songs[0]);
-    state.roundTime = rsa ? Math.max(5, 20 - Math.floor((Date.now() - rsa) / 1000)) : 20;
-    clearAllTimers(); stopAudio();
-    if (state.screen === 'result') goto('game');
-    setStatus('⏳ Loading preview…', false);
-    renderActionArea();
-    fetchAndPlaySong(state.currentSong);
-    setTimeout(() => { if (state.phase === 'playing') tickRound(); }, 500);
-  }
 }
 
 
