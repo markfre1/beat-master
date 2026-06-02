@@ -783,7 +783,7 @@ function renderPauseVoteScreen() { const requester=state.players[state.pauseRequ
 function castPauseVote(playerIdx,vote) { state.pauseVotes[playerIdx]=vote; renderPauseVoteScreen(); const allVoted=state.players.every((_,i)=>state.pauseVotes[i]!==undefined); if(!allVoted)return; const allAgreed=state.players.every((_,i)=>state.pauseVotes[i]==='agreed'); if(allAgreed){document.getElementById('pause-sub').textContent='All players agreed. Game is paused.'; document.getElementById('pause-vote-area').innerHTML=''; document.getElementById('pause-actions').innerHTML=`<button class="btn-primary" style="font-size:16px;padding:16px;max-width:280px;width:100%" onclick="resumeGame()">▶ Resume</button><button class="btn-secondary" style="font-size:14px;max-width:280px;width:100%" onclick="goto('home')">🏠 Quit to Home</button>`;}else{cancelPause();} }
 function cancelPause() { state.pauseVotes={}; state.pauseRequester=null; resumeGame(); }
 function resumeGame() { state.paused=false; state.pauseVotes={}; state.pauseRequester=null; document.querySelectorAll('.screen').forEach(s=>s.classList.add('hidden')); document.getElementById('screen-game').classList.remove('hidden'); if(audio.src){audio.currentTime=state.pausedAudioTime; audio.play().catch(()=>{}); setWaveform(true,false);} state.roundTime=state.pausedTimerRemaining; updateTimerRing(state.roundTime,20); tickRound(); if(state.mode==='party')scheduleAI(); }
-const audio=document.getElementById('song-audio'); audio.volume=0.9;
+const audio=document.getElementById('song-audio'); audio.volume=1.0;
 function stopAudio() { try{audio.pause();audio.src='';}catch(e){} state.audioReady=false; state.audioLoading=false; }
 function pauseAudio() { try{audio.pause();}catch(e){} }
 function resumeAudio() { if(audio.src&&!audio.ended){audio.play().catch(()=>{});} }
@@ -802,7 +802,7 @@ async function fetchAndPlaySong(song) {
     try {
       audio.crossOrigin = 'anonymous';
       audio.src = song.previewUrl;
-      audio.volume = 0.9;
+      audio.volume = 1.0;
       await new Promise((resolve, reject) => {
         const onReady = () => { audio.removeEventListener('canplaythrough', onReady); audio.removeEventListener('error', onErr); resolve(); };
         const onErr = (e) => { audio.removeEventListener('canplaythrough', onReady); audio.removeEventListener('error', onErr); reject(e); };
@@ -811,7 +811,7 @@ async function fetchAndPlaySong(song) {
         audio.load();
       });
       if (state.phase !== 'playing') return;
-      audio.currentTime = (song.isBonus ? 0 : 8);
+      audio.currentTime = 0; // start at beginning - avoids mobile volume jump
       state.audioReady = true;
       state.audioLoading = false;
       await audio.play();
@@ -868,7 +868,7 @@ async function fetchAndPlaySong(song) {
     if (best && best.previewUrl && state.phase === 'playing') {
       audio.crossOrigin = 'anonymous';
       audio.src = best.previewUrl;
-      audio.volume = 0.9;
+      audio.volume = 1.0;
 
       await new Promise((resolve, reject) => {
         const onReady = () => {
